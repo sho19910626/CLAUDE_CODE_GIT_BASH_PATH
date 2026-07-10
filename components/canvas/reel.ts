@@ -21,6 +21,11 @@ export const REEL_H = 1920;
 export const SCENE_MS = 2800;
 const FPS = 30;
 
+export interface ReelBackground {
+  image?: HTMLImageElement | null;
+  video?: HTMLVideoElement | null;
+}
+
 export class ReelPlayer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -29,12 +34,13 @@ export class ReelPlayer {
   private rafId: number | null = null;
   private startTime = 0;
   private bgImage: HTMLImageElement | null;
+  private bgVideo: HTMLVideoElement | null;
 
   constructor(
     canvas: HTMLCanvasElement,
     brand: BrandProfile,
     reel: ReelPlan,
-    bgImage?: HTMLImageElement | null
+    bg?: ReelBackground | null
   ) {
     canvas.width = REEL_W;
     canvas.height = REEL_H;
@@ -42,7 +48,8 @@ export class ReelPlayer {
     this.ctx = canvas.getContext("2d")!;
     this.brand = brand;
     this.reel = reel;
-    this.bgImage = bgImage ?? null;
+    this.bgImage = bg?.image ?? null;
+    this.bgVideo = bg?.video ?? null;
   }
 
   get durationMs(): number {
@@ -53,6 +60,10 @@ export class ReelPlayer {
   play(): void {
     this.stop();
     this.startTime = performance.now();
+    if (this.bgVideo) {
+      this.bgVideo.currentTime = 0;
+      void this.bgVideo.play().catch(() => {});
+    }
     const loop = (now: number) => {
       const t = (now - this.startTime) % this.durationMs;
       this.drawFrame(t);
@@ -66,6 +77,7 @@ export class ReelPlayer {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.bgVideo?.pause();
   }
 
   /** 1周ぶんを録画して WebM Blob を返す */
@@ -94,6 +106,10 @@ export class ReelPlayer {
         resolve(new Blob(chunks, { type: "video/webm" }));
       };
 
+      if (this.bgVideo) {
+        this.bgVideo.currentTime = 0;
+        void this.bgVideo.play().catch(() => {});
+      }
       const start = performance.now();
       recorder.start(250);
       const loop = (now: number) => {
@@ -123,7 +139,19 @@ export class ReelPlayer {
     const c = brand.colorPalette;
 
     let text: string;
-    if (this.bgImage) {
+    if (this.bgVideo && this.bgVideo.readyState >= 2) {
+      // --- 背景: アップロードされた実写動画 ---
+      drawImageCover(ctx, this.bgVideo, 0, 0, REEL_W, REEL_H);
+      const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);
+      scrim.addColorStop(0, "rgba(0,0,0,0.5)");
+      scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");
+      scrim.addColorStop(1, "rgba(0,0,0,0.62)");
+      ctx.fillStyle = scrim;
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+      ctx.fillStyle = rgba(scene.type === "cta" ? c.accent : c.primary, 0.12);
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+      text = "#ffffff";
+    } else if (this.bgImage) {
       // --- 背景: AI生成写真 + Ken Burns(ゆっくりズーム) ---
       const progress = timeMs / this.durationMs;
       const zoom = 1.06 + 0.12 * progress;

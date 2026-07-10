@@ -87,4 +87,6 @@ export interface GenerateRequest {
   url: string;
   brandDescription: string;
   message: string;
+  /** アップロードされた参考写真 (dataURL, 最大3枚)。Claudeが視覚分析に使う */
+  images?: string[];
 }

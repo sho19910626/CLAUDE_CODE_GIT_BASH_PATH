@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "リクエストの形式が不正です" }, { status: 400 });
   }
 
-  const { url = "", brandDescription = "", message = "" } = body;
+  const { url = "", brandDescription = "", message = "", images = [] } = body;
   if (!brandDescription.trim() && !url.trim()) {
     return NextResponse.json(
       { error: "企業HPのURLまたは企業イメージのいずれかを入力してください" },
@@ -74,10 +74,30 @@ export async function POST(req: NextRequest) {
     "",
     message.trim() && `## 画像・動画に必ず盛り込みたい文言・訴求内容(発注者の入力)\n${message.trim()}`,
     "",
+    images.length > 0 &&
+      "## 添付写真について\n添付されているのは、この企業の実際の商品・店舗・サービスの写真です。写真の被写体・色調・質感・世界観を分析し、配色(colorPalette)・コピー・imagePrompt に反映してください。imagePrompt は写真と並べても違和感のない、同じトーンの背景を描写すること。",
+    "",
     "発注者の入力した文言は、意図を保ったままフィード画像・ストーリー・リールの各コピーに反映してください。",
   ]
     .filter(Boolean)
     .join("\n");
+
+  // アップロード写真 (dataURL) を vision 用の画像ブロックに変換
+  const imageBlocks = images
+    .slice(0, 3)
+    .map((dataUrl) => {
+      const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(dataUrl);
+      if (!m) return null;
+      return {
+        type: "image" as const,
+        source: {
+          type: "base64" as const,
+          media_type: m[1] as "image/png" | "image/jpeg" | "image/webp" | "image/gif",
+          data: m[2],
+        },
+      };
+    })
+    .filter((b): b is NonNullable<typeof b> => b !== null);
 
   try {
     const client = new Anthropic();
@@ -86,7 +106,12 @@ export async function POST(req: NextRequest) {
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userPrompt }],
+      messages: [
+        {
+          role: "user",
+          content: [...imageBlocks, { type: "text" as const, text: userPrompt }],
+        },
+      ],
       output_config: {
         format: {
           type: "json_schema",

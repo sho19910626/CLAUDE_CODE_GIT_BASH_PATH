@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { prompt?: string; aspect?: string };
+  let body: { prompt?: string; aspect?: string; reference?: string };
   try {
     body = await req.json();
   } catch {
@@ -38,22 +38,50 @@ export async function POST(req: NextRequest) {
   const size = body.aspect === "vertical" ? "1024x1536" : "1024x1024";
   const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
 
+  // 参考写真がある場合は images/edits (参考画像ベースの生成) を使う
+  const refMatch = body.reference
+    ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(body.reference)
+    : null;
+
   try {
-    const res = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        prompt: `${prompt}\n\n${PROMPT_SUFFIX}`,
-        size,
-        quality: "high",
-        n: 1,
-      }),
-      signal: AbortSignal.timeout(180_000),
-    });
+    let res: Response;
+    if (refMatch) {
+      const form = new FormData();
+      form.append("model", model);
+      form.append(
+        "prompt",
+        `Using the attached photo as the subject and style reference, create a new professional background image that keeps the same subject, color tone and mood. ${prompt}\n\n${PROMPT_SUFFIX}`
+      );
+      form.append("size", size);
+      form.append("quality", "high");
+      form.append(
+        "image",
+        new Blob([Buffer.from(refMatch[2], "base64")], { type: refMatch[1] }),
+        "reference." + refMatch[1].split("/")[1]
+      );
+      res = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+        signal: AbortSignal.timeout(180_000),
+      });
+    } else {
+      res = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          prompt: `${prompt}\n\n${PROMPT_SUFFIX}`,
+          size,
+          quality: "high",
+          n: 1,
+        }),
+        signal: AbortSignal.timeout(180_000),
+      });
+    }
 
     const data = await res.json().catch(() => ({}));
 

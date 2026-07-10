@@ -30,8 +30,8 @@ const STORY_TEMPLATES: { id: StoryTemplate; label: string }[] = [
   { id: "story-frame", label: "フレーム" },
 ];
 
-/** AI背景画像の取得・キャッシュを管理するフック */
-function useBackgrounds(plan: ContentPlan | null) {
+/** AI背景画像の取得・キャッシュを管理するフック(reference: 参考写真のdataURL) */
+function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
   const [images, setImages] = useState<Partial<Record<Aspect, string>>>({});
   const [loading, setLoading] = useState<Partial<Record<Aspect, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +52,11 @@ function useBackgrounds(plan: ContentPlan | null) {
         const res = await fetch("/api/background", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: plan.imagePrompt, aspect }),
+          body: JSON.stringify({
+            prompt: plan.imagePrompt,
+            aspect,
+            reference: reference ?? undefined,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
@@ -63,13 +67,25 @@ function useBackgrounds(plan: ContentPlan | null) {
         setLoading((s) => ({ ...s, [aspect]: false }));
       }
     },
-    [plan, images, loading]
+    [plan, images, loading, reference]
   );
 
   return { images, loading, error, fetchBackground };
 }
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
+
+/** 写真を縮小してdataURL(JPEG)に変換(API送信量とCanvas描画負荷を抑える) */
+async function fileToDataUrl(file: File, maxDim = 1400): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.85);
+}
 
 export default function Generator() {
   const [url, setUrl] = useState("");
@@ -79,7 +95,34 @@ export default function Generator() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<ContentPlan | null>(null);
   const [tab, setTab] = useState<Tab>("feed");
-  const backgrounds = useBackgrounds(plan);
+  const [refImages, setRefImages] = useState<string[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const backgrounds = useBackgrounds(plan, refImages[0] ?? null);
+
+  const addImages = useCallback(
+    async (files: FileList | null) => {
+      if (!files) return;
+      const remaining = 3 - refImages.length;
+      const targets = Array.from(files).slice(0, remaining);
+      try {
+        const dataUrls = await Promise.all(targets.map((f) => fileToDataUrl(f)));
+        setRefImages((prev) => [...prev, ...dataUrls].slice(0, 3));
+      } catch {
+        setError("写真の読み込みに失敗しました。JPEGまたはPNGをお試しください。");
+      }
+    },
+    [refImages.length]
+  );
+
+  const addVideo = useCallback(
+    (files: FileList | null) => {
+      const file = files?.[0];
+      if (!file) return;
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      setVideoUrl(URL.createObjectURL(file));
+    },
+    [videoUrl]
+  );
 
   const generate = useCallback(async () => {
     setLoading(true);
@@ -88,7 +131,7 @@ export default function Generator() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, brandDescription, message }),
+        body: JSON.stringify({ url, brandDescription, message, images: refImages }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -101,7 +144,7 @@ export default function Generator() {
     } finally {
       setLoading(false);
     }
-  }, [url, brandDescription, message]);
+  }, [url, brandDescription, message, refImages]);
 
   return (
     <div className="container">
@@ -154,6 +197,76 @@ export default function Generator() {
               rows={4}
             />
           </div>
+          <div className="field">
+            <label>
+              参考写真・動画
+              <span className="hint">任意: 商品・店舗などの実素材</span>
+            </label>
+            <div className="upload-row">
+              <label className="btn btn-ghost btn-small">
+                📷 写真を追加 ({refImages.length}/3)
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  disabled={loading || refImages.length >= 3}
+                  onChange={(e) => {
+                    addImages(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <label className="btn btn-ghost btn-small">
+                🎥 動画を追加
+                <input
+                  type="file"
+                  accept="video/*"
+                  hidden
+                  disabled={loading}
+                  onChange={(e) => {
+                    addVideo(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            {(refImages.length > 0 || videoUrl) && (
+              <div className="thumbs">
+                {refImages.map((src, i) => (
+                  <div key={i} className="thumb">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`参考写真${i + 1}`} />
+                    <button
+                      type="button"
+                      onClick={() => setRefImages((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      ×
+                    </button>
+                    {i === 0 && <span className="thumb-badge">背景に使用</span>}
+                  </div>
+                ))}
+                {videoUrl && (
+                  <div className="thumb">
+                    <video src={videoUrl} muted playsInline />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(videoUrl);
+                        setVideoUrl(null);
+                      }}
+                    >
+                      ×
+                    </button>
+                    <span className="thumb-badge">リール背景</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="upload-hint">
+              写真はAIが分析してコピー・配色・背景に反映します。動画はリールの背景に使えます(サーバーには送信されません)。
+            </p>
+          </div>
           <button className="btn btn-primary" onClick={generate} disabled={loading}>
             {loading ? "生成中..." : "コンテンツを生成する"}
           </button>
@@ -197,9 +310,28 @@ export default function Generator() {
                   リール動画
                 </button>
               </div>
-              {tab === "feed" && <FeedPanel plan={plan} backgrounds={backgrounds} />}
-              {tab === "story" && <StoryPanel plan={plan} backgrounds={backgrounds} />}
-              {tab === "reel" && <ReelPanel plan={plan} backgrounds={backgrounds} />}
+              {tab === "feed" && (
+                <FeedPanel
+                  plan={plan}
+                  backgrounds={backgrounds}
+                  uploadRef={refImages[0] ?? null}
+                />
+              )}
+              {tab === "story" && (
+                <StoryPanel
+                  plan={plan}
+                  backgrounds={backgrounds}
+                  uploadRef={refImages[0] ?? null}
+                />
+              )}
+              {tab === "reel" && (
+                <ReelPanel
+                  plan={plan}
+                  backgrounds={backgrounds}
+                  uploadRef={refImages[0] ?? null}
+                  videoUrl={videoUrl}
+                />
+              )}
             </>
           )}
         </div>
@@ -286,32 +418,78 @@ function CaptionCard({
   );
 }
 
+/** photoテンプレートの背景ソースを決めるフック(アップ写真 / AI生成 の切替) */
+function usePhotoSource(
+  backgrounds: Backgrounds,
+  aspect: Aspect,
+  uploadRef: string | null,
+  active: boolean
+) {
+  const [choice, setChoice] = useState<"upload" | "ai">(uploadRef ? "upload" : "ai");
+  const aiSrc = backgrounds.images[aspect];
+  const src = choice === "upload" && uploadRef ? uploadRef : aiSrc ?? uploadRef;
+
+  // AIを選んでいて未生成なら取得
+  useEffect(() => {
+    if (active && (choice === "ai" || !uploadRef) && !aiSrc) {
+      backgrounds.fetchBackground(aspect);
+    }
+  }, [active, choice, uploadRef, aiSrc, backgrounds, aspect]);
+
+  return { choice, setChoice, src, loading: backgrounds.loading[aspect] };
+}
+
+/** 背景ソース切替ピル(アップ写真がある場合のみ表示) */
+function PhotoSourcePills({
+  uploadRef,
+  choice,
+  setChoice,
+}: {
+  uploadRef: string | null;
+  choice: "upload" | "ai";
+  setChoice: (c: "upload" | "ai") => void;
+}) {
+  if (!uploadRef) return null;
+  return (
+    <div className="template-row">
+      <button
+        className={`template-pill ${choice === "upload" ? "active" : ""}`}
+        onClick={() => setChoice("upload")}
+      >
+        📷 アップした写真
+      </button>
+      <button
+        className={`template-pill ${choice === "ai" ? "active" : ""}`}
+        onClick={() => setChoice("ai")}
+      >
+        ✨ 写真を参考にAI生成
+      </button>
+    </div>
+  );
+}
+
 function FeedPanel({
   plan,
   backgrounds,
+  uploadRef,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
+  uploadRef: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<FeedTemplate>(plan.feed.template);
   const [slideIndex, setSlideIndex] = useState(0);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  const bgSrc = backgrounds.images.square;
-  const bgLoading = backgrounds.loading.square;
+  const photo = usePhotoSource(backgrounds, "square", uploadRef, template === "photo");
+  const bgSrc = photo.src;
+  const bgLoading = photo.loading;
   const total = plan.feed.slides.length;
 
   useEffect(() => {
     setTemplate(plan.feed.template);
     setSlideIndex(0);
   }, [plan]);
-
-  // AI写真テンプレート選択時に背景を取得
-  useEffect(() => {
-    if (template === "photo" && !bgSrc) {
-      backgrounds.fetchBackground("square");
-    }
-  }, [template, bgSrc, backgrounds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -375,6 +553,9 @@ function FeedPanel({
             </button>
           ))}
         </div>
+        {template === "photo" && (
+          <PhotoSourcePills uploadRef={uploadRef} choice={photo.choice} setChoice={photo.setChoice} />
+        )}
         <canvas ref={canvasRef} />
         <div className="slide-nav">
           <button
@@ -441,24 +622,26 @@ function FeedPanel({
 function StoryPanel({
   plan,
   backgrounds,
+  uploadRef,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
+  uploadRef: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<StoryTemplate>(plan.story.template);
-  const bgSrc = backgrounds.images.vertical;
-  const bgLoading = backgrounds.loading.vertical;
+  const photo = usePhotoSource(
+    backgrounds,
+    "vertical",
+    uploadRef,
+    template === "story-photo"
+  );
+  const bgSrc = photo.src;
+  const bgLoading = photo.loading;
 
   useEffect(() => {
     setTemplate(plan.story.template);
   }, [plan]);
-
-  useEffect(() => {
-    if (template === "story-photo" && !bgSrc) {
-      backgrounds.fetchBackground("vertical");
-    }
-  }, [template, bgSrc, backgrounds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -488,6 +671,9 @@ function StoryPanel({
             </button>
           ))}
         </div>
+        {template === "story-photo" && (
+          <PhotoSourcePills uploadRef={uploadRef} choice={photo.choice} setChoice={photo.setChoice} />
+        )}
         <canvas ref={canvasRef} />
         {template === "story-photo" && bgLoading && (
           <p className="note">
@@ -520,36 +706,62 @@ function StoryPanel({
   );
 }
 
+type ReelBgMode = "gradient" | "ai" | "photo" | "video";
+
 function ReelPanel({
   plan,
   backgrounds,
+  uploadRef,
+  videoUrl,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
+  uploadRef: string | null;
+  videoUrl: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<ReelPlayer | null>(null);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
-  const [useAiBg, setUseAiBg] = useState(false);
+  const [bgMode, setBgMode] = useState<ReelBgMode>(
+    videoUrl ? "video" : uploadRef ? "photo" : "gradient"
+  );
   const bgSrc = backgrounds.images.vertical;
   const bgLoading = backgrounds.loading.vertical;
 
   useEffect(() => {
-    if (useAiBg && !bgSrc) {
+    if (bgMode === "ai" && !bgSrc) {
       backgrounds.fetchBackground("vertical");
     }
-  }, [useAiBg, bgSrc, backgrounds]);
+  }, [bgMode, bgSrc, backgrounds]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       await ensureFonts();
-      const img = useAiBg && bgSrc ? await loadImage(bgSrc) : null;
+      let img: HTMLImageElement | null = null;
+      if (bgMode === "ai" && bgSrc) img = await loadImage(bgSrc);
+      if (bgMode === "photo" && uploadRef) img = await loadImage(uploadRef);
+      const video = bgMode === "video" && videoUrl ? videoRef.current : null;
+      if (video) {
+        video.muted = true;
+        video.loop = true;
+        if (video.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            const onReady = () => resolve();
+            video.addEventListener("loadeddata", onReady, { once: true });
+            video.addEventListener("error", onReady, { once: true });
+          });
+        }
+      }
       if (cancelled || !canvasRef.current) return;
       playerRef.current?.stop();
-      const player = new ReelPlayer(canvasRef.current, plan.brand, plan.reel, img);
+      const player = new ReelPlayer(canvasRef.current, plan.brand, plan.reel, {
+        image: img,
+        video,
+      });
       playerRef.current = player;
       player.play();
     })();
@@ -558,7 +770,7 @@ function ReelPanel({
       playerRef.current?.stop();
       playerRef.current = null;
     };
-  }, [plan, useAiBg, bgSrc]);
+  }, [plan, bgMode, bgSrc, uploadRef, videoUrl]);
 
   const record = useCallback(async () => {
     const player = playerRef.current;
@@ -588,25 +800,44 @@ function ReelPanel({
       <div className="preview-card vertical">
         <div className="template-row">
           <button
-            className={`template-pill ${!useAiBg ? "active" : ""}`}
-            onClick={() => setUseAiBg(false)}
+            className={`template-pill ${bgMode === "gradient" ? "active" : ""}`}
+            onClick={() => setBgMode("gradient")}
           >
-            グラデーション背景
+            グラデーション
           </button>
           <button
-            className={`template-pill ${useAiBg ? "active" : ""}`}
-            onClick={() => setUseAiBg(true)}
+            className={`template-pill ${bgMode === "ai" ? "active" : ""}`}
+            onClick={() => setBgMode("ai")}
           >
-            ✨ AI写真背景
+            ✨ AI写真
           </button>
+          {uploadRef && (
+            <button
+              className={`template-pill ${bgMode === "photo" ? "active" : ""}`}
+              onClick={() => setBgMode("photo")}
+            >
+              📷 アップ写真
+            </button>
+          )}
+          {videoUrl && (
+            <button
+              className={`template-pill ${bgMode === "video" ? "active" : ""}`}
+              onClick={() => setBgMode("video")}
+            >
+              🎥 アップ動画
+            </button>
+          )}
         </div>
+        {videoUrl && (
+          <video ref={videoRef} src={videoUrl} muted playsInline loop hidden />
+        )}
         <canvas ref={canvasRef} />
-        {useAiBg && bgLoading && (
+        {bgMode === "ai" && bgLoading && (
           <p className="note">
             <span className="spinner" /> AI背景画像を生成中です(20秒〜1分ほど)...
           </p>
         )}
-        {useAiBg && backgrounds.error && (
+        {bgMode === "ai" && backgrounds.error && (
           <div className="error-box">{backgrounds.error}</div>
         )}
         <div className="preview-actions">

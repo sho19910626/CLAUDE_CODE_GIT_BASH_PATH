@@ -130,21 +130,24 @@ export function roundRect(
   ctx.closePath();
 }
 
-/** 画像をアスペクト比を保ったまま領域いっぱいに描画 (CSSのobject-fit: cover相当) */
+/** 画像/動画をアスペクト比を保ったまま領域いっぱいに描画 (CSSのobject-fit: cover相当) */
 export function drawImageCover(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  media: HTMLImageElement | HTMLVideoElement,
   x: number,
   y: number,
   w: number,
   h: number
 ): void {
-  const scale = Math.max(w / img.width, h / img.height);
+  const mw = media instanceof HTMLVideoElement ? media.videoWidth : media.width;
+  const mh = media instanceof HTMLVideoElement ? media.videoHeight : media.height;
+  if (!mw || !mh) return;
+  const scale = Math.max(w / mw, h / mh);
   const sw = w / scale;
   const sh = h / scale;
-  const sx = (img.width - sw) / 2;
-  const sy = (img.height - sh) / 2;
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  const sx = (mw - sw) / 2;
+  const sy = (mh - sh) / 2;
+  ctx.drawImage(media, sx, sy, sw, sh, x, y, w, h);
 }
 
 /** data URL から HTMLImageElement を読み込む */
