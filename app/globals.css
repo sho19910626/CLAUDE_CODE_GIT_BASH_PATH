@@ -363,6 +363,15 @@ body {
   color: var(--text);
 }
 
+.slide-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .record-progress {
   height: 8px;
   background: var(--bg-panel-2);

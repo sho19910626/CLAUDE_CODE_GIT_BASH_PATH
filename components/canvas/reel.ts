@@ -9,6 +9,7 @@ import {
   drawLines,
   easeInOutCubic,
   easeOutCubic,
+  headlineWeightFor,
   readableOn,
   rgba,
   roundRect,
@@ -211,7 +212,7 @@ export class ReelPlayer {
     }
 
     // タイトル本体
-    const weight = brand.fontStyle === "mincho" ? 600 : 900;
+    const weight = headlineWeightFor(brand.fontStyle);
     const titleSize = scene.type === "hook" ? 116 : 104;
     ctx.globalAlpha = sceneAlpha * titleT;
     ctx.fillStyle = text;

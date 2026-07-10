@@ -7,7 +7,7 @@ import type {
   StoryTemplate,
 } from "@/lib/types";
 import { ensureFonts, loadImage } from "./canvas/helpers";
-import { renderFeed } from "./canvas/renderFeed";
+import { renderFeedSlide } from "./canvas/renderFeed";
 import { renderStory } from "./canvas/renderStory";
 import { ReelPlayer } from "./canvas/reel";
 
@@ -295,11 +295,15 @@ function FeedPanel({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<FeedTemplate>(plan.feed.template);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const bgSrc = backgrounds.images.square;
   const bgLoading = backgrounds.loading.square;
+  const total = plan.feed.slides.length;
 
   useEffect(() => {
     setTemplate(plan.feed.template);
+    setSlideIndex(0);
   }, [plan]);
 
   // AI写真テンプレート選択時に背景を取得
@@ -315,12 +319,47 @@ function FeedPanel({
       await ensureFonts();
       const img = template === "photo" && bgSrc ? await loadImage(bgSrc) : null;
       if (cancelled || !canvasRef.current) return;
-      renderFeed(canvasRef.current, plan.brand, { ...plan.feed, template }, img);
+      renderFeedSlide(
+        canvasRef.current,
+        plan.brand,
+        { ...plan.feed, template },
+        slideIndex,
+        img
+      );
     })();
     return () => {
       cancelled = true;
     };
-  }, [plan, template, bgSrc]);
+  }, [plan, template, bgSrc, slideIndex]);
+
+  const downloadAll = useCallback(async () => {
+    if (downloadingAll) return;
+    setDownloadingAll(true);
+    try {
+      await ensureFonts();
+      const img = template === "photo" && bgSrc ? await loadImage(bgSrc) : null;
+      const tmp = document.createElement("canvas");
+      for (let i = 0; i < total; i++) {
+        renderFeedSlide(tmp, plan.brand, { ...plan.feed, template }, i, img);
+        await new Promise<void>((resolve) => {
+          tmp.toBlob((blob) => {
+            if (blob) {
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = `feed_${String(i + 1).padStart(2, "0")}.png`;
+              a.click();
+              URL.revokeObjectURL(a.href);
+            }
+            resolve();
+          }, "image/png");
+        });
+        // ブラウザの連続ダウンロード制限を避けるため少し間隔を空ける
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
+  }, [downloadingAll, template, bgSrc, plan, total]);
 
   return (
     <div className="result-grid">
@@ -337,6 +376,32 @@ function FeedPanel({
           ))}
         </div>
         <canvas ref={canvasRef} />
+        <div className="slide-nav">
+          <button
+            className="btn btn-ghost btn-small"
+            onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
+            disabled={slideIndex === 0}
+          >
+            ← 前
+          </button>
+          {plan.feed.slides.map((s, i) => (
+            <button
+              key={i}
+              className={`template-pill ${slideIndex === i ? "active" : ""}`}
+              onClick={() => setSlideIndex(i)}
+              title={s.role === "cover" ? "表紙" : s.role === "cta" ? "CTA" : "中面"}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button
+            className="btn btn-ghost btn-small"
+            onClick={() => setSlideIndex((i) => Math.min(total - 1, i + 1))}
+            disabled={slideIndex === total - 1}
+          >
+            次 →
+          </button>
+        </div>
         {template === "photo" && bgLoading && (
           <p className="note">
             <span className="spinner" /> AI背景画像を生成中です(20秒〜1分ほど)...
@@ -349,12 +414,22 @@ function FeedPanel({
           <button
             className="btn btn-ghost"
             onClick={() =>
-              canvasRef.current && downloadCanvas(canvasRef.current, "feed_1080x1080.png")
+              canvasRef.current &&
+              downloadCanvas(
+                canvasRef.current,
+                `feed_${String(slideIndex + 1).padStart(2, "0")}.png`
+              )
             }
           >
-            ⬇ PNGをダウンロード (1080×1080)
+            ⬇ この1枚を保存
+          </button>
+          <button className="btn btn-ghost" onClick={downloadAll} disabled={downloadingAll}>
+            {downloadingAll ? "保存中..." : `⬇ 全${total}枚を一括保存`}
           </button>
         </div>
+        <p className="note">
+          1080×1350 (4:5)。一括保存はブラウザが複数ダウンロードの許可を求めることがあります。
+        </p>
       </div>
       <div>
         <CaptionCard caption={plan.feed.caption} hashtags={plan.feed.hashtags} />

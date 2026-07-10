@@ -40,13 +40,33 @@ export const PLAN_SCHEMA = {
       properties: {
         template: {
           type: "string",
-          enum: ["minimal", "bold", "gradient", "split", "badge"],
-          description: "minimal=余白重視の上品, bold=大胆なタイポグラフィ, gradient=グラデーション, split=上下分割, badge=中央バッジ型"
+          enum: ["photo", "minimal", "bold", "gradient", "split", "badge"],
+          description: "photo=AI写真背景(最もリッチ・推奨), minimal=余白重視の上品, bold=大胆なタイポグラフィ, gradient=グラデーション, split=上下分割, badge=中央バッジ型"
         },
-        eyebrow: { type: "string", description: "ヘッドライン上の小さなラベル(10文字以内)" },
-        headline: { type: "string", description: "メインコピー。最重要。改行は\\nで指定可。1行10文字以内×最大3行" },
-        subheadline: { type: "string", description: "サブコピー(25文字以内)" },
-        body: { type: "string", description: "補足テキスト(40文字以内)" },
+        slides: {
+          type: "array",
+          description: "カルーセル投稿のスライド構成。必ず4〜5枚: 1枚目 role=cover(表紙)、2〜4枚目 role=content(価値提供)、最後 role=cta(行動喚起)。表紙で止めて→中面で納得させ→最後に行動させるストーリー設計にする",
+          items: {
+            type: "object",
+            properties: {
+              role: { type: "string", enum: ["cover", "content", "cta"] },
+              eyebrow: {
+                type: "string",
+                description: "cover: 興味を引く小ラベル(12文字以内)。content: 「POINT 1」「その2」など連番ラベル。cta: ボタンに入れる行動文言(10文字以内、例: 詳細はプロフへ)"
+              },
+              headline: {
+                type: "string",
+                description: "スライドのメインコピー。改行は\\n。1行9文字以内×最大3行。coverは思わず指が止まるパワーワード(数字・疑問形・意外性)"
+              },
+              body: {
+                type: "string",
+                description: "cover: サブコピー(20文字以内)。content: 具体的な説明文(50〜80文字、数字や固有名詞を入れる)。cta: 後押しの一文(30文字以内)"
+              }
+            },
+            required: ["role", "eyebrow", "headline", "body"],
+            additionalProperties: false
+          }
+        },
         caption: { type: "string", description: "投稿キャプション。冒頭1行のフック→価値提供→CTAの構成。適度に絵文字と改行を使用。300〜500文字" },
         hashtags: {
           type: "array",
@@ -54,7 +74,7 @@ export const PLAN_SCHEMA = {
           description: "#付きハッシュタグ。ビッグ・ミドル・スモールワードを混ぜて10〜15個"
         }
       },
-      required: ["template", "eyebrow", "headline", "subheadline", "body", "caption", "hashtags"],
+      required: ["template", "slides", "caption", "hashtags"],
       additionalProperties: false
     },
     story: {

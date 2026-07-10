@@ -3,25 +3,44 @@
 import type { FontStyle } from "@/lib/types";
 
 export const FONT_FAMILIES: Record<FontStyle, string> = {
-  gothic: `"Noto Sans JP", sans-serif`,
-  mincho: `"Noto Serif JP", serif`,
-  rounded: `"M PLUS Rounded 1c", sans-serif`,
+  gothic: `"Zen Kaku Gothic New", "Noto Sans JP", sans-serif`,
+  mincho: `"Shippori Mincho B1", "Noto Serif JP", serif`,
+  rounded: `"Zen Maru Gothic", "M PLUS Rounded 1c", sans-serif`,
 };
+
+/** 見出しに使うウェイト(書体ごとに最適値が異なる) */
+export function headlineWeightFor(fontStyle: FontStyle): number {
+  return fontStyle === "mincho" ? 800 : 900;
+}
 
 /** Google Fonts の読み込み完了を待つ(Canvas描画前に必須) */
 export async function ensureFonts(): Promise<void> {
   if (typeof document === "undefined") return;
   const probes = [
-    `900 40px "Noto Sans JP"`,
-    `700 40px "Noto Sans JP"`,
-    `400 40px "Noto Sans JP"`,
-    `900 40px "Noto Serif JP"`,
-    `600 40px "Noto Serif JP"`,
-    `800 40px "M PLUS Rounded 1c"`,
-    `500 40px "M PLUS Rounded 1c"`,
+    `900 40px "Zen Kaku Gothic New"`,
+    `700 40px "Zen Kaku Gothic New"`,
+    `500 40px "Zen Kaku Gothic New"`,
+    `400 40px "Zen Kaku Gothic New"`,
+    `800 40px "Shippori Mincho B1"`,
+    `600 40px "Shippori Mincho B1"`,
+    `400 40px "Shippori Mincho B1"`,
+    `900 40px "Zen Maru Gothic"`,
+    `700 40px "Zen Maru Gothic"`,
+    `400 40px "Zen Maru Gothic"`,
   ];
   await Promise.all(probes.map((f) => document.fonts.load(f, "あA1")));
   await document.fonts.ready;
+}
+
+/**
+ * 字間(トラッキング)を設定する。対応ブラウザのみ有効(Chrome/Edge)。
+ * 日本語の見出しは字間を少し詰め、ラベルは開くと洗練されて見える。
+ */
+export function setTracking(ctx: CanvasRenderingContext2D, px: number): void {
+  const c = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+  if ("letterSpacing" in c) {
+    c.letterSpacing = `${px}px`;
+  }
 }
 
 /**

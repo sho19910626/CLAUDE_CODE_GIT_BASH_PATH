@@ -26,12 +26,21 @@ export type FeedTemplate =
   | "badge"
   | "photo";
 
-export interface FeedPlan {
-  template: FeedTemplate;
+export type FeedSlideRole = "cover" | "content" | "cta";
+
+export interface FeedSlide {
+  role: FeedSlideRole;
+  /** cover: 小ラベル / content: "POINT 1" 等 / cta: ボタン文言 */
   eyebrow: string;
   headline: string;
-  subheadline: string;
+  /** cover: サブコピー / content: 具体的な説明文 / cta: 後押しの一文 */
   body: string;
+}
+
+export interface FeedPlan {
+  template: FeedTemplate;
+  /** 4〜5枚のカルーセル構成 (cover → content×2-3 → cta) */
+  slides: FeedSlide[];
   caption: string;
   hashtags: string[];
 }

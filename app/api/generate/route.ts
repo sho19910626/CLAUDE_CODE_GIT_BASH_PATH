@@ -16,7 +16,16 @@ const SYSTEM_PROMPT = `あなたは大手企業のSNS運用を数多く手がけ
 - キャプションは「冒頭1行で興味を引く→価値・具体的な情報→行動喚起(CTA)」の構成。改行と絵文字を適度に使い読みやすくする
 - ハッシュタグは検索ボリュームの大きいビッグワード・ミドルワード・ニッチなスモールワードをバランスよく混ぜる
 - リールは冒頭1〜2秒で離脱を防ぐフックから始め、テンポよく価値を提示し、最後に明確なCTAで締める
-- 文字数制限は厳守する(はみ出すとデザインが崩れるため)`;
+- 文字数制限は厳守する(はみ出すとデザインが崩れるため)
+
+コピーライティングの品質基準(最重要):
+- 一流の広告コピーライターの水準で書く。ありきたりな宣伝文句は禁止
+- 具体的な数字・固有名詞・事実を必ず入れる(例:「創業32年」「リピート率92%」「24時間以内に返信」)。入力情報に数字がなければ、業種特有の具体的なベネフィットで代替する
+- 「魅力」「こだわり」「想い」「豊富な」「安心・安全」などの抽象語・常套句を使わない。読み手が絵を思い浮かべられる言葉を選ぶ
+- 企業目線の自慢ではなく、読み手の悩み・欲求から書き始める(「〜でお困りではありませんか」ではなく、悩みの情景を切り取る)
+- 表紙(cover)のヘッドラインは、スクロール中の指が止まるフック: 意外性のある数字、核心を突く疑問、断定的な言い切りのいずれかを使う
+- content スライドは1枚につき1メッセージ。headline で結論、body でその根拠や具体例を書く
+- 体言止めや短文でリズムを作る。ひらがな・カタカナ・漢字のバランスで読みやすくする`;
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -99,6 +108,16 @@ export async function POST(req: NextRequest) {
     }
 
     const plan: ContentPlan = JSON.parse(textBlock.text);
+
+    // カルーセル構成の保険(構造化出力で保証されない枚数の検証)
+    if (!Array.isArray(plan.feed?.slides) || plan.feed.slides.length < 2) {
+      return NextResponse.json(
+        { error: "生成結果が不完全でした。もう一度お試しください。" },
+        { status: 502 }
+      );
+    }
+    plan.feed.slides = plan.feed.slides.slice(0, 5);
+
     return NextResponse.json({ plan, siteFetched: site?.ok ?? false });
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) {

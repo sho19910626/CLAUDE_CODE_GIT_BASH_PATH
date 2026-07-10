@@ -5,6 +5,7 @@ import {
   FONT_FAMILIES,
   drawImageCover,
   drawLines,
+  headlineWeightFor,
   readableOn,
   rgba,
   roundRect,
@@ -52,7 +53,7 @@ function font(brand: BrandProfile, weight: number, size: number): string {
 }
 
 function headlineWeight(brand: BrandProfile): number {
-  return brand.fontStyle === "mincho" ? 600 : 900;
+  return headlineWeightFor(brand.fontStyle);
 }
 
 /** 共通: CTAボタン */
