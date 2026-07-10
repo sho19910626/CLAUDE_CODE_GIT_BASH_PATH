@@ -4,6 +4,7 @@
 import type { BrandProfile, FeedPlan } from "@/lib/types";
 import {
   FONT_FAMILIES,
+  drawImageCover,
   drawLines,
   readableOn,
   rgba,
@@ -16,14 +17,20 @@ export const FEED_SIZE = 1080;
 export function renderFeed(
   canvas: HTMLCanvasElement,
   brand: BrandProfile,
-  feed: FeedPlan
+  feed: FeedPlan,
+  bgImage?: HTMLImageElement | null
 ): void {
   canvas.width = FEED_SIZE;
   canvas.height = FEED_SIZE;
   const ctx = canvas.getContext("2d")!;
   ctx.textBaseline = "alphabetic";
 
-  switch (feed.template) {
+  if (feed.template === "photo" && bgImage) {
+    renderPhoto(ctx, brand, feed, bgImage);
+    return;
+  }
+
+  switch (feed.template === "photo" ? "gradient" : feed.template) {
     case "bold":
       renderBold(ctx, brand, feed);
       break;
@@ -51,6 +58,79 @@ function font(brand: BrandProfile, weight: number, size: number): string {
 
 function headlineWeight(brand: BrandProfile): number {
   return brand.fontStyle === "mincho" ? 600 : 900;
+}
+
+/** AI生成写真を背景に使うテンプレート */
+function renderPhoto(
+  ctx: CanvasRenderingContext2D,
+  brand: BrandProfile,
+  feed: FeedPlan,
+  img: HTMLImageElement
+): void {
+  const { colorPalette: c } = brand;
+
+  drawImageCover(ctx, img, 0, 0, S, S);
+
+  // 可読性のためのスクリム(下部を濃く、上部をうっすら)
+  const scrim = ctx.createLinearGradient(0, 0, 0, S);
+  scrim.addColorStop(0, "rgba(0,0,0,0.38)");
+  scrim.addColorStop(0.35, "rgba(0,0,0,0.10)");
+  scrim.addColorStop(0.62, "rgba(0,0,0,0.30)");
+  scrim.addColorStop(1, "rgba(0,0,0,0.72)");
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, S, S);
+
+  // ブランドカラーの薄いトーンを重ねて世界観を揃える
+  ctx.fillStyle = rgba(c.primary, 0.1);
+  ctx.fillRect(0, 0, S, S);
+
+  ctx.textAlign = "center";
+
+  // ブランド名(上部)
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = font(brand, 700, 32);
+  ctx.fillText(brand.name, S / 2, 120);
+  ctx.fillStyle = rgba(c.accent, 0.95);
+  ctx.fillRect(S / 2 - 30, 145, 60, 4);
+
+  // 下端基準でレイアウト(はみ出し防止)
+  const headlineSize = 92;
+  const lineHeight = 120;
+  const subLineHeight = 52;
+
+  ctx.font = font(brand, 400, 36);
+  const subLines = wrapText(ctx, feed.subheadline, S - 240);
+  ctx.font = font(brand, headlineWeight(brand), headlineSize);
+  const lines = wrapText(ctx, feed.headline, S - 200);
+
+  const subStartY = S - 100 - (subLines.length - 1) * subLineHeight;
+  const headlineStartY = subStartY - subLineHeight - 30 - (lines.length - 1) * lineHeight;
+  const eyebrowBaseY = headlineStartY - headlineSize - 50;
+
+  // アイブロウ(タグ)
+  ctx.font = font(brand, 700, 32);
+  const ew = ctx.measureText(feed.eyebrow).width;
+  ctx.fillStyle = rgba(c.accent, 0.95);
+  roundRect(ctx, S / 2 - ew / 2 - 32, eyebrowBaseY - 43, ew + 64, 62, 31);
+  ctx.fill();
+  ctx.fillStyle = readableOn(c.accent);
+  ctx.fillText(feed.eyebrow, S / 2, eyebrowBaseY);
+
+  // ヘッドライン
+  ctx.fillStyle = "#ffffff";
+  ctx.font = font(brand, headlineWeight(brand), headlineSize);
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 6;
+  drawLines(ctx, lines, S / 2, headlineStartY, lineHeight);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // サブヘッドライン
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = font(brand, 400, 36);
+  drawLines(ctx, subLines, S / 2, subStartY, subLineHeight);
 }
 
 /** 余白を活かした上品なテンプレート */

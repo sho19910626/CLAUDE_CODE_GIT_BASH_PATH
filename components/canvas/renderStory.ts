@@ -3,6 +3,7 @@
 import type { BrandProfile, StoryPlan } from "@/lib/types";
 import {
   FONT_FAMILIES,
+  drawImageCover,
   drawLines,
   readableOn,
   rgba,
@@ -16,14 +17,20 @@ export const STORY_H = 1920;
 export function renderStory(
   canvas: HTMLCanvasElement,
   brand: BrandProfile,
-  story: StoryPlan
+  story: StoryPlan,
+  bgImage?: HTMLImageElement | null
 ): void {
   canvas.width = STORY_W;
   canvas.height = STORY_H;
   const ctx = canvas.getContext("2d")!;
   ctx.textBaseline = "alphabetic";
 
-  switch (story.template) {
+  if (story.template === "story-photo" && bgImage) {
+    renderStoryPhoto(ctx, brand, story, bgImage);
+    return;
+  }
+
+  switch (story.template === "story-photo" ? "story-gradient" : story.template) {
     case "story-minimal":
       renderStoryMinimal(ctx, brand, story);
       break;
@@ -73,6 +80,84 @@ function drawCta(
 
   // 「タップ」を促す矢印
   ctx.fillStyle = rgba(readableOn(c.accent) === "#ffffff" ? "#ffffff" : "#1a1a1a", 0.0);
+}
+
+/** AI生成写真を背景に使うストーリーテンプレート */
+function renderStoryPhoto(
+  ctx: CanvasRenderingContext2D,
+  brand: BrandProfile,
+  story: StoryPlan,
+  img: HTMLImageElement
+): void {
+  const { colorPalette: c } = brand;
+
+  drawImageCover(ctx, img, 0, 0, W, H);
+
+  // スクリム
+  const scrim = ctx.createLinearGradient(0, 0, 0, H);
+  scrim.addColorStop(0, "rgba(0,0,0,0.45)");
+  scrim.addColorStop(0.32, "rgba(0,0,0,0.10)");
+  scrim.addColorStop(0.6, "rgba(0,0,0,0.32)");
+  scrim.addColorStop(1, "rgba(0,0,0,0.72)");
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = rgba(c.primary, 0.08);
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+
+  // ブランド名
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = font(brand, 700, 40);
+  ctx.fillText(brand.name, W / 2, 220);
+  ctx.fillStyle = rgba(c.accent, 0.95);
+  ctx.fillRect(W / 2 - 34, 250, 68, 5);
+
+  // CTA位置を基準に下端アンカーでレイアウト(重なり防止)
+  const ctaY = H - 420;
+  const headlineSize = 106;
+  const lineHeight = 142;
+  const subLineHeight = 64;
+
+  ctx.font = font(brand, 400, 44);
+  const subLines = wrapText(ctx, story.subheadline, W - 240);
+  ctx.font = font(brand, headlineWeight(brand), headlineSize);
+  const lines = wrapText(ctx, story.headline, W - 200);
+
+  const subStartY = ctaY - 80 - (subLines.length - 1) * subLineHeight;
+  const headlineStartY = subStartY - subLineHeight - 40 - (lines.length - 1) * lineHeight;
+  const eyebrowBaseY = headlineStartY - headlineSize - 60;
+
+  // アイブロウ
+  ctx.font = font(brand, 700, 40);
+  const ew = ctx.measureText(story.eyebrow).width;
+  ctx.fillStyle = rgba(c.accent, 0.95);
+  roundRect(ctx, W / 2 - ew / 2 - 40, eyebrowBaseY - 54, ew + 80, 78, 39);
+  ctx.fill();
+  ctx.fillStyle = readableOn(c.accent);
+  ctx.fillText(story.eyebrow, W / 2, eyebrowBaseY);
+
+  // ヘッドライン
+  ctx.fillStyle = "#ffffff";
+  ctx.font = font(brand, headlineWeight(brand), headlineSize);
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 8;
+  drawLines(ctx, lines, W / 2, headlineStartY, lineHeight);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // サブヘッドライン
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = font(brand, 400, 44);
+  drawLines(ctx, subLines, W / 2, subStartY, subLineHeight);
+
+  drawCta(ctx, brand, story.cta, ctaY);
+
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.font = font(brand, 400, 32);
+  ctx.fillText("▲", W / 2, H - 160);
 }
 
 function renderStoryGradient(

@@ -5,6 +5,7 @@ import type { BrandProfile, ReelPlan, ReelScene } from "@/lib/types";
 import {
   FONT_FAMILIES,
   clamp01,
+  drawImageCover,
   drawLines,
   easeInOutCubic,
   easeOutCubic,
@@ -26,14 +27,21 @@ export class ReelPlayer {
   private reel: ReelPlan;
   private rafId: number | null = null;
   private startTime = 0;
+  private bgImage: HTMLImageElement | null;
 
-  constructor(canvas: HTMLCanvasElement, brand: BrandProfile, reel: ReelPlan) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    brand: BrandProfile,
+    reel: ReelPlan,
+    bgImage?: HTMLImageElement | null
+  ) {
     canvas.width = REEL_W;
     canvas.height = REEL_H;
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.brand = brand;
     this.reel = reel;
+    this.bgImage = bgImage ?? null;
   }
 
   get durationMs(): number {
@@ -113,39 +121,63 @@ export class ReelPlayer {
     const scene = scenes[idx];
     const c = brand.colorPalette;
 
-    // --- 背景: ゆっくり回転するグラデーション ---
-    const angle = (timeMs / this.durationMs) * Math.PI * 0.6 + idx * 0.4;
-    const cx = REEL_W / 2;
-    const cy = REEL_H / 2;
-    const r = Math.max(REEL_W, REEL_H);
-    const g = ctx.createLinearGradient(
-      cx - Math.cos(angle) * r,
-      cy - Math.sin(angle) * r,
-      cx + Math.cos(angle) * r,
-      cy + Math.sin(angle) * r
-    );
-    if (scene.type === "cta") {
-      g.addColorStop(0, c.accent);
-      g.addColorStop(1, c.primary);
+    let text: string;
+    if (this.bgImage) {
+      // --- 背景: AI生成写真 + Ken Burns(ゆっくりズーム) ---
+      const progress = timeMs / this.durationMs;
+      const zoom = 1.06 + 0.12 * progress;
+      ctx.save();
+      ctx.translate(REEL_W / 2, REEL_H / 2);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-REEL_W / 2, -REEL_H / 2 - progress * 40);
+      drawImageCover(ctx, this.bgImage, 0, 0, REEL_W, REEL_H);
+      ctx.restore();
+
+      // 可読性のためのスクリム + ブランドトーン
+      const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);
+      scrim.addColorStop(0, "rgba(0,0,0,0.5)");
+      scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");
+      scrim.addColorStop(1, "rgba(0,0,0,0.62)");
+      ctx.fillStyle = scrim;
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+      ctx.fillStyle = rgba(scene.type === "cta" ? c.accent : c.primary, 0.14);
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+      text = "#ffffff";
     } else {
-      g.addColorStop(0, c.primary);
-      g.addColorStop(1, c.secondary);
+      // --- 背景: ゆっくり回転するグラデーション ---
+      const angle = (timeMs / this.durationMs) * Math.PI * 0.6 + idx * 0.4;
+      const cx = REEL_W / 2;
+      const cy = REEL_H / 2;
+      const r = Math.max(REEL_W, REEL_H);
+      const g = ctx.createLinearGradient(
+        cx - Math.cos(angle) * r,
+        cy - Math.sin(angle) * r,
+        cx + Math.cos(angle) * r,
+        cy + Math.sin(angle) * r
+      );
+      if (scene.type === "cta") {
+        g.addColorStop(0, c.accent);
+        g.addColorStop(1, c.primary);
+      } else {
+        g.addColorStop(0, c.primary);
+        g.addColorStop(1, c.secondary);
+      }
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, REEL_W, REEL_H);
+
+      // 浮遊する装飾円
+      ctx.fillStyle = rgba("#ffffff", 0.07);
+      const float1 = Math.sin(timeMs / 1400) * 40;
+      const float2 = Math.cos(timeMs / 1800) * 55;
+      ctx.beginPath();
+      ctx.arc(REEL_W * 0.85, REEL_H * 0.18 + float1, 280, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(REEL_W * 0.1, REEL_H * 0.82 + float2, 230, 0, Math.PI * 2);
+      ctx.fill();
+
+      text = readableOn(c.primary);
     }
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, REEL_W, REEL_H);
-
-    // 浮遊する装飾円
-    ctx.fillStyle = rgba("#ffffff", 0.07);
-    const float1 = Math.sin(timeMs / 1400) * 40;
-    const float2 = Math.cos(timeMs / 1800) * 55;
-    ctx.beginPath();
-    ctx.arc(REEL_W * 0.85, REEL_H * 0.18 + float1, 280, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(REEL_W * 0.1, REEL_H * 0.82 + float2, 230, 0, Math.PI * 2);
-    ctx.fill();
-
-    const text = readableOn(c.primary);
 
     // --- シーン切替のフェード ---
     const fadeIn = clamp01(sceneT / 0.12);

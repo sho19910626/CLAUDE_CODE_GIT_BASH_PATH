@@ -18,7 +18,13 @@ export interface BrandProfile {
   fontStyle: FontStyle;
 }
 
-export type FeedTemplate = "minimal" | "bold" | "gradient" | "split" | "badge";
+export type FeedTemplate =
+  | "minimal"
+  | "bold"
+  | "gradient"
+  | "split"
+  | "badge"
+  | "photo";
 
 export interface FeedPlan {
   template: FeedTemplate;
@@ -30,7 +36,11 @@ export interface FeedPlan {
   hashtags: string[];
 }
 
-export type StoryTemplate = "story-gradient" | "story-minimal" | "story-frame";
+export type StoryTemplate =
+  | "story-gradient"
+  | "story-minimal"
+  | "story-frame"
+  | "story-photo";
 
 export interface StoryPlan {
   template: StoryTemplate;
@@ -60,6 +70,8 @@ export interface ContentPlan {
   feed: FeedPlan;
   story: StoryPlan;
   reel: ReelPlan;
+  /** AI背景画像の生成用プロンプト(英語)。OPENAI_API_KEY 設定時に使用 */
+  imagePrompt: string;
 }
 
 export interface GenerateRequest {

@@ -72,6 +72,11 @@ export const PLAN_SCHEMA = {
       required: ["template", "eyebrow", "headline", "subheadline", "cta"],
       additionalProperties: false
     },
+    imagePrompt: {
+      type: "string",
+      description:
+        "背景ビジュアル生成用の画像生成AIプロンプト(英語で記述)。ブランドと投稿内容に合うハイエンドな商業写真の描写: 被写体・構図・ライティング・色調・雰囲気を具体的に。文字を重ねるため中央〜上部に余白(negative space)を残す構図を指定。テキスト・ロゴ・人物の顔のアップは含めない",
+    },
     reel: {
       type: "object",
       properties: {
@@ -101,6 +106,6 @@ export const PLAN_SCHEMA = {
       additionalProperties: false
     }
   },
-  required: ["brand", "feed", "story", "reel"],
+  required: ["brand", "feed", "story", "reel", "imagePrompt"],
   additionalProperties: false
 } as const;

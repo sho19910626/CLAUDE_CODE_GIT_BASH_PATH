@@ -111,6 +111,33 @@ export function roundRect(
   ctx.closePath();
 }
 
+/** 画像をアスペクト比を保ったまま領域いっぱいに描画 (CSSのobject-fit: cover相当) */
+export function drawImageCover(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): void {
+  const scale = Math.max(w / img.width, h / img.height);
+  const sw = w / scale;
+  const sh = h / scale;
+  const sx = (img.width - sw) / 2;
+  const sy = (img.height - sh) / 2;
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+/** data URL から HTMLImageElement を読み込む */
+export function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+    img.src = src;
+  });
+}
+
 /** イージング */
 export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
 export const easeInOutCubic = (t: number): number =>
