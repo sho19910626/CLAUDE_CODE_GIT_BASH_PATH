@@ -10,6 +10,7 @@ import { ensureFonts, loadImage } from "./canvas/helpers";
 import { renderFeedSlide } from "./canvas/renderFeed";
 import { renderStory } from "./canvas/renderStory";
 import { ReelPlayer } from "./canvas/reel";
+import { exportReelMp4, supportsMp4Export } from "./canvas/exportMp4";
 
 type Tab = "feed" | "story" | "reel";
 type Aspect = "square" | "vertical";
@@ -75,8 +76,12 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
 
-/** 写真を縮小してdataURL(JPEG)に変換(API送信量とCanvas描画負荷を抑える) */
-async function fileToDataUrl(file: File, maxDim = 1400): Promise<string> {
+/** 写真を縮小してdataURLに変換(ロゴは透過を保つためPNG) */
+async function fileToDataUrl(
+  file: File,
+  maxDim = 1400,
+  type: "image/jpeg" | "image/png" = "image/jpeg"
+): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -84,7 +89,23 @@ async function fileToDataUrl(file: File, maxDim = 1400): Promise<string> {
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return canvas.toDataURL("image/jpeg", 0.85);
+  return canvas.toDataURL(type, type === "image/jpeg" ? 0.85 : undefined);
+}
+
+const BRAND_KIT_KEY = "insta-studio-brandkit";
+
+interface BrandKit {
+  logo?: string;
+  url?: string;
+  brandDescription?: string;
+}
+
+function loadBrandKit(): BrandKit {
+  try {
+    return JSON.parse(localStorage.getItem(BRAND_KIT_KEY) ?? "{}") as BrandKit;
+  } catch {
+    return {};
+  }
 }
 
 export default function Generator() {
@@ -97,7 +118,42 @@ export default function Generator() {
   const [tab, setTab] = useState<Tab>("feed");
   const [refImages, setRefImages] = useState<string[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [logo, setLogo] = useState<string | null>(null);
+  const [kitSaved, setKitSaved] = useState(false);
   const backgrounds = useBackgrounds(plan, refImages[0] ?? null);
+
+  // 保存済みブランドキットの復元
+  useEffect(() => {
+    const kit = loadBrandKit();
+    if (kit.logo) setLogo(kit.logo);
+    if (kit.url) setUrl(kit.url);
+    if (kit.brandDescription) setBrandDescription(kit.brandDescription);
+  }, []);
+
+  const saveBrandKit = useCallback(() => {
+    try {
+      const kit: BrandKit = {
+        logo: logo ?? undefined,
+        url: url || undefined,
+        brandDescription: brandDescription || undefined,
+      };
+      localStorage.setItem(BRAND_KIT_KEY, JSON.stringify(kit));
+      setKitSaved(true);
+      setTimeout(() => setKitSaved(false), 1800);
+    } catch {
+      setError("ブランドキットの保存に失敗しました(ロゴ画像が大きすぎる可能性があります)");
+    }
+  }, [logo, url, brandDescription]);
+
+  const addLogo = useCallback(async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      setLogo(await fileToDataUrl(file, 600, "image/png"));
+    } catch {
+      setError("ロゴの読み込みに失敗しました。PNG(透過推奨)をお試しください。");
+    }
+  }, []);
 
   const addImages = useCallback(
     async (files: FileList | null) => {
@@ -267,8 +323,46 @@ export default function Generator() {
               写真はAIが分析してコピー・配色・背景に反映します。動画はリールの背景に使えます(サーバーには送信されません)。
             </p>
           </div>
+          <div className="field">
+            <label>
+              ブランドロゴ
+              <span className="hint">任意: 背景透過PNG推奨。全デザインに自動配置</span>
+            </label>
+            <div className="upload-row">
+              <label className="btn btn-ghost btn-small">
+                🏷 ロゴを{logo ? "変更" : "追加"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={loading}
+                  onChange={(e) => {
+                    addLogo(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {logo && (
+                <div className="thumb thumb-logo">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logo} alt="ロゴ" />
+                  <button type="button" onClick={() => setLogo(null)}>
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <button className="btn btn-primary" onClick={generate} disabled={loading}>
             {loading ? "生成中..." : "コンテンツを生成する"}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ width: "100%", marginTop: 10 }}
+            onClick={saveBrandKit}
+            disabled={loading}
+          >
+            {kitSaved ? "✓ 保存しました" : "💾 ブランドキットを保存(次回も使う)"}
           </button>
           {loading && (
             <div className="loading-box">
@@ -315,6 +409,7 @@ export default function Generator() {
                   plan={plan}
                   backgrounds={backgrounds}
                   uploadRef={refImages[0] ?? null}
+                  logoSrc={logo}
                 />
               )}
               {tab === "story" && (
@@ -322,6 +417,7 @@ export default function Generator() {
                   plan={plan}
                   backgrounds={backgrounds}
                   uploadRef={refImages[0] ?? null}
+                  logoSrc={logo}
                 />
               )}
               {tab === "reel" && (
@@ -330,6 +426,7 @@ export default function Generator() {
                   backgrounds={backgrounds}
                   uploadRef={refImages[0] ?? null}
                   videoUrl={videoUrl}
+                  logoSrc={logo}
                 />
               )}
             </>
@@ -472,10 +569,12 @@ function FeedPanel({
   plan,
   backgrounds,
   uploadRef,
+  logoSrc,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
   uploadRef: string | null;
+  logoSrc: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<FeedTemplate>(plan.feed.template);
@@ -496,19 +595,21 @@ function FeedPanel({
     (async () => {
       await ensureFonts();
       const img = template === "photo" && bgSrc ? await loadImage(bgSrc) : null;
+      const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       if (cancelled || !canvasRef.current) return;
       renderFeedSlide(
         canvasRef.current,
         plan.brand,
         { ...plan.feed, template },
         slideIndex,
-        img
+        img,
+        logoImg
       );
     })();
     return () => {
       cancelled = true;
     };
-  }, [plan, template, bgSrc, slideIndex]);
+  }, [plan, template, bgSrc, slideIndex, logoSrc]);
 
   const downloadAll = useCallback(async () => {
     if (downloadingAll) return;
@@ -516,9 +617,10 @@ function FeedPanel({
     try {
       await ensureFonts();
       const img = template === "photo" && bgSrc ? await loadImage(bgSrc) : null;
+      const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       const tmp = document.createElement("canvas");
       for (let i = 0; i < total; i++) {
-        renderFeedSlide(tmp, plan.brand, { ...plan.feed, template }, i, img);
+        renderFeedSlide(tmp, plan.brand, { ...plan.feed, template }, i, img, logoImg);
         await new Promise<void>((resolve) => {
           tmp.toBlob((blob) => {
             if (blob) {
@@ -623,10 +725,12 @@ function StoryPanel({
   plan,
   backgrounds,
   uploadRef,
+  logoSrc,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
   uploadRef: string | null;
+  logoSrc: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<StoryTemplate>(plan.story.template);
@@ -649,13 +753,14 @@ function StoryPanel({
       await ensureFonts();
       const img =
         template === "story-photo" && bgSrc ? await loadImage(bgSrc) : null;
+      const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       if (cancelled || !canvasRef.current) return;
-      renderStory(canvasRef.current, plan.brand, { ...plan.story, template }, img);
+      renderStory(canvasRef.current, plan.brand, { ...plan.story, template }, img, logoImg);
     })();
     return () => {
       cancelled = true;
     };
-  }, [plan, template, bgSrc]);
+  }, [plan, template, bgSrc, logoSrc]);
 
   return (
     <div className="result-grid">
@@ -713,11 +818,13 @@ function ReelPanel({
   backgrounds,
   uploadRef,
   videoUrl,
+  logoSrc,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
   uploadRef: string | null;
   videoUrl: string | null;
+  logoSrc: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -756,11 +863,13 @@ function ReelPanel({
           });
         }
       }
+      const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       if (cancelled || !canvasRef.current) return;
       playerRef.current?.stop();
       const player = new ReelPlayer(canvasRef.current, plan.brand, plan.reel, {
         image: img,
         video,
+        logo: logoImg,
       });
       playerRef.current = player;
       player.play();
@@ -770,7 +879,12 @@ function ReelPanel({
       playerRef.current?.stop();
       playerRef.current = null;
     };
-  }, [plan, bgMode, bgSrc, uploadRef, videoUrl]);
+  }, [plan, bgMode, bgSrc, uploadRef, videoUrl, logoSrc]);
+
+  const [mp4Ok, setMp4Ok] = useState(false);
+  useEffect(() => {
+    supportsMp4Export().then(setMp4Ok);
+  }, []);
 
   const record = useCallback(async () => {
     const player = playerRef.current;
@@ -779,10 +893,19 @@ function ReelPanel({
     setRecordError(null);
     setProgress(0);
     try {
-      const blob = await player.record((r) => setProgress(r));
+      let blob: Blob;
+      let filename: string;
+      if (await supportsMp4Export()) {
+        // フレーム正確なオフラインレンダリング + H.264/MP4
+        blob = await exportReelMp4(player, (r) => setProgress(r));
+        filename = "reel_1080x1920.mp4";
+      } else {
+        blob = await player.record((r) => setProgress(r));
+        filename = "reel_1080x1920.webm";
+      }
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "reel_1080x1920.webm";
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e) {
@@ -842,7 +965,9 @@ function ReelPanel({
         )}
         <div className="preview-actions">
           <button className="btn btn-ghost" onClick={record} disabled={recording}>
-            {recording ? "書き出し中..." : `🎬 動画を書き出す (約${seconds}秒 / WebM)`}
+            {recording
+              ? "書き出し中..."
+              : `🎬 動画を書き出す (約${seconds}秒 / ${mp4Ok ? "MP4" : "WebM"})`}
           </button>
         </div>
         {recording && (
@@ -852,8 +977,9 @@ function ReelPanel({
         )}
         {recordError && <div className="error-box">{recordError}</div>}
         <p className="note">
-          WebM形式で保存されます。Instagramへ投稿する際はMP4への変換
-          (無料の変換ツールやCapCutなど) をおすすめします。
+          {mp4Ok
+            ? "フレーム落ちのない高画質MP4で書き出します。そのままInstagramに投稿できます。"
+            : "お使いのブラウザはMP4書き出し非対応のためWebM形式になります。Chrome/Edgeを使うとMP4で書き出せます。"}
         </p>
       </div>
       <div>

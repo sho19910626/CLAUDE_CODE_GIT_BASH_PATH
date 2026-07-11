@@ -417,6 +417,15 @@ body {
   text-align: center;
   padding: 2px 0;
 }
+.thumb-logo {
+  background:
+    repeating-conic-gradient(#2a3245 0% 25%, #1b2130 0% 50%) 50% / 16px 16px;
+}
+.thumb-logo img {
+  object-fit: contain;
+  padding: 6px;
+}
+
 .upload-hint {
   font-size: 11.5px;
   color: var(--text-dim);

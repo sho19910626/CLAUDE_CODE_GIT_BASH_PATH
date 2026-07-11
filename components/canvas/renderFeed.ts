@@ -5,6 +5,7 @@
 import type { BrandProfile, FeedPlan, FeedSlide, FeedTemplate } from "@/lib/types";
 import {
   FONT_FAMILIES,
+  drawBrandMark,
   drawImageCover,
   drawLines,
   headlineWeightFor,
@@ -27,7 +28,8 @@ export function renderFeedSlide(
   brand: BrandProfile,
   feed: FeedPlan,
   slideIndex: number,
-  bgImage?: HTMLImageElement | null
+  bgImage?: HTMLImageElement | null,
+  logo?: HTMLImageElement | null
 ): void {
   canvas.width = W;
   canvas.height = H;
@@ -52,8 +54,8 @@ export function renderFeedSlide(
     drawContent(ctx, brand, slide, colors, template);
   }
 
-  // 共通クローム(ブランド名 + ページドット)
-  drawChrome(ctx, brand, colors, slideIndex, slides.length, slide.role);
+  // 共通クローム(ブランドマーク + ページドット)
+  drawChrome(ctx, brand, colors, slideIndex, slides.length, slide.role, logo ?? null);
 }
 
 /** ゾーンごとの文字色(単色背景ではすべて同じ値) */
@@ -425,19 +427,22 @@ function drawChrome(
   colors: SlideColors,
   index: number,
   total: number,
-  role: FeedSlide["role"]
+  role: FeedSlide["role"],
+  logo: HTMLImageElement | null
 ): void {
   const c = brand.colorPalette;
 
-  // ブランド名(上部中央)
-  ctx.textAlign = "center";
-  setTracking(ctx, 4);
-  ctx.font = font(brand, 700, 28);
-  ctx.fillStyle = rgba(colors.brandName, 0.85);
-  ctx.fillText(brand.name, W / 2, 118);
-  setTracking(ctx, 0);
-  ctx.fillStyle = rgba(c.accent, 0.95);
-  ctx.fillRect(W / 2 - 26, 140, 52, 4);
+  // ブランドマーク(上部中央)。ロゴがあればロゴ、なければブランド名+アクセント線
+  drawBrandMark(ctx, brand.name, FONT_FAMILIES[brand.fontStyle], logo, W / 2, 118, {
+    textSize: 28,
+    color: colors.brandName,
+    alpha: 0.85,
+    maxLogoH: 76,
+  });
+  if (!logo) {
+    ctx.fillStyle = rgba(c.accent, 0.95);
+    ctx.fillRect(W / 2 - 26, 140, 52, 4);
+  }
 
   // ページドット(下部中央)
   const dotGap = 26;

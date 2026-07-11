@@ -160,6 +160,43 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * ブランドマークを描画する。ロゴ画像があれば中央揃えで描画し、
+ * なければブランド名テキストで代替する。
+ */
+export function drawBrandMark(
+  ctx: CanvasRenderingContext2D,
+  brandName: string,
+  fontFamily: string,
+  logo: HTMLImageElement | null,
+  cx: number,
+  baselineY: number,
+  opts: { textSize: number; color: string; alpha?: number; maxLogoH?: number }
+): void {
+  const alpha = opts.alpha ?? 0.9;
+  if (logo && logo.width > 0) {
+    const maxH = opts.maxLogoH ?? opts.textSize * 2.1;
+    const maxW = maxH * 6;
+    const scale = Math.min(maxH / logo.height, maxW / logo.width);
+    const w = logo.width * scale;
+    const h = logo.height * scale;
+    const prevAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = prevAlpha * Math.min(1, alpha + 0.08);
+    // baselineY をテキストのベースライン相当として扱い、ロゴを垂直中央合わせ
+    ctx.drawImage(logo, cx - w / 2, baselineY - opts.textSize * 0.36 - h / 2, w, h);
+    ctx.globalAlpha = prevAlpha;
+  } else {
+    ctx.save();
+    ctx.textAlign = "center";
+    setTracking(ctx, 4);
+    ctx.font = `700 ${opts.textSize}px ${fontFamily}`;
+    ctx.fillStyle = rgba(opts.color, alpha);
+    ctx.fillText(brandName, cx, baselineY);
+    ctx.restore();
+    setTracking(ctx, 0);
+  }
+}
+
 /** イージング */
 export const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
 export const easeInOutCubic = (t: number): number =>

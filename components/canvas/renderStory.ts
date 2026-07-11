@@ -3,6 +3,7 @@
 import type { BrandProfile, StoryPlan } from "@/lib/types";
 import {
   FONT_FAMILIES,
+  drawBrandMark,
   drawImageCover,
   drawLines,
   headlineWeightFor,
@@ -19,28 +20,30 @@ export function renderStory(
   canvas: HTMLCanvasElement,
   brand: BrandProfile,
   story: StoryPlan,
-  bgImage?: HTMLImageElement | null
+  bgImage?: HTMLImageElement | null,
+  logo?: HTMLImageElement | null
 ): void {
   canvas.width = STORY_W;
   canvas.height = STORY_H;
   const ctx = canvas.getContext("2d")!;
   ctx.textBaseline = "alphabetic";
+  const lg = logo ?? null;
 
   if (story.template === "story-photo" && bgImage) {
-    renderStoryPhoto(ctx, brand, story, bgImage);
+    renderStoryPhoto(ctx, brand, story, bgImage, lg);
     return;
   }
 
   switch (story.template === "story-photo" ? "story-gradient" : story.template) {
     case "story-minimal":
-      renderStoryMinimal(ctx, brand, story);
+      renderStoryMinimal(ctx, brand, story, lg);
       break;
     case "story-frame":
-      renderStoryFrame(ctx, brand, story);
+      renderStoryFrame(ctx, brand, story, lg);
       break;
     case "story-gradient":
     default:
-      renderStoryGradient(ctx, brand, story);
+      renderStoryGradient(ctx, brand, story, lg);
       break;
   }
 }
@@ -54,6 +57,23 @@ function font(brand: BrandProfile, weight: number, size: number): string {
 
 function headlineWeight(brand: BrandProfile): number {
   return headlineWeightFor(brand.fontStyle);
+}
+
+/** 上部のブランドマーク(ロゴ or ブランド名) */
+function brandMark(
+  ctx: CanvasRenderingContext2D,
+  brand: BrandProfile,
+  logo: HTMLImageElement | null,
+  baselineY: number,
+  color: string,
+  alpha: number
+): void {
+  drawBrandMark(ctx, brand.name, FONT_FAMILIES[brand.fontStyle], logo, W / 2, baselineY, {
+    textSize: 40,
+    color,
+    alpha,
+    maxLogoH: 96,
+  });
 }
 
 /** 共通: CTAボタン */
@@ -88,7 +108,8 @@ function renderStoryPhoto(
   ctx: CanvasRenderingContext2D,
   brand: BrandProfile,
   story: StoryPlan,
-  img: HTMLImageElement
+  img: HTMLImageElement,
+  logo: HTMLImageElement | null
 ): void {
   const { colorPalette: c } = brand;
 
@@ -107,10 +128,8 @@ function renderStoryPhoto(
 
   ctx.textAlign = "center";
 
-  // ブランド名
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.font = font(brand, 700, 40);
-  ctx.fillText(brand.name, W / 2, 220);
+  // ブランドマーク
+  brandMark(ctx, brand, logo, 220, "#ffffff", 0.92);
   ctx.fillStyle = rgba(c.accent, 0.95);
   ctx.fillRect(W / 2 - 34, 250, 68, 5);
 
@@ -164,7 +183,8 @@ function renderStoryPhoto(
 function renderStoryGradient(
   ctx: CanvasRenderingContext2D,
   brand: BrandProfile,
-  story: StoryPlan
+  story: StoryPlan,
+  logo: HTMLImageElement | null
 ): void {
   const { colorPalette: c } = brand;
   const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
@@ -186,10 +206,8 @@ function renderStoryGradient(
 
   ctx.textAlign = "center";
 
-  // ブランド名
-  ctx.fillStyle = rgba(text, 0.9);
-  ctx.font = font(brand, 700, 40);
-  ctx.fillText(brand.name, W / 2, 240);
+  // ブランドマーク
+  brandMark(ctx, brand, logo, 240, text, 0.9);
 
   // アイブロウ
   ctx.font = font(brand, 700, 40);
@@ -231,7 +249,8 @@ function renderStoryGradient(
 function renderStoryMinimal(
   ctx: CanvasRenderingContext2D,
   brand: BrandProfile,
-  story: StoryPlan
+  story: StoryPlan,
+  logo: HTMLImageElement | null
 ): void {
   const { colorPalette: c } = brand;
   const text = readableOn(c.background);
@@ -246,9 +265,7 @@ function renderStoryMinimal(
 
   ctx.textAlign = "center";
 
-  ctx.fillStyle = rgba(text === "#ffffff" ? "#ffffff" : "#1a1a1a", 0.75);
-  ctx.font = font(brand, 700, 38);
-  ctx.fillText(brand.name, W / 2, 260);
+  brandMark(ctx, brand, logo, 260, text === "#ffffff" ? "#ffffff" : "#1a1a1a", 0.75);
 
   ctx.fillStyle = c.accent;
   ctx.font = font(brand, 700, 42);
@@ -273,7 +290,8 @@ function renderStoryMinimal(
 function renderStoryFrame(
   ctx: CanvasRenderingContext2D,
   brand: BrandProfile,
-  story: StoryPlan
+  story: StoryPlan,
+  logo: HTMLImageElement | null
 ): void {
   const { colorPalette: c } = brand;
 
@@ -295,9 +313,7 @@ function renderStoryFrame(
   const text = readableOn(c.background);
   ctx.textAlign = "center";
 
-  ctx.fillStyle = rgba(text === "#ffffff" ? "#ffffff" : "#1a1a1a", 0.75);
-  ctx.font = font(brand, 700, 38);
-  ctx.fillText(brand.name, W / 2, 320);
+  brandMark(ctx, brand, logo, 320, text === "#ffffff" ? "#ffffff" : "#1a1a1a", 0.75);
 
   // アイブロウ(ダイヤ装飾つき)
   ctx.fillStyle = c.accent;
