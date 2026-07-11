@@ -85,7 +85,11 @@ export const PLAN_SCHEMA = {
           enum: ["story-gradient", "story-minimal", "story-frame"]
         },
         eyebrow: { type: "string", description: "上部の小ラベル(12文字以内)" },
-        headline: { type: "string", description: "メインコピー。改行は\\n。1行8文字以内×最大3行" },
+        headline: {
+          type: "string",
+          description:
+            "メインコピー。改行は\\nで必ず指定し、文節の切れ目で改行する(行頭に助詞・句読点を置かない)。各行の文字数はなるべく揃える。1行8文字以内×最大3行"
+        },
         subheadline: { type: "string", description: "サブコピー(30文字以内)" },
         cta: { type: "string", description: "CTAボタンの文言(12文字以内)例: 詳しくはこちら" }
       },
@@ -112,7 +116,11 @@ export const PLAN_SCHEMA = {
             type: "object",
             properties: {
               type: { type: "string", enum: ["hook", "point", "cta"] },
-              title: { type: "string", description: "シーンのメインテキスト。改行は\\n。1行10文字以内×最大2行" },
+              title: {
+                type: "string",
+                description:
+                  "シーンのメインテキスト。改行は\\nで必ず指定し、文節の切れ目で改行する(行頭に助詞を置かない)。各行の文字数はなるべく揃える。1行10文字以内×最大2行"
+              },
               subtitle: { type: "string", description: "補足テキスト(25文字以内)" }
             },
             required: ["type", "title", "subtitle"],
