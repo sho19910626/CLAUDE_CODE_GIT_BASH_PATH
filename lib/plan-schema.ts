@@ -61,9 +61,13 @@ export const PLAN_SCHEMA = {
               body: {
                 type: "string",
                 description: "cover: サブコピー(20文字以内)。content: 具体的な説明文(50〜80文字、数字や固有名詞を入れる)。cta: 後押しの一文(30文字以内)"
+              },
+              bgPrompt: {
+                type: "string",
+                description: "このスライド専用の背景画像プロンプト(英語)。スライドの内容に合った被写体・シーンを描写し、他のスライドとは異なる構図・被写体にして単調さを避ける(例: 1枚目は畑の俯瞰、2枚目は収穫の手元、3枚目は食卓のシーン)。商業写真品質。文字を重ねるため余白を残し、テキスト・ロゴは含めない"
               }
             },
-            required: ["role", "eyebrow", "headline", "body"],
+            required: ["role", "eyebrow", "headline", "body", "bgPrompt"],
             additionalProperties: false
           }
         },
@@ -121,9 +125,13 @@ export const PLAN_SCHEMA = {
                 description:
                   "シーンのメインテキスト。改行は\\nで必ず指定し、文節の切れ目で改行する(行頭に助詞を置かない)。各行の文字数はなるべく揃える。1行10文字以内×最大2行"
               },
-              subtitle: { type: "string", description: "補足テキスト(25文字以内)" }
+              subtitle: { type: "string", description: "補足テキスト(25文字以内)" },
+              bgPrompt: {
+                type: "string",
+                description: "このシーン専用の背景動画/画像プロンプト(英語)。シーンの内容に合った被写体・カメラワークを描写し、他のシーンとは異なる映像にして単調さを避ける。縦型・CM品質。文字を重ねるため余白を残し、テキスト・ロゴは含めない"
+              }
             },
-            required: ["type", "title", "subtitle"],
+            required: ["type", "title", "subtitle", "bgPrompt"],
             additionalProperties: false
           }
         },

@@ -23,7 +23,10 @@ export const SCENE_MS = 2800;
 const FPS = 30;
 
 export interface ReelBackground {
+  /** 単一の背景画像(photo/broll モード) */
   image?: HTMLImageElement | null;
+  /** シーンごとの背景画像(AI写真モード)。無い要素は image にフォールバック */
+  images?: (HTMLImageElement | null)[] | null;
   video?: HTMLVideoElement | null;
   logo?: HTMLImageElement | null;
 }
@@ -36,6 +39,7 @@ export class ReelPlayer {
   private rafId: number | null = null;
   private startTime = 0;
   private bgImage: HTMLImageElement | null;
+  private bgImages: (HTMLImageElement | null)[] | null;
   private bgVideo: HTMLVideoElement | null;
   private logo: HTMLImageElement | null;
 
@@ -52,8 +56,14 @@ export class ReelPlayer {
     this.brand = brand;
     this.reel = reel;
     this.bgImage = bg?.image ?? null;
+    this.bgImages = bg?.images ?? null;
     this.bgVideo = bg?.video ?? null;
     this.logo = bg?.logo ?? null;
+  }
+
+  /** 指定シーンで使う背景画像(シーン個別 → 単一 の順にフォールバック) */
+  private sceneImage(idx: number): HTMLImageElement | null {
+    return this.bgImages?.[idx] ?? this.bgImage ?? null;
   }
 
   get durationMs(): number {
@@ -164,15 +174,17 @@ export class ReelPlayer {
       ctx.fillStyle = rgba(scene.type === "cta" ? c.accent : c.primary, 0.12);
       ctx.fillRect(0, 0, REEL_W, REEL_H);
       text = "#ffffff";
-    } else if (this.bgImage) {
-      // Ken Burns(ゆっくりズーム+パン)
-      const progress = timeMs / this.durationMs;
-      const zoom = 1.06 + 0.12 * progress;
+    } else if (this.sceneImage(idx)) {
+      // Ken Burns(ゆっくりズーム+パン)。シーンごとに寄り/引きの方向を変える
+      const sceneImg = this.sceneImage(idx)!;
+      const zoomIn = idx % 2 === 0;
+      const zoom = zoomIn ? 1.04 + 0.14 * sceneT : 1.18 - 0.14 * sceneT;
+      const panY = (zoomIn ? sceneT : 1 - sceneT) * 40;
       ctx.save();
       ctx.translate(REEL_W / 2, REEL_H / 2);
       ctx.scale(zoom, zoom);
-      ctx.translate(-REEL_W / 2, -REEL_H / 2 - progress * 40);
-      drawImageCover(ctx, this.bgImage, 0, 0, REEL_W, REEL_H);
+      ctx.translate(-REEL_W / 2, -REEL_H / 2 - panY);
+      drawImageCover(ctx, sceneImg, 0, 0, REEL_W, REEL_H);
       ctx.restore();
 
       const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);

@@ -31,47 +31,69 @@ const STORY_TEMPLATES: { id: StoryTemplate; label: string }[] = [
   { id: "story-frame", label: "フレーム" },
 ];
 
-/** AI背景画像の取得・キャッシュを管理するフック(reference: 参考写真のdataURL) */
+/**
+ * AI背景画像の取得・キャッシュを管理するフック。
+ * (プロンプト × アスペクト比)ごとに個別キャッシュするため、
+ * スライド/シーンごとに異なる背景を持てる。reference は参考写真のdataURL。
+ */
 function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
-  const [images, setImages] = useState<Partial<Record<Aspect, string>>>({});
-  const [loading, setLoading] = useState<Partial<Record<Aspect, boolean>>>({});
+  const [images, setImages] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  // 進行中/完了済みのキーを同期的に判定するための ref(重複生成の防止)
+  const inflight = useRef<Set<string>>(new Set());
 
   // 新しいプランが来たらキャッシュを破棄
   useEffect(() => {
     setImages({});
     setLoading({});
     setError(null);
+    inflight.current = new Set();
   }, [plan]);
 
+  const keyOf = (prompt: string, aspect: Aspect) => `${aspect}::${prompt}`;
+
   const fetchBackground = useCallback(
-    async (aspect: Aspect) => {
-      if (!plan?.imagePrompt || images[aspect] || loading[aspect]) return;
-      setLoading((s) => ({ ...s, [aspect]: true }));
+    async (prompt: string, aspect: Aspect) => {
+      const p = (prompt ?? "").trim();
+      if (!p) return;
+      const k = keyOf(p, aspect);
+      // ref で同期的に重複を排除(setState は非同期のため flag には使えない)
+      if (inflight.current.has(k)) return;
+      inflight.current.add(k);
+      setLoading((s) => ({ ...s, [k]: true }));
       setError(null);
       try {
         const res = await fetch("/api/background", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: plan.imagePrompt,
-            aspect,
-            reference: reference ?? undefined,
-          }),
+          body: JSON.stringify({ prompt: p, aspect, reference: reference ?? undefined }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
-        setImages((s) => ({ ...s, [aspect]: `data:image/png;base64,${data.image}` }));
+        setImages((s) => ({ ...s, [k]: `data:image/png;base64,${data.image}` }));
       } catch (e) {
+        inflight.current.delete(k); // 失敗は再試行を許可
         setError(e instanceof Error ? e.message : String(e));
       } finally {
-        setLoading((s) => ({ ...s, [aspect]: false }));
+        setLoading((s) => ({ ...s, [k]: false }));
       }
     },
-    [plan, images, loading, reference]
+    [reference]
   );
 
-  return { images, loading, error, fetchBackground };
+  const getImage = useCallback(
+    (prompt: string, aspect: Aspect): string | undefined =>
+      prompt ? images[keyOf(prompt, aspect)] : undefined,
+    [images]
+  );
+  const isLoading = useCallback(
+    (prompt: string, aspect: Aspect): boolean =>
+      prompt ? !!loading[keyOf(prompt, aspect)] : false,
+    [loading]
+  );
+
+  return { getImage, isLoading, error, fetchBackground };
 }
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
@@ -590,22 +612,28 @@ function CaptionCard({
 /** photoテンプレートの背景ソースを決めるフック(アップ写真 / AI生成 の切替) */
 function usePhotoSource(
   backgrounds: Backgrounds,
+  prompt: string,
   aspect: Aspect,
   uploadRef: string | null,
   active: boolean
 ) {
   const [choice, setChoice] = useState<"upload" | "ai">(uploadRef ? "upload" : "ai");
-  const aiSrc = backgrounds.images[aspect];
+  const aiSrc = backgrounds.getImage(prompt, aspect);
   const src = choice === "upload" && uploadRef ? uploadRef : aiSrc ?? uploadRef;
 
-  // AIを選んでいて未生成なら取得
+  // AIを選んでいて未生成なら取得(prompt が変わる = スライド切替でも再取得)
   useEffect(() => {
-    if (active && (choice === "ai" || !uploadRef) && !aiSrc) {
-      backgrounds.fetchBackground(aspect);
+    if (active && prompt && (choice === "ai" || !uploadRef) && !aiSrc) {
+      backgrounds.fetchBackground(prompt, aspect);
     }
-  }, [active, choice, uploadRef, aiSrc, backgrounds, aspect]);
+  }, [active, choice, uploadRef, aiSrc, backgrounds, prompt, aspect]);
 
-  return { choice, setChoice, src, loading: backgrounds.loading[aspect] };
+  return {
+    choice,
+    setChoice,
+    src,
+    loading: backgrounds.isLoading(prompt, aspect),
+  };
 }
 
 /** 背景ソース切替ピル(アップ写真がある場合のみ表示) */
@@ -652,10 +680,27 @@ function FeedPanel({
   const [template, setTemplate] = useState<FeedTemplate>(plan.feed.template);
   const [slideIndex, setSlideIndex] = useState(0);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  const photo = usePhotoSource(backgrounds, "square", uploadRef, template === "photo");
+  const total = plan.feed.slides.length;
+  // 表示中スライド専用の背景プロンプト(なければ全体プロンプトにフォールバック)
+  const slidePrompt = plan.feed.slides[slideIndex]?.bgPrompt || plan.imagePrompt;
+  const photo = usePhotoSource(
+    backgrounds,
+    slidePrompt,
+    "square",
+    uploadRef,
+    template === "photo"
+  );
   const bgSrc = photo.src;
   const bgLoading = photo.loading;
-  const total = plan.feed.slides.length;
+
+  // AI写真モードでは他スライドの背景も先読みして切替を滑らかに
+  useEffect(() => {
+    if (template !== "photo" || (photo.choice === "upload" && uploadRef)) return;
+    for (const s of plan.feed.slides) {
+      const p = s.bgPrompt || plan.imagePrompt;
+      if (p) backgrounds.fetchBackground(p, "square");
+    }
+  }, [template, photo.choice, uploadRef, plan, backgrounds]);
 
   useEffect(() => {
     setTemplate(plan.feed.template);
@@ -688,10 +733,19 @@ function FeedPanel({
     setDownloadingAll(true);
     try {
       await ensureFonts();
-      const img = template === "photo" && bgSrc ? await loadImage(bgSrc) : null;
       const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       const tmp = document.createElement("canvas");
       for (let i = 0; i < total; i++) {
+        // スライドごとの個別背景を取得
+        let img: HTMLImageElement | null = null;
+        if (template === "photo") {
+          const p = plan.feed.slides[i]?.bgPrompt || plan.imagePrompt;
+          const src =
+            photo.choice === "upload" && uploadRef
+              ? uploadRef
+              : backgrounds.getImage(p, "square") ?? uploadRef;
+          img = src ? await loadImage(src) : null;
+        }
         renderFeedSlide(tmp, plan.brand, { ...plan.feed, template }, i, img, logoImg);
         await new Promise<void>((resolve) => {
           tmp.toBlob((blob) => {
@@ -711,7 +765,7 @@ function FeedPanel({
     } finally {
       setDownloadingAll(false);
     }
-  }, [downloadingAll, template, bgSrc, plan, total]);
+  }, [downloadingAll, template, plan, total, photo.choice, uploadRef, backgrounds, logoSrc]);
 
   return (
     <div className="result-grid">
@@ -808,6 +862,7 @@ function StoryPanel({
   const [template, setTemplate] = useState<StoryTemplate>(plan.story.template);
   const photo = usePhotoSource(
     backgrounds,
+    plan.imagePrompt,
     "vertical",
     uploadRef,
     template === "story-photo"
@@ -910,21 +965,40 @@ function ReelPanel({
   const [bgMode, setBgMode] = useState<ReelBgMode>(
     videoUrl ? "video" : uploadRef ? "photo" : "gradient"
   );
-  const bgSrc = backgrounds.images.vertical;
-  const bgLoading = backgrounds.loading.vertical;
+  // 各シーンの背景プロンプト(なければ全体プロンプトにフォールバック)
+  const scenePrompts = plan.reel.scenes.map(
+    (s) => s.bgPrompt || plan.imagePrompt
+  );
+  const bgLoading =
+    bgMode === "ai" && scenePrompts.some((p) => backgrounds.isLoading(p, "vertical"));
 
+  // AI写真モードのとき、全シーンの背景を生成
   useEffect(() => {
-    if (bgMode === "ai" && !bgSrc) {
-      backgrounds.fetchBackground("vertical");
+    if (bgMode !== "ai") return;
+    for (const p of scenePrompts) {
+      if (p) backgrounds.fetchBackground(p, "vertical");
     }
-  }, [bgMode, bgSrc, backgrounds]);
+  }, [bgMode, scenePrompts, backgrounds]);
+
+  // AIモードで生成済みのシーン背景を集約(依存の値として使う)
+  const aiSceneImages = scenePrompts
+    .map((p) => backgrounds.getImage(p, "vertical") ?? "")
+    .join("|");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       await ensureFonts();
       let img: HTMLImageElement | null = null;
-      if (bgMode === "ai" && bgSrc) img = await loadImage(bgSrc);
+      let images: (HTMLImageElement | null)[] | null = null;
+      if (bgMode === "ai") {
+        images = await Promise.all(
+          scenePrompts.map(async (p) => {
+            const src = backgrounds.getImage(p, "vertical");
+            return src ? loadImage(src) : null;
+          })
+        );
+      }
       if (bgMode === "photo" && uploadRef) img = await loadImage(uploadRef);
       const video =
         bgMode === "video" && videoUrl
@@ -948,6 +1022,7 @@ function ReelPanel({
       playerRef.current?.stop();
       const player = new ReelPlayer(canvasRef.current, plan.brand, plan.reel, {
         image: img,
+        images,
         video,
         logo: logoImg,
       });
@@ -959,7 +1034,8 @@ function ReelPanel({
       playerRef.current?.stop();
       playerRef.current = null;
     };
-  }, [plan, bgMode, bgSrc, uploadRef, videoUrl, logoSrc, broll.url]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, bgMode, aiSceneImages, uploadRef, videoUrl, logoSrc, broll.url]);
 
   const [mp4Ok, setMp4Ok] = useState(false);
   useEffect(() => {

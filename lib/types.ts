@@ -35,6 +35,8 @@ export interface FeedSlide {
   headline: string;
   /** cover: サブコピー / content: 具体的な説明文 / cta: 後押しの一文 */
   body: string;
+  /** このスライド専用の背景画像プロンプト(英語)。スライドごとに変化をつける */
+  bgPrompt?: string;
 }
 
 export interface FeedPlan {
@@ -65,6 +67,8 @@ export interface ReelScene {
   type: ReelSceneType;
   title: string;
   subtitle: string;
+  /** このシーン専用の背景画像プロンプト(英語)。シーンごとに変化をつける */
+  bgPrompt?: string;
 }
 
 export interface ReelPlan {
