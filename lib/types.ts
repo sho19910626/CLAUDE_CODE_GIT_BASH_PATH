@@ -81,6 +81,8 @@ export interface ContentPlan {
   reel: ReelPlan;
   /** AI背景画像の生成用プロンプト(英語)。OPENAI_API_KEY 設定時に使用 */
   imagePrompt: string;
+  /** リール用Bロール動画の生成プロンプト(英語)。旧プランには存在しない */
+  videoPrompt?: string;
 }
 
 export interface GenerateRequest {

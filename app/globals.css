@@ -441,6 +441,17 @@ body {
   margin-top: 14px;
 }
 
+.broll-box {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+.broll-box .note {
+  margin-top: 10px;
+}
+
 .record-progress {
   height: 8px;
   background: var(--bg-panel-2);

@@ -97,6 +97,11 @@ export const PLAN_SCHEMA = {
       description:
         "背景ビジュアル生成用の画像生成AIプロンプト(英語で記述)。ブランドと投稿内容に合うハイエンドな商業写真の描写: 被写体・構図・ライティング・色調・雰囲気を具体的に。文字を重ねるため中央〜上部に余白(negative space)を残す構図を指定。テキスト・ロゴ・人物の顔のアップは含めない",
     },
+    videoPrompt: {
+      type: "string",
+      description:
+        "リール背景用のBロール動画生成AIプロンプト(英語で記述)。縦型(9:16)8秒の映像。被写体・シーン・カメラワーク(slow dolly in, handheld pan など)・ライティング・雰囲気を具体的に。CM品質の商業映像として描写する。テキスト・ロゴは含めない。文字を重ねるため過度に忙しい動きは避ける",
+    },
     reel: {
       type: "object",
       properties: {
@@ -126,6 +131,6 @@ export const PLAN_SCHEMA = {
       additionalProperties: false
     }
   },
-  required: ["brand", "feed", "story", "reel", "imagePrompt"],
+  required: ["brand", "feed", "story", "reel", "imagePrompt", "videoPrompt"],
   additionalProperties: false
 } as const;

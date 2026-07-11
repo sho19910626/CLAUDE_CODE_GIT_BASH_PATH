@@ -76,6 +76,76 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
 
+/** Sora による Bロール動画の生成・ポーリング・取得を管理するフック */
+function useBroll(plan: ContentPlan | null) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // 新しいプランが来たら破棄
+  useEffect(() => {
+    setUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setLoading(false);
+    setProgress(null);
+    setError(null);
+  }, [plan]);
+
+  const generate = useCallback(async () => {
+    if (!plan || loading || url) return;
+    const prompt = plan.videoPrompt || plan.imagePrompt;
+    if (!prompt) {
+      setError("このプランには動画プロンプトがありません。コンテンツを再生成してください。");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setProgress(0);
+    try {
+      const createRes = await fetch("/api/broll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const created = await createRes.json();
+      if (!createRes.ok) throw new Error(created.error ?? `エラー (${createRes.status})`);
+
+      // 完成までポーリング
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const st = await fetch(`/api/broll?id=${encodeURIComponent(created.id)}`);
+        const s = await st.json();
+        if (!st.ok) throw new Error(s.error ?? `エラー (${st.status})`);
+        if (s.status === "failed") throw new Error(s.error ?? "生成に失敗しました");
+        if (typeof s.progress === "number") setProgress(s.progress);
+        if (s.status === "completed") break;
+      }
+
+      const contentRes = await fetch(
+        `/api/broll?id=${encodeURIComponent(created.id)}&content=1`
+      );
+      if (!contentRes.ok) {
+        const d = await contentRes.json().catch(() => ({}));
+        throw new Error(d.error ?? "動画のダウンロードに失敗しました");
+      }
+      const blob = await contentRes.blob();
+      setUrl(URL.createObjectURL(blob));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+      setProgress(null);
+    }
+  }, [plan, loading, url]);
+
+  return { url, loading, progress, error, generate };
+}
+
+type Broll = ReturnType<typeof useBroll>;
+
 /** 写真を縮小してdataURLに変換(ロゴは透過を保つためPNG) */
 async function fileToDataUrl(
   file: File,
@@ -121,6 +191,7 @@ export default function Generator() {
   const [logo, setLogo] = useState<string | null>(null);
   const [kitSaved, setKitSaved] = useState(false);
   const backgrounds = useBackgrounds(plan, refImages[0] ?? null);
+  const broll = useBroll(plan);
 
   // 保存済みブランドキットの復元
   useEffect(() => {
@@ -427,6 +498,7 @@ export default function Generator() {
                   uploadRef={refImages[0] ?? null}
                   videoUrl={videoUrl}
                   logoSrc={logo}
+                  broll={broll}
                 />
               )}
             </>
@@ -811,7 +883,7 @@ function StoryPanel({
   );
 }
 
-type ReelBgMode = "gradient" | "ai" | "photo" | "video";
+type ReelBgMode = "gradient" | "ai" | "photo" | "video" | "broll";
 
 function ReelPanel({
   plan,
@@ -819,15 +891,18 @@ function ReelPanel({
   uploadRef,
   videoUrl,
   logoSrc,
+  broll,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
   uploadRef: string | null;
   videoUrl: string | null;
   logoSrc: string | null;
+  broll: Broll;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const brollVideoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<ReelPlayer | null>(null);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -851,7 +926,12 @@ function ReelPanel({
       let img: HTMLImageElement | null = null;
       if (bgMode === "ai" && bgSrc) img = await loadImage(bgSrc);
       if (bgMode === "photo" && uploadRef) img = await loadImage(uploadRef);
-      const video = bgMode === "video" && videoUrl ? videoRef.current : null;
+      const video =
+        bgMode === "video" && videoUrl
+          ? videoRef.current
+          : bgMode === "broll" && broll.url
+            ? brollVideoRef.current
+            : null;
       if (video) {
         video.muted = true;
         video.loop = true;
@@ -879,7 +959,7 @@ function ReelPanel({
       playerRef.current?.stop();
       playerRef.current = null;
     };
-  }, [plan, bgMode, bgSrc, uploadRef, videoUrl, logoSrc]);
+  }, [plan, bgMode, bgSrc, uploadRef, videoUrl, logoSrc, broll.url]);
 
   const [mp4Ok, setMp4Ok] = useState(false);
   useEffect(() => {
@@ -950,9 +1030,41 @@ function ReelPanel({
               🎥 アップ動画
             </button>
           )}
+          <button
+            className={`template-pill ${bgMode === "broll" ? "active" : ""}`}
+            onClick={() => setBgMode("broll")}
+          >
+            🎞 AI動画 (Sora)
+          </button>
         </div>
         {videoUrl && (
           <video ref={videoRef} src={videoUrl} muted playsInline loop hidden />
+        )}
+        {broll.url && (
+          <video ref={brollVideoRef} src={broll.url} muted playsInline loop hidden />
+        )}
+        {bgMode === "broll" && !broll.url && (
+          <div className="broll-box">
+            <button
+              className="btn btn-ghost"
+              onClick={broll.generate}
+              disabled={broll.loading}
+            >
+              {broll.loading
+                ? `🎞 生成中... ${broll.progress != null ? `${Math.round(broll.progress)}%` : ""}`
+                : "🎞 Bロール動画を生成する (8秒・有料)"}
+            </button>
+            <p className="note">
+              OpenAI Sora でCM風の実写背景映像を生成します。1〜3分ほどかかり、
+              1本あたり約$0.8のAPI利用料が発生します。
+            </p>
+            {broll.loading && (
+              <div className="record-progress">
+                <div style={{ width: `${Math.round(broll.progress ?? 5)}%` }} />
+              </div>
+            )}
+            {broll.error && <div className="error-box">{broll.error}</div>}
+          </div>
         )}
         <canvas ref={canvasRef} />
         {bgMode === "ai" && bgLoading && (
