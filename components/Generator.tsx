@@ -93,7 +93,29 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
     [loading]
   );
 
-  return { getImage, isLoading, error, fetchBackground };
+  // キャッシュを破棄して作り直す(同じプロンプトでも別の画像が返る)
+  const regenerate = useCallback(
+    (prompts: string[], aspect: Aspect) => {
+      for (const prompt of prompts) {
+        const p = (prompt ?? "").trim();
+        if (!p) continue;
+        const k = keyOf(p, aspect);
+        inflight.current.delete(k);
+        setImages((s) => {
+          const n = { ...s };
+          delete n[k];
+          return n;
+        });
+      }
+      // 状態更新後に再取得(inflight を消したので発火する)
+      for (const prompt of prompts) {
+        if (prompt?.trim()) void fetchBackground(prompt, aspect);
+      }
+    },
+    [fetchBackground]
+  );
+
+  return { getImage, isLoading, error, fetchBackground, regenerate };
 }
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
@@ -819,6 +841,28 @@ function FeedPanel({
         {template === "photo" && backgrounds.error && (
           <div className="error-box">{backgrounds.error}</div>
         )}
+        {template === "photo" && photo.choice === "ai" && (
+          <div className="preview-actions">
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() => backgrounds.regenerate([slidePrompt], "square")}
+              disabled={bgLoading}
+            >
+              🔄 この背景を変える
+            </button>
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() =>
+                backgrounds.regenerate(
+                  plan.feed.slides.map((s) => s.bgPrompt || plan.imagePrompt),
+                  "square"
+                )
+              }
+            >
+              🔄 全スライドの背景を変える
+            </button>
+          </div>
+        )}
         <div className="preview-actions">
           <button
             className="btn btn-ghost"
@@ -914,6 +958,17 @@ function StoryPanel({
         )}
         {template === "story-photo" && backgrounds.error && (
           <div className="error-box">{backgrounds.error}</div>
+        )}
+        {template === "story-photo" && photo.choice === "ai" && (
+          <div className="preview-actions">
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() => backgrounds.regenerate([plan.imagePrompt], "vertical")}
+              disabled={bgLoading}
+            >
+              🔄 背景を変える
+            </button>
+          </div>
         )}
         <div className="preview-actions">
           <button
@@ -1150,6 +1205,17 @@ function ReelPanel({
         )}
         {bgMode === "ai" && backgrounds.error && (
           <div className="error-box">{backgrounds.error}</div>
+        )}
+        {bgMode === "ai" && (
+          <div className="preview-actions">
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() => backgrounds.regenerate(scenePrompts, "vertical")}
+              disabled={bgLoading}
+            >
+              🔄 背景を変える(全シーン)
+            </button>
+          </div>
         )}
         <div className="preview-actions">
           <button className="btn btn-ghost" onClick={record} disabled={recording}>
