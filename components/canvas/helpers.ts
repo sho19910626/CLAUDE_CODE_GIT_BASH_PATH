@@ -121,15 +121,55 @@ function segmentJa(text: string): string[] {
 }
 
 /**
+ * セグメント s の直後で改行する自然さ(-1〜1)。
+ * 句読点・助詞・活用語尾(ひらがな終わり)で改行するのは自然、
+ * 漢字・カタカナの途中(複合語が続きうる)で改行するのは不自然。
+ */
+function breakNaturalness(s: string): number {
+  if (!s) return 0;
+  const last = s[s.length - 1];
+  // 句読点・感嘆符 → 最も自然
+  if ("、。，！？!?,.".includes(last)) return 1;
+  // 中黒・コロン等
+  if ("・:;：；".includes(last)) return 0.5;
+  const code = last.codePointAt(0)!;
+  // ひらがな(助詞・活用語尾) → 自然な文節末
+  const isHiragana = code >= 0x3041 && code <= 0x309f;
+  if (isHiragana) {
+    // 「の」「な」で終わる連体修飾は、直後の名詞と結びつきが強いので弱める
+    if (last === "の" || last === "な") return 0.25;
+    return 0.65;
+  }
+  // カタカナ・漢字・長音 → 複合語の途中の可能性が高く不自然
+  const isKatakana =
+    (code >= 0x30a0 && code <= 0x30ff) || (code >= 0xff66 && code <= 0xff9f);
+  const isKanji =
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0xf900 && code <= 0xfaff);
+  if (isKatakana || isKanji || last === "ー") return -0.5;
+  return 0;
+}
+
+/**
  * セグメント列を k 行に分割する改行位置を動的計画法で求める。
- * 各行の幅が目標幅 (合計/k) に近づくようにし、maxWidth 超過は不可。
+ * 各行の幅が目標幅 (合計/k) に近づけつつ、句読点・助詞・活用語尾での
+ * 改行を優先し、複合語の途中での改行を避ける。
  * 返り値は各行の開始セグメント番号。不可能なら null。
  */
-function dpSplit(widths: number[], maxWidth: number, k: number): number[] | null {
+function dpSplit(
+  segs: string[],
+  widths: number[],
+  maxWidth: number,
+  k: number
+): number[] | null {
   const n = widths.length;
   const prefix = new Array<number>(n + 1).fill(0);
   for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + widths[i];
   const target = prefix[n] / k;
+  // 改行の自然さの重み。行長のばらつき(d^2)と釣り合うよう target^2 基準にする。
+  // 中程度のばらつきなら自然な区切りを優先し、極端な偏りは許さない値。
+  const NAT = target * target * 0.42;
 
   const INF = Number.POSITIVE_INFINITY;
   const best = Array.from({ length: k + 1 }, () => new Array<number>(n + 1).fill(INF));
@@ -143,7 +183,9 @@ function dpSplit(widths: number[], maxWidth: number, k: number): number[] | null
         const w = prefix[i] - prefix[j];
         if (w > maxWidth) continue;
         const d = w - target;
-        const cost = best[l - 1][j] + d * d;
+        let cost = best[l - 1][j] + d * d;
+        // この行の末尾(seg i-1)で改行する自然さを反映(最終行=文末は対象外)
+        if (i < n) cost -= NAT * breakNaturalness(segs[i - 1]);
         if (cost < best[l][i]) {
           best[l][i] = cost;
           choice[l][i] = j;
@@ -204,7 +246,7 @@ function wrapParagraph(
   // 必要最小行数から順にバランス分割を試す
   const minLines = Math.max(2, Math.ceil(total / maxWidth));
   for (let k = minLines; k <= minLines + 3 && k <= segs.length; k++) {
-    const starts = dpSplit(widths, maxWidth, k);
+    const starts = dpSplit(segs, widths, maxWidth, k);
     if (starts) {
       const lines: string[] = [];
       for (let l = 0; l < starts.length; l++) {
