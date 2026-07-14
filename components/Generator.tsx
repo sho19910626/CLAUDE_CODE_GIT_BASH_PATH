@@ -120,72 +120,106 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
 
 type Backgrounds = ReturnType<typeof useBackgrounds>;
 
-/** Sora による Bロール動画の生成・ポーリング・取得を管理するフック */
+/**
+ * Sora による Bロール動画の生成・ポーリング・取得を管理するフック。
+ * クリップはキー("single" またはシーン番号)ごとに管理し、
+ * 同じキーで再度 generate() すると別の映像に差し替わる(再生成)。
+ */
 function useBroll(plan: ContentPlan | null) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<number | null>(null);
+  const [clips, setClips] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
+  const inflight = useRef<Set<string>>(new Set());
 
   // 新しいプランが来たら破棄
   useEffect(() => {
-    setUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
+    setClips((prev) => {
+      for (const u of Object.values(prev)) URL.revokeObjectURL(u);
+      return {};
     });
-    setLoading(false);
-    setProgress(null);
+    setLoading({});
+    setProgress({});
     setError(null);
+    inflight.current = new Set();
   }, [plan]);
 
-  const generate = useCallback(async () => {
-    if (!plan || loading || url) return;
-    const prompt = plan.videoPrompt || plan.imagePrompt;
-    if (!prompt) {
-      setError("このプランには動画プロンプトがありません。コンテンツを再生成してください。");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setProgress(0);
-    try {
-      const createRes = await fetch("/api/broll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+  const generate = useCallback(
+    async (key: string, prompt: string, seconds: "4" | "8") => {
+      const p = (prompt ?? "").trim();
+      if (!p) {
+        setError("このプランには動画プロンプトがありません。コンテンツを再生成してください。");
+        return;
+      }
+      if (inflight.current.has(key)) return; // 同一キーの多重生成のみ防止
+      inflight.current.add(key);
+      setLoading((s) => ({ ...s, [key]: true }));
+      setProgress((s) => ({ ...s, [key]: 0 }));
+      setError(null);
+      try {
+        const createRes = await fetch("/api/broll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: p, seconds }),
+        });
+        const created = await createRes.json();
+        if (!createRes.ok) throw new Error(created.error ?? `エラー (${createRes.status})`);
+
+        // 完成までポーリング
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 5000));
+          const st = await fetch(`/api/broll?id=${encodeURIComponent(created.id)}`);
+          const s = await st.json();
+          if (!st.ok) throw new Error(s.error ?? `エラー (${st.status})`);
+          if (s.status === "failed") throw new Error(s.error ?? "生成に失敗しました");
+          if (typeof s.progress === "number") {
+            setProgress((prev) => ({ ...prev, [key]: s.progress }));
+          }
+          if (s.status === "completed") break;
+        }
+
+        const contentRes = await fetch(
+          `/api/broll?id=${encodeURIComponent(created.id)}&content=1`
+        );
+        if (!contentRes.ok) {
+          const d = await contentRes.json().catch(() => ({}));
+          throw new Error(d.error ?? "動画のダウンロードに失敗しました");
+        }
+        const blob = await contentRes.blob();
+        const newUrl = URL.createObjectURL(blob);
+        setClips((prev) => {
+          if (prev[key]) URL.revokeObjectURL(prev[key]);
+          return { ...prev, [key]: newUrl };
+        });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        inflight.current.delete(key);
+        setLoading((s) => ({ ...s, [key]: false }));
+      }
+    },
+    []
+  );
+
+  /** 全シーン分を並列生成(CM風カット割り用) */
+  const generateScenes = useCallback(
+    (scenePrompts: string[]) => {
+      scenePrompts.forEach((p, i) => {
+        void generate(String(i), p, "4");
       });
-      const created = await createRes.json();
-      if (!createRes.ok) throw new Error(created.error ?? `エラー (${createRes.status})`);
+    },
+    [generate]
+  );
 
-      // 完成までポーリング
-      for (;;) {
-        await new Promise((r) => setTimeout(r, 5000));
-        const st = await fetch(`/api/broll?id=${encodeURIComponent(created.id)}`);
-        const s = await st.json();
-        if (!st.ok) throw new Error(s.error ?? `エラー (${st.status})`);
-        if (s.status === "failed") throw new Error(s.error ?? "生成に失敗しました");
-        if (typeof s.progress === "number") setProgress(s.progress);
-        if (s.status === "completed") break;
-      }
+  const anyLoading = Object.values(loading).some(Boolean);
+  // 進行中ジョブの平均進捗
+  const activeKeys = Object.keys(loading).filter((k) => loading[k]);
+  const avgProgress =
+    activeKeys.length > 0
+      ? activeKeys.reduce((a, k) => a + (progress[k] ?? 0), 0) / activeKeys.length
+      : null;
 
-      const contentRes = await fetch(
-        `/api/broll?id=${encodeURIComponent(created.id)}&content=1`
-      );
-      if (!contentRes.ok) {
-        const d = await contentRes.json().catch(() => ({}));
-        throw new Error(d.error ?? "動画のダウンロードに失敗しました");
-      }
-      const blob = await contentRes.blob();
-      setUrl(URL.createObjectURL(blob));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-      setProgress(null);
-    }
-  }, [plan, loading, url]);
-
-  return { url, loading, progress, error, generate };
+  return { clips, loading, anyLoading, avgProgress, error, generate, generateScenes };
 }
 
 type Broll = ReturnType<typeof useBroll>;
@@ -1012,7 +1046,7 @@ function ReelPanel({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const brollVideoRef = useRef<HTMLVideoElement>(null);
+  const brollVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const playerRef = useRef<ReelPlayer | null>(null);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -1020,10 +1054,19 @@ function ReelPanel({
   const [bgMode, setBgMode] = useState<ReelBgMode>(
     videoUrl ? "video" : uploadRef ? "photo" : "gradient"
   );
+  /** Bロールの構成: 1本の映像 or シーンごとのカット割り */
+  const [brollMode, setBrollMode] = useState<"single" | "scenes">("scenes");
   // 各シーンの背景プロンプト(なければ全体プロンプトにフォールバック)
   const scenePrompts = plan.reel.scenes.map(
     (s) => s.bgPrompt || plan.imagePrompt
   );
+  const sceneVideoPrompts = plan.reel.scenes.map(
+    (s) => s.bgPrompt || plan.videoPrompt || plan.imagePrompt
+  );
+  const sceneCount = plan.reel.scenes.length;
+  const hasSingleClip = !!broll.clips["single"];
+  const sceneClipCount = plan.reel.scenes.filter((_, i) => broll.clips[String(i)]).length;
+  const hasAllSceneClips = sceneClipCount === sceneCount;
   const bgLoading =
     bgMode === "ai" && scenePrompts.some((p) => backgrounds.isLoading(p, "vertical"));
 
@@ -1055,23 +1098,38 @@ function ReelPanel({
         );
       }
       if (bgMode === "photo" && uploadRef) img = await loadImage(uploadRef);
-      const video =
-        bgMode === "video" && videoUrl
-          ? videoRef.current
-          : bgMode === "broll" && broll.url
-            ? brollVideoRef.current
-            : null;
-      if (video) {
-        video.muted = true;
-        video.loop = true;
-        if (video.readyState < 2) {
-          await new Promise<void>((resolve) => {
-            const onReady = () => resolve();
-            video.addEventListener("loadeddata", onReady, { once: true });
-            video.addEventListener("error", onReady, { once: true });
-          });
+
+      // 背景動画の決定(アップ動画 / Bロール1本 / Bロールのシーン別カット)
+      let video: HTMLVideoElement | null = null;
+      let videos: (HTMLVideoElement | null)[] | null = null;
+      if (bgMode === "video" && videoUrl) {
+        video = videoRef.current;
+      } else if (bgMode === "broll") {
+        if (brollMode === "single") {
+          video = brollVideoRefs.current.get("single") ?? null;
+        } else {
+          videos = plan.reel.scenes.map(
+            (_, i) => brollVideoRefs.current.get(String(i)) ?? null
+          );
+          if (videos.every((v) => v === null)) videos = null;
         }
       }
+      const allVids = [video, ...(videos ?? [])].filter(
+        (v): v is HTMLVideoElement => v !== null
+      );
+      await Promise.all(
+        allVids.map(async (v) => {
+          v.muted = true;
+          v.loop = true;
+          if (v.readyState < 2) {
+            await new Promise<void>((resolve) => {
+              const onReady = () => resolve();
+              v.addEventListener("loadeddata", onReady, { once: true });
+              v.addEventListener("error", onReady, { once: true });
+            });
+          }
+        })
+      );
       const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       if (cancelled || !canvasRef.current) return;
       playerRef.current?.stop();
@@ -1079,6 +1137,7 @@ function ReelPanel({
         image: img,
         images,
         video,
+        videos,
         logo: logoImg,
       });
       playerRef.current = player;
@@ -1090,7 +1149,18 @@ function ReelPanel({
       playerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, bgMode, aiSceneImages, uploadRef, videoUrl, logoSrc, broll.url]);
+  }, [
+    plan,
+    bgMode,
+    brollMode,
+    aiSceneImages,
+    uploadRef,
+    videoUrl,
+    logoSrc,
+    Object.entries(broll.clips)
+      .map(([k, u]) => k + u)
+      .join(","),
+  ]);
 
   const [mp4Ok, setMp4Ok] = useState(false);
   useEffect(() => {
@@ -1171,27 +1241,83 @@ function ReelPanel({
         {videoUrl && (
           <video ref={videoRef} src={videoUrl} muted playsInline loop hidden />
         )}
-        {broll.url && (
-          <video ref={brollVideoRef} src={broll.url} muted playsInline loop hidden />
-        )}
-        {bgMode === "broll" && !broll.url && (
+        {Object.entries(broll.clips).map(([key, url]) => (
+          <video
+            key={key + url}
+            src={url}
+            muted
+            playsInline
+            loop
+            hidden
+            ref={(el) => {
+              if (el) brollVideoRefs.current.set(key, el);
+              else brollVideoRefs.current.delete(key);
+            }}
+          />
+        ))}
+        {bgMode === "broll" && (
           <div className="broll-box">
-            <button
-              className="btn btn-ghost"
-              onClick={broll.generate}
-              disabled={broll.loading}
-            >
-              {broll.loading
-                ? `🎞 生成中... ${broll.progress != null ? `${Math.round(broll.progress)}%` : ""}`
-                : "🎞 Bロール動画を生成する (8秒・有料)"}
-            </button>
-            <p className="note">
-              OpenAI Sora でCM風の実写背景映像を生成します。1〜3分ほどかかり、
-              1本あたり約$0.8のAPI利用料が発生します。
-            </p>
-            {broll.loading && (
+            <div className="template-row" style={{ justifyContent: "center" }}>
+              <button
+                className={`template-pill ${brollMode === "scenes" ? "active" : ""}`}
+                onClick={() => setBrollMode("scenes")}
+              >
+                🎬 シーンごとにカット割り
+              </button>
+              <button
+                className={`template-pill ${brollMode === "single" ? "active" : ""}`}
+                onClick={() => setBrollMode("single")}
+              >
+                1本の映像
+              </button>
+            </div>
+            {brollMode === "scenes" ? (
+              <>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => broll.generateScenes(sceneVideoPrompts)}
+                  disabled={broll.anyLoading}
+                >
+                  {broll.anyLoading
+                    ? `🎞 生成中... ${broll.avgProgress != null ? `${Math.round(broll.avgProgress)}%` : ""} (${sceneClipCount}/${sceneCount}本 完了)`
+                    : hasAllSceneClips
+                      ? `🔄 全シーンを別の映像に変える (${sceneCount}本・約$${(0.4 * sceneCount).toFixed(1)})`
+                      : `🎞 全${sceneCount}シーン分を生成する (約$${(0.4 * sceneCount).toFixed(1)})`}
+                </button>
+                <p className="note">
+                  シーンごとに別の映像へカットが切り替わる、テレビCMと同じ構成です。
+                  毎回ランダムなカメラワーク・ライティングで生成されるため、
+                  作り直すたびに違う映像になります(4秒×{sceneCount}本を並列生成、2〜4分)。
+                </p>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() =>
+                    broll.generate(
+                      "single",
+                      plan.videoPrompt || plan.imagePrompt,
+                      "8"
+                    )
+                  }
+                  disabled={broll.anyLoading}
+                >
+                  {broll.anyLoading
+                    ? `🎞 生成中... ${broll.avgProgress != null ? `${Math.round(broll.avgProgress)}%` : ""}`
+                    : hasSingleClip
+                      ? "🔄 別の映像に変える (約$0.8)"
+                      : "🎞 Bロール動画を生成する (8秒・約$0.8)"}
+                </button>
+                <p className="note">
+                  1本の映像を全シーン共通の背景として使います。
+                  毎回ランダムな演出が付くため、作り直すたびに違う映像になります(1〜3分)。
+                </p>
+              </>
+            )}
+            {broll.anyLoading && (
               <div className="record-progress">
-                <div style={{ width: `${Math.round(broll.progress ?? 5)}%` }} />
+                <div style={{ width: `${Math.round(broll.avgProgress ?? 5)}%` }} />
               </div>
             )}
             {broll.error && <div className="error-box">{broll.error}</div>}

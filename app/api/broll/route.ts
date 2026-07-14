@@ -10,10 +10,35 @@ export const maxDuration = 300;
 const OPENAI_BASE = "https://api.openai.com/v1/videos";
 
 const PROMPT_SUFFIX =
-  "Vertical 9:16 commercial b-roll footage for a brand's Instagram Reel. " +
-  "Cinematic lighting, professional color grading, smooth camera movement. " +
+  "Vertical 9:16 premium commercial b-roll footage, the quality of a national TV advertisement. " +
+  "Shot on a cinema camera with a 35mm prime lens, shallow depth of field, rich film-like color grading, " +
+  "soft highlight rolloff, true-to-life skin and material tones. " +
   "Absolutely no text, no letters, no logos, no watermarks. " +
-  "Calm composition that leaves visual room for a text overlay.";
+  "Calm, intentional composition that leaves clear negative space for a text overlay.";
+
+// 生成のたびにランダムに選ぶ演出ディレクション。
+// 同じプロンプトでも毎回違う雰囲気の映像になる。
+const CAMERA_MOVES = [
+  "Slow dolly-in toward the subject",
+  "Gentle lateral tracking shot gliding past the subject",
+  "Slow push-out revealing the wider scene",
+  "Locked-off tripod shot with subtle natural motion in the frame",
+  "Handheld documentary-style movement, stabilized and subtle",
+  "Slow top-down crane descent over the scene",
+  "Rack focus shifting from foreground detail to the main subject",
+];
+const LIGHT_MOODS = [
+  "golden-hour sunlight streaming from the side",
+  "soft overcast daylight with gentle shadows",
+  "warm tungsten interior glow, evening atmosphere",
+  "bright airy high-key daylight, fresh and clean",
+  "moody low-key lighting with a single strong key light",
+  "cool blue-hour ambience with warm practical lights",
+];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 function noKey() {
   return NextResponse.json(
@@ -42,7 +67,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return noKey();
 
-  let body: { prompt?: string };
+  let body: { prompt?: string; seconds?: string };
   try {
     body = await req.json();
   } catch {
@@ -52,8 +77,11 @@ export async function POST(req: NextRequest) {
   if (!prompt) {
     return NextResponse.json({ error: "動画プロンプトがありません" }, { status: 400 });
   }
+  const seconds = ["4", "8", "12"].includes(body.seconds ?? "") ? body.seconds! : "8";
 
   const model = process.env.OPENAI_VIDEO_MODEL || "sora-2";
+  // 毎回異なる演出をランダムに付与(再生成のたびに映像が変わる)
+  const direction = `${pick(CAMERA_MOVES)}. Lighting: ${pick(LIGHT_MOODS)}.`;
   try {
     const res = await fetch(OPENAI_BASE, {
       method: "POST",
@@ -63,9 +91,9 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model,
-        prompt: `${prompt}\n\n${PROMPT_SUFFIX}`,
+        prompt: `${prompt}\n\n${direction}\n\n${PROMPT_SUFFIX}`,
         size: "720x1280",
-        seconds: "8",
+        seconds,
       }),
       signal: AbortSignal.timeout(60_000),
     });

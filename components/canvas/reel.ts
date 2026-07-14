@@ -27,7 +27,10 @@ export interface ReelBackground {
   image?: HTMLImageElement | null;
   /** シーンごとの背景画像(AI写真モード)。無い要素は image にフォールバック */
   images?: (HTMLImageElement | null)[] | null;
+  /** 単一の背景動画(アップ動画 / Bロール1本モード) */
   video?: HTMLVideoElement | null;
+  /** シーンごとの背景動画(CM風カット割り)。無い要素は video にフォールバック */
+  videos?: (HTMLVideoElement | null)[] | null;
   logo?: HTMLImageElement | null;
 }
 
@@ -41,6 +44,7 @@ export class ReelPlayer {
   private bgImage: HTMLImageElement | null;
   private bgImages: (HTMLImageElement | null)[] | null;
   private bgVideo: HTMLVideoElement | null;
+  private bgVideos: (HTMLVideoElement | null)[] | null;
   private logo: HTMLImageElement | null;
 
   constructor(
@@ -58,12 +62,43 @@ export class ReelPlayer {
     this.bgImage = bg?.image ?? null;
     this.bgImages = bg?.images ?? null;
     this.bgVideo = bg?.video ?? null;
+    this.bgVideos = bg?.videos ?? null;
     this.logo = bg?.logo ?? null;
   }
 
   /** 指定シーンで使う背景画像(シーン個別 → 単一 の順にフォールバック) */
   private sceneImage(idx: number): HTMLImageElement | null {
     return this.bgImages?.[idx] ?? this.bgImage ?? null;
+  }
+
+  /** 指定シーンで使う背景動画(シーン個別 → 単一 の順にフォールバック) */
+  private sceneVideo(idx: number): HTMLVideoElement | null {
+    return this.bgVideos?.[idx] ?? this.bgVideo ?? null;
+  }
+
+  /** 保持している全動画(重複除去) */
+  private allVideos(): HTMLVideoElement[] {
+    const set = new Set<HTMLVideoElement>();
+    if (this.bgVideo) set.add(this.bgVideo);
+    for (const v of this.bgVideos ?? []) if (v) set.add(v);
+    return [...set];
+  }
+
+  /**
+   * 指定時刻に描画すべき動画とその再生位置(秒)。オフライン書き出し用。
+   * シーン個別動画はシーン内経過時間、単一動画は全体経過時間を使う。
+   */
+  videoAt(timeMs: number): { video: HTMLVideoElement; time: number } | null {
+    const idx = Math.min(
+      Math.floor(Math.max(0, timeMs) / SCENE_MS),
+      this.reel.scenes.length - 1
+    );
+    const perScene = this.bgVideos?.[idx] ?? null;
+    const video = perScene ?? this.bgVideo;
+    if (!video) return null;
+    const local = perScene ? (timeMs - idx * SCENE_MS) / 1000 : timeMs / 1000;
+    const dur = video.duration;
+    return { video, time: dur && isFinite(dur) ? local % dur : local };
   }
 
   get durationMs(): number {
@@ -82,9 +117,9 @@ export class ReelPlayer {
   play(): void {
     this.stop();
     this.startTime = performance.now();
-    if (this.bgVideo) {
-      this.bgVideo.currentTime = 0;
-      void this.bgVideo.play().catch(() => {});
+    for (const v of this.allVideos()) {
+      v.currentTime = 0;
+      void v.play().catch(() => {});
     }
     const loop = (now: number) => {
       const t = Math.max(0, now - this.startTime) % this.durationMs;
@@ -99,7 +134,7 @@ export class ReelPlayer {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
-    this.bgVideo?.pause();
+    for (const v of this.allVideos()) v.pause();
   }
 
   /** 1周ぶんをリアルタイム録画して WebM Blob を返す (WebCodecs非対応ブラウザ用) */
@@ -128,9 +163,9 @@ export class ReelPlayer {
         resolve(new Blob(chunks, { type: "video/webm" }));
       };
 
-      if (this.bgVideo) {
-        this.bgVideo.currentTime = 0;
-        void this.bgVideo.play().catch(() => {});
+      for (const v of this.allVideos()) {
+        v.currentTime = 0;
+        void v.play().catch(() => {});
       }
       const start = performance.now();
       recorder.start(250);
@@ -162,9 +197,10 @@ export class ReelPlayer {
     const c = brand.colorPalette;
 
     /* ---------- 背景 ---------- */
+    const activeVideo = this.sceneVideo(idx);
     let text: string;
-    if (this.bgVideo && this.bgVideo.readyState >= 2) {
-      drawImageCover(ctx, this.bgVideo, 0, 0, REEL_W, REEL_H);
+    if (activeVideo && activeVideo.readyState >= 2) {
+      drawImageCover(ctx, activeVideo, 0, 0, REEL_W, REEL_H);
       const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);
       scrim.addColorStop(0, "rgba(0,0,0,0.5)");
       scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");

@@ -57,15 +57,14 @@ export async function exportReelMp4(
   });
   encoder.configure(ENCODER_CONFIG);
 
-  const video = player.backgroundVideo;
-  if (video) video.pause();
-
   for (let i = 0; i < totalFrames; i++) {
     if (encodeError) throw toError(encodeError);
     const tMs = (i * 1000) / FPS;
 
-    if (video && video.duration && isFinite(video.duration)) {
-      await seekVideo(video, (tMs / 1000) % video.duration);
+    // そのフレームで使う動画(シーン別/単一)を正確な位置へシーク
+    const va = player.videoAt(tMs);
+    if (va) {
+      await seekVideo(va.video, va.time);
     }
 
     player.drawFrame(tMs);
