@@ -47,7 +47,7 @@ export function renderFeedSlide(
 
   // コンテンツ
   if (slide.role === "cover") {
-    drawCover(ctx, brand, slide, colors.content, slides.length);
+    drawCover(ctx, brand, slide, colors.content);
   } else if (slide.role === "cta") {
     drawCtaSlide(ctx, brand, slide, colors.content);
   } else {
@@ -244,8 +244,7 @@ function drawCover(
   ctx: CanvasRenderingContext2D,
   brand: BrandProfile,
   slide: FeedSlide,
-  text: string,
-  total: number
+  text: string
 ): void {
   const dim = text === "#ffffff" ? "rgba(255,255,255,0.9)" : "rgba(26,26,26,0.78)";
 
@@ -279,19 +278,6 @@ function drawCover(
   drawLines(ctx, subLines, W / 2, startY + (lines.length - 1) * lineHeight + 96, 58);
   setTracking(ctx, 0);
 
-  // スワイプ誘導ピル
-  const pillY = H - 260;
-  setTracking(ctx, 2);
-  ctx.font = font(brand, 700, 30);
-  const label = `スワイプして見る(全${total}枚)→`;
-  const lw = ctx.measureText(label).width;
-  ctx.strokeStyle = rgba(text, 0.75);
-  ctx.lineWidth = 2;
-  roundRect(ctx, W / 2 - lw / 2 - 36, pillY - 40, lw + 72, 62, 31);
-  ctx.stroke();
-  ctx.fillStyle = rgba(text, 0.95);
-  ctx.fillText(label, W / 2, pillY + 2);
-  setTracking(ctx, 0);
 }
 
 /* ============================== 中面 ============================== */
