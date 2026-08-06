@@ -22,6 +22,19 @@ export const REEL_H = 1920;
 export const SCENE_MS = 2800;
 const FPS = 30;
 
+/**
+ * 描画スタイル。
+ * - cinematic: 映像が主役。テキストは冒頭フックと下部テロップに最小化(リール向き)
+ * - slides:    テキストが主役のモーショングラフィックス(ストーリー動画向き)
+ */
+export type ReelStyle = "cinematic" | "slides";
+
+export interface ReelOptions {
+  style?: ReelStyle;
+  /** CTAシーンのボタン文言(リールは「プロフィールをチェック」、ストーリーはリンク導線) */
+  ctaLabel?: string;
+}
+
 export interface ReelBackground {
   /** 単一の背景画像(photo/broll モード) */
   image?: HTMLImageElement | null;
@@ -46,12 +59,15 @@ export class ReelPlayer {
   private bgVideo: HTMLVideoElement | null;
   private bgVideos: (HTMLVideoElement | null)[] | null;
   private logo: HTMLImageElement | null;
+  private style: ReelStyle;
+  private ctaLabel: string;
 
   constructor(
     canvas: HTMLCanvasElement,
     brand: BrandProfile,
     reel: ReelPlan,
-    bg?: ReelBackground | null
+    bg?: ReelBackground | null,
+    opts?: ReelOptions | null
   ) {
     canvas.width = REEL_W;
     canvas.height = REEL_H;
@@ -64,6 +80,8 @@ export class ReelPlayer {
     this.bgVideo = bg?.video ?? null;
     this.bgVideos = bg?.videos ?? null;
     this.logo = bg?.logo ?? null;
+    this.style = opts?.style ?? "cinematic";
+    this.ctaLabel = opts?.ctaLabel ?? "プロフィールをチェック";
   }
 
   /** 指定シーンで使う背景画像(シーン個別 → 単一 の順にフォールバック) */
@@ -197,18 +215,35 @@ export class ReelPlayer {
     const c = brand.colorPalette;
 
     /* ---------- 背景 ---------- */
-    const activeVideo = this.sceneVideo(idx);
-    let text: string;
-    if (activeVideo && activeVideo.readyState >= 2) {
-      drawImageCover(ctx, activeVideo, 0, 0, REEL_W, REEL_H);
+    // cinematic は映像を主役に見せるためスクリムを薄くする(テロップ部の下部のみ濃く)
+    const cinematic = this.style === "cinematic";
+    const applyScrim = () => {
       const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);
-      scrim.addColorStop(0, "rgba(0,0,0,0.5)");
-      scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");
-      scrim.addColorStop(1, "rgba(0,0,0,0.62)");
+      if (cinematic) {
+        scrim.addColorStop(0, "rgba(0,0,0,0.30)");
+        scrim.addColorStop(0.35, "rgba(0,0,0,0.10)");
+        scrim.addColorStop(0.62, "rgba(0,0,0,0.16)");
+        scrim.addColorStop(1, "rgba(0,0,0,0.60)");
+      } else {
+        scrim.addColorStop(0, "rgba(0,0,0,0.5)");
+        scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");
+        scrim.addColorStop(1, "rgba(0,0,0,0.62)");
+      }
       ctx.fillStyle = scrim;
       ctx.fillRect(0, 0, REEL_W, REEL_H);
-      ctx.fillStyle = rgba(scene.type === "cta" ? c.accent : c.primary, 0.12);
+      ctx.fillStyle = rgba(
+        scene.type === "cta" ? c.accent : c.primary,
+        cinematic ? 0.06 : 0.13
+      );
       ctx.fillRect(0, 0, REEL_W, REEL_H);
+    };
+
+    const activeVideo = this.sceneVideo(idx);
+    let text: string;
+    let hasMedia = true;
+    if (activeVideo && activeVideo.readyState >= 2) {
+      drawImageCover(ctx, activeVideo, 0, 0, REEL_W, REEL_H);
+      applyScrim();
       text = "#ffffff";
     } else if (this.sceneImage(idx)) {
       // Ken Burns(ゆっくりズーム+パン)。シーンごとに寄り/引きの方向を変える
@@ -223,16 +258,10 @@ export class ReelPlayer {
       drawImageCover(ctx, sceneImg, 0, 0, REEL_W, REEL_H);
       ctx.restore();
 
-      const scrim = ctx.createLinearGradient(0, 0, 0, REEL_H);
-      scrim.addColorStop(0, "rgba(0,0,0,0.5)");
-      scrim.addColorStop(0.4, "rgba(0,0,0,0.28)");
-      scrim.addColorStop(1, "rgba(0,0,0,0.62)");
-      ctx.fillStyle = scrim;
-      ctx.fillRect(0, 0, REEL_W, REEL_H);
-      ctx.fillStyle = rgba(scene.type === "cta" ? c.accent : c.primary, 0.14);
-      ctx.fillRect(0, 0, REEL_W, REEL_H);
+      applyScrim();
       text = "#ffffff";
     } else {
+      hasMedia = false;
       // 回転グラデーション
       const angle = (timeMs / this.durationMs) * Math.PI * 0.6 + idx * 0.4;
       const cx = REEL_W / 2;
@@ -280,8 +309,9 @@ export class ReelPlayer {
       text = readableOn(c.primary);
     }
 
-    /* ---------- 浮遊パーティクル(全背景共通) ---------- */
-    for (let i = 0; i < 16; i++) {
+    /* ---------- 浮遊パーティクル ---------- */
+    // 実写映像の上では邪魔になるため、cinematic では背景がグラデーションのときだけ描く
+    if (!cinematic || !hasMedia) for (let i = 0; i < 16; i++) {
       const baseX = (i * 397) % REEL_W;
       const px = baseX + Math.sin(timeMs / 2400 + i * 1.7) * 34;
       const speed = 0.022 + (i % 5) * 0.008;
@@ -303,6 +333,90 @@ export class ReelPlayer {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
 
+    if (cinematic) {
+      this.drawSceneCinematic(scenes, idx, sceneT, sceneAlpha, timeMs, text);
+      ctx.restore();
+    } else {
+      this.drawSceneSlides(scenes, idx, sceneT, sceneAlpha, timeMs, text);
+      ctx.restore();
+
+      /* ---------- シーン導入ワイプ(slides のみ・最初のシーン以外) ---------- */
+      if (idx > 0) {
+        const wipeT = easeInOutCubic(clamp01(sceneT / 0.14));
+        if (wipeT < 1) {
+          const x = wipeT * (REEL_W + 900) - 450;
+          ctx.save();
+          ctx.translate(x, 0);
+          ctx.transform(1, 0, -0.32, 1, 0, 0);
+          ctx.fillStyle = c.accent;
+          ctx.fillRect(0, -300, REEL_W + 1200, REEL_H + 600);
+          // 先端のハイライトライン
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fillRect(-14, -300, 14, REEL_H + 600);
+          ctx.restore();
+        }
+      }
+    }
+
+    /* ---------- ビネット(フィルム的な奥行き) ---------- */
+    const vg = ctx.createRadialGradient(
+      REEL_W / 2,
+      REEL_H / 2,
+      REEL_H * 0.32,
+      REEL_W / 2,
+      REEL_H / 2,
+      REEL_H * 0.78
+    );
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, cinematic ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.3)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, REEL_W, REEL_H);
+
+    /* ---------- 常時表示: ブランドマーク ---------- */
+    ctx.globalAlpha = 1;
+    drawBrandMark(
+      ctx,
+      this.brand.name,
+      FONT_FAMILIES[brand.fontStyle],
+      this.logo,
+      REEL_W / 2,
+      REEL_H - 140,
+      { textSize: 36, color: text, alpha: 0.85, maxLogoH: 84 }
+    );
+
+    /* ---------- 上部プログレスバー(slides のみ。リールでは非表示) ---------- */
+    if (!cinematic) {
+      const barY = 80;
+      const gap = 12;
+      const totalW = REEL_W - 160;
+      const segW = (totalW - gap * (scenes.length - 1)) / scenes.length;
+      for (let i = 0; i < scenes.length; i++) {
+        const x = 80 + i * (segW + gap);
+        ctx.fillStyle = rgba(text, 0.3);
+        roundRect(ctx, x, barY, segW, 8, 4);
+        ctx.fill();
+        const fill = i < idx ? 1 : i === idx ? sceneT : 0;
+        if (fill > 0) {
+          ctx.fillStyle = rgba(text, 0.95);
+          roundRect(ctx, x, barY, segW * fill, 8, 4);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  /** テキスト主体のモーショングラフィックス(ストーリー動画向き) */
+  private drawSceneSlides(
+    scenes: ReelScene[],
+    idx: number,
+    sceneT: number,
+    sceneAlpha: number,
+    timeMs: number,
+    text: string
+  ): void {
+    const { ctx, brand } = this;
+    const scene = scenes[idx];
+
     // シーン種別ラベル
     const label =
       scene.type === "hook" ? "" : scene.type === "cta" ? "" : `POINT ${pointNumber(scenes, idx)}`;
@@ -323,9 +437,13 @@ export class ReelPlayer {
 
     // タイトル(キネティックタイポグラフィ: 1文字ずつ出現)
     const weight = headlineWeightFor(brand.fontStyle);
-    const titleSize = scene.type === "hook" ? 116 : 104;
-    ctx.font = `${weight} ${titleSize}px ${FONT_FAMILIES[brand.fontStyle]}`;
-    const lines = wrapText(ctx, scene.title, REEL_W - 180);
+    const { size: titleSize, lines } = this.fitTitle(
+      scene.title,
+      REEL_W - 180,
+      weight,
+      scene.type === "hook" ? [116, 104, 92, 80, 70, 62] : [104, 94, 84, 74, 64],
+      3
+    );
     const lineHeight = titleSize * 1.34;
     const startY = REEL_H * 0.47 - ((lines.length - 1) * lineHeight) / 2;
     this.drawKineticTitle(lines, startY, lineHeight, titleSize, weight, sceneT, sceneAlpha, text);
@@ -344,93 +462,212 @@ export class ReelPlayer {
 
     // CTAシーン: ボタンをポップイン + パルス
     if (scene.type === "cta") {
-      const btnT = easeInOutCubic(clamp01((sceneT - 0.4) / 0.3));
-      if (btnT > 0) {
-        const pulse = 1 + 0.015 * Math.sin(timeMs / 260);
-        ctx.globalAlpha = sceneAlpha * btnT;
-        const scale = (0.7 + 0.3 * btnT) * pulse;
-        ctx.save();
-        ctx.translate(REEL_W / 2, REEL_H * 0.72);
-        ctx.scale(scale, scale);
-        ctx.font = `700 46px ${FONT_FAMILIES[brand.fontStyle]}`;
-        const ctaText = "プロフィールをチェック";
-        const w = ctx.measureText(ctaText).width + 150;
-        ctx.shadowColor = rgba(c.background, 0.9);
-        ctx.shadowBlur = 34 + Math.sin(timeMs / 260) * 14;
-        ctx.shadowOffsetY = 0;
-        ctx.fillStyle = c.background;
-        roundRect(ctx, -w / 2, -58, w, 116, 58);
-        ctx.fill();
-        ctx.shadowColor = "transparent";
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = readableOn(c.background);
-        ctx.fillText(ctaText, 0, 18);
-        ctx.restore();
+      this.drawCtaButton(timeMs, sceneT, sceneAlpha, 0.72);
+    }
+  }
+
+  /**
+   * 映像が主役のシネマティック描画(リール向き)。
+   * フックは大きく中央、ポイントは下部テロップ、CTAはコンパクトに締める。
+   */
+  private drawSceneCinematic(
+    scenes: ReelScene[],
+    idx: number,
+    sceneT: number,
+    sceneAlpha: number,
+    timeMs: number,
+    text: string
+  ): void {
+    const { ctx, brand } = this;
+    const scene = scenes[idx];
+    const c = brand.colorPalette;
+    const family = FONT_FAMILIES[brand.fontStyle];
+    const weight = headlineWeightFor(brand.fontStyle);
+
+    if (scene.type === "hook") {
+      // 冒頭フック: 離脱を防ぐためここだけ大きくキネティック表示
+      const { size: titleSize, lines } = this.fitTitle(
+        scene.title,
+        REEL_W - 180,
+        weight,
+        [104, 94, 84, 74, 66],
+        3
+      );
+      const lineHeight = titleSize * 1.34;
+      const startY = REEL_H * 0.44 - ((lines.length - 1) * lineHeight) / 2;
+      this.drawKineticTitle(lines, startY, lineHeight, titleSize, weight, sceneT, sceneAlpha, text);
+
+      const subT = easeOutCubic(clamp01((sceneT - 0.34) / 0.28));
+      ctx.globalAlpha = sceneAlpha * subT;
+      ctx.fillStyle = rgba(text, 0.92);
+      ctx.font = `400 44px ${family}`;
+      let subY = startY + lines.length * lineHeight + 36 + (1 - subT) * 40;
+      for (const line of wrapText(ctx, scene.subtitle, REEL_W - 220)) {
+        ctx.fillText(line, REEL_W / 2, subY);
+        subY += 64;
       }
+      return;
     }
 
+    if (scene.type === "cta") {
+      // 締め: 中央にコンパクトなタイトル + CTAボタン
+      const { size: titleSize, lines } = this.fitTitle(
+        scene.title,
+        REEL_W - 200,
+        weight,
+        [84, 76, 68, 60],
+        2
+      );
+      const lineHeight = titleSize * 1.32;
+      const startY = REEL_H * 0.42 - ((lines.length - 1) * lineHeight) / 2;
+      this.drawKineticTitle(lines, startY, lineHeight, titleSize, weight, sceneT, sceneAlpha, text);
+
+      const subT = easeOutCubic(clamp01((sceneT - 0.3) / 0.26));
+      ctx.globalAlpha = sceneAlpha * subT;
+      ctx.fillStyle = rgba(text, 0.9);
+      ctx.font = `400 42px ${family}`;
+      let subY = startY + lines.length * lineHeight + 34 + (1 - subT) * 36;
+      for (const line of wrapText(ctx, scene.subtitle, REEL_W - 240)) {
+        ctx.fillText(line, REEL_W / 2, subY);
+        subY += 60;
+      }
+      this.drawCtaButton(timeMs, sceneT, sceneAlpha, 0.66);
+      return;
+    }
+
+    // ポイントシーン: 映像を主役に、下部1/3のテロップで伝える
+    const inT = easeOutCubic(clamp01((sceneT - 0.08) / 0.2));
+    if (inT <= 0) return;
+    const rise = (1 - inT) * 34;
+    const x = 96;
+    const maxW = REEL_W - 192;
+
+    const { size: titleSize, lines: titleLines } = this.fitTitle(
+      scene.title,
+      maxW,
+      weight,
+      [60, 54, 48, 44],
+      2
+    );
+    ctx.font = `400 40px ${family}`;
+    const subLines = wrapText(ctx, scene.subtitle, maxW);
+    const titleLH = titleSize * 1.3;
+    const subLH = 56;
+    const eyebrowH = 76;
+    const blockH =
+      eyebrowH +
+      titleLines.length * titleLH +
+      (subLines.length ? 14 + subLines.length * subLH : 0);
+    const bottom = REEL_H - 320; // ブランドマークの上に収める
+    let y = bottom - blockH + rise;
+
+    ctx.save();
+    ctx.globalAlpha = sceneAlpha * inT;
+    ctx.textAlign = "left";
+
+    // アクセントの縦バー(テロップの目印)
+    ctx.fillStyle = c.accent;
+    roundRect(ctx, x - 34, y - 4, 10, blockH - 16, 5);
+    ctx.fill();
+
+    // 見出しチップ "POINT n"
+    const label = `POINT ${pointNumber(scenes, idx)}`;
+    ctx.font = `700 30px ${family}`;
+    const lw = ctx.measureText(label).width;
+    ctx.fillStyle = c.accent;
+    roundRect(ctx, x, y, lw + 44, 52, 26);
+    ctx.fill();
+    ctx.fillStyle = readableOn(c.accent);
+    ctx.fillText(label, x + 22, y + 37);
+    y += eyebrowH;
+
+    // タイトル(テロップ)
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = text;
+    ctx.font = `${weight} ${titleSize}px ${family}`;
+    for (const line of titleLines) {
+      ctx.fillText(line, x, y + titleSize * 0.9);
+      y += titleLH;
+    }
+
+    // サブ(字幕)
+    if (subLines.length) {
+      y += 14;
+      ctx.fillStyle = rgba(text, 0.88);
+      ctx.font = `400 40px ${family}`;
+      for (const line of subLines) {
+        ctx.fillText(line, x, y + 36);
+        y += subLH;
+      }
+    }
     ctx.restore();
+  }
 
-    /* ---------- シーン導入ワイプ(最初のシーン以外) ---------- */
-    if (idx > 0) {
-      const wipeT = easeInOutCubic(clamp01(sceneT / 0.14));
-      if (wipeT < 1) {
-        const x = wipeT * (REEL_W + 900) - 450;
-        ctx.save();
-        ctx.translate(x, 0);
-        ctx.transform(1, 0, -0.32, 1, 0, 0);
-        ctx.fillStyle = c.accent;
-        ctx.fillRect(0, -300, REEL_W + 1200, REEL_H + 600);
-        // 先端のハイライトライン
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.fillRect(-14, -300, 14, REEL_H + 600);
-        ctx.restore();
-      }
+  /** CTAボタン(ポップイン + パルス) */
+  private drawCtaButton(
+    timeMs: number,
+    sceneT: number,
+    sceneAlpha: number,
+    yRatio: number
+  ): void {
+    const { ctx, brand } = this;
+    const c = brand.colorPalette;
+    const btnT = easeInOutCubic(clamp01((sceneT - 0.4) / 0.3));
+    if (btnT <= 0) return;
+    const pulse = 1 + 0.015 * Math.sin(timeMs / 260);
+    ctx.globalAlpha = sceneAlpha * btnT;
+    const scale = (0.7 + 0.3 * btnT) * pulse;
+    ctx.save();
+    ctx.translate(REEL_W / 2, REEL_H * yRatio);
+    ctx.scale(scale, scale);
+    ctx.font = `700 46px ${FONT_FAMILIES[brand.fontStyle]}`;
+    const ctaText = this.ctaLabel;
+    const w = ctx.measureText(ctaText).width + 150;
+    ctx.shadowColor = rgba(c.background, 0.9);
+    ctx.shadowBlur = 34 + Math.sin(timeMs / 260) * 14;
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = c.background;
+    roundRect(ctx, -w / 2, -58, w, 116, 58);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = readableOn(c.background);
+    ctx.fillText(ctaText, 0, 18);
+    ctx.restore();
+  }
+
+  /**
+   * 与えられた候補サイズから、テキストが破綻せず収まる最大の文字サイズを選ぶ。
+   * AIが指定した改行(\n)がそのまま活きるサイズを最優先し、
+   * 「ご自宅までお / 届けします」のような語中での不自然な折り返しを防ぐ。
+   */
+  private fitTitle(
+    text: string,
+    maxW: number,
+    weight: number,
+    sizes: number[],
+    maxLines: number
+  ): { size: number; lines: string[] } {
+    const { ctx, brand } = this;
+    const family = FONT_FAMILIES[brand.fontStyle];
+    const explicit =
+      text.replace(/\\n/g, "\n").split("\n").filter((s) => s.trim()).length || 1;
+    let fallback: { size: number; lines: string[] } | null = null;
+    for (const size of sizes) {
+      ctx.font = `${weight} ${size}px ${family}`;
+      const lines = wrapText(ctx, text, maxW);
+      if (lines.length <= explicit) return { size, lines };
+      if (!fallback && lines.length <= maxLines) fallback = { size, lines };
     }
-
-    /* ---------- ビネット(フィルム的な奥行き) ---------- */
-    const vg = ctx.createRadialGradient(
-      REEL_W / 2,
-      REEL_H / 2,
-      REEL_H * 0.32,
-      REEL_W / 2,
-      REEL_H / 2,
-      REEL_H * 0.78
-    );
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,0.3)");
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, REEL_W, REEL_H);
-
-    /* ---------- 常時表示: ブランドマーク ---------- */
-    ctx.globalAlpha = 1;
-    drawBrandMark(
-      ctx,
-      this.brand.name,
-      FONT_FAMILIES[brand.fontStyle],
-      this.logo,
-      REEL_W / 2,
-      REEL_H - 140,
-      { textSize: 36, color: text, alpha: 0.85, maxLogoH: 84 }
-    );
-
-    /* ---------- 上部プログレスバー ---------- */
-    const barY = 80;
-    const gap = 12;
-    const totalW = REEL_W - 160;
-    const segW = (totalW - gap * (scenes.length - 1)) / scenes.length;
-    for (let i = 0; i < scenes.length; i++) {
-      const x = 80 + i * (segW + gap);
-      ctx.fillStyle = rgba(text, 0.3);
-      roundRect(ctx, x, barY, segW, 8, 4);
-      ctx.fill();
-      const fill = i < idx ? 1 : i === idx ? sceneT : 0;
-      if (fill > 0) {
-        ctx.fillStyle = rgba(text, 0.95);
-        roundRect(ctx, x, barY, segW * fill, 8, 4);
-        ctx.fill();
-      }
+    if (fallback) {
+      ctx.font = `${weight} ${fallback.size}px ${family}`;
+      return fallback;
     }
+    const smallest = sizes[sizes.length - 1];
+    ctx.font = `${weight} ${smallest}px ${family}`;
+    return { size: smallest, lines: wrapText(ctx, text, maxW) };
   }
 
   /** 1文字ずつスライドインするタイトル描画 */

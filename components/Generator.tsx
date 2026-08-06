@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ContentPlan,
   FeedTemplate,
+  ReelPlan,
+  ReelScene,
+  StoryPlan,
   StoryTemplate,
 } from "@/lib/types";
 import { ensureFonts, loadImage } from "./canvas/helpers";
@@ -692,6 +695,92 @@ function usePhotoSource(
   };
 }
 
+/**
+ * ReelPlayer の動画書き出し(MP4 / 非対応ブラウザは WebM)を管理するフック。
+ * リールとストーリー動画の両方から使う。
+ */
+function useVideoExport(
+  playerRef: React.RefObject<ReelPlayer | null>,
+  baseName: string
+) {
+  const [recording, setRecording] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [mp4Ok, setMp4Ok] = useState(false);
+
+  useEffect(() => {
+    supportsMp4Export().then(setMp4Ok);
+  }, []);
+
+  const record = useCallback(async () => {
+    const player = playerRef.current;
+    if (!player || recording) return;
+    setRecording(true);
+    setError(null);
+    setProgress(0);
+    try {
+      let blob: Blob;
+      let ext: string;
+      if (await supportsMp4Export()) {
+        // フレーム正確なオフラインレンダリング + H.264/MP4
+        blob = await exportReelMp4(player, (r) => setProgress(r));
+        ext = "mp4";
+      } else {
+        blob = await player.record((r) => setProgress(r));
+        ext = "webm";
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${baseName}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRecording(false);
+      playerRef.current?.play();
+    }
+  }, [recording, baseName, playerRef]);
+
+  return { recording, progress, error, mp4Ok, record };
+}
+
+/** 動画書き出しボタン + 進捗バー + 注意書き */
+function VideoExportControls({
+  exporter,
+  seconds,
+}: {
+  exporter: ReturnType<typeof useVideoExport>;
+  seconds: number;
+}) {
+  return (
+    <>
+      <div className="preview-actions">
+        <button
+          className="btn btn-ghost"
+          onClick={exporter.record}
+          disabled={exporter.recording}
+        >
+          {exporter.recording
+            ? "書き出し中..."
+            : `🎬 動画を書き出す (約${seconds}秒 / ${exporter.mp4Ok ? "MP4" : "WebM"})`}
+        </button>
+      </div>
+      {exporter.recording && (
+        <div className="record-progress">
+          <div style={{ width: `${Math.round(exporter.progress * 100)}%` }} />
+        </div>
+      )}
+      {exporter.error && <div className="error-box">{exporter.error}</div>}
+      <p className="note">
+        {exporter.mp4Ok
+          ? "フレーム落ちのない高画質MP4で書き出します。そのままInstagramに投稿できます。"
+          : "お使いのブラウザはMP4書き出し非対応のためWebM形式になります。Chrome/Edgeを使うとMP4で書き出せます。"}
+      </p>
+    </>
+  );
+}
+
 /** 背景ソース切替ピル(アップ写真がある場合のみ表示) */
 function PhotoSourcePills({
   uploadRef,
@@ -925,6 +1014,24 @@ function FeedPanel({
   );
 }
 
+/**
+ * ストーリーのコピーから、動くストーリー用のシーン構成を組み立てる。
+ * ストーリーは15秒以内が基本なので、見出し→補足→CTA の最大3シーン(約8秒)にする。
+ */
+function storyVideoPlan(story: StoryPlan): ReelPlan {
+  const scenes: ReelScene[] = [
+    { type: "hook", title: story.headline, subtitle: story.eyebrow },
+  ];
+  if (story.subheadline?.trim()) {
+    // "point" にすると "POINT 1" ラベルが出てしまうため hook 扱いにする
+    scenes.push({ type: "hook", title: story.subheadline, subtitle: "" });
+  }
+  scenes.push({ type: "cta", title: story.cta, subtitle: "" });
+  return { scenes, caption: "", hashtags: [], musicSuggestion: "" };
+}
+
+type StoryMode = "image" | "video";
+
 function StoryPanel({
   plan,
   backgrounds,
@@ -937,22 +1044,31 @@ function StoryPanel({
   logoSrc: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoCanvasRef = useRef<HTMLCanvasElement>(null);
+  const playerRef = useRef<ReelPlayer | null>(null);
+  const [mode, setMode] = useState<StoryMode>("image");
   const [template, setTemplate] = useState<StoryTemplate>(plan.story.template);
+  // 動画モードでは常に写真背景を使う(テキストだけだと寂しいため)
   const photo = usePhotoSource(
     backgrounds,
     plan.imagePrompt,
     "vertical",
     uploadRef,
-    template === "story-photo"
+    template === "story-photo" || mode === "video"
   );
   const bgSrc = photo.src;
   const bgLoading = photo.loading;
+  const videoPlan = useMemo(() => storyVideoPlan(plan.story), [plan.story]);
+  const exporter = useVideoExport(playerRef, "story_1080x1920");
 
   useEffect(() => {
     setTemplate(plan.story.template);
+    setMode("image");
   }, [plan]);
 
+  // 静止画モード
   useEffect(() => {
+    if (mode !== "image") return;
     let cancelled = false;
     (async () => {
       await ensureFonts();
@@ -965,35 +1081,87 @@ function StoryPanel({
     return () => {
       cancelled = true;
     };
-  }, [plan, template, bgSrc, logoSrc]);
+  }, [mode, plan, template, bgSrc, logoSrc]);
+
+  // 動画モード(テキスト主体のモーショングラフィックス)
+  useEffect(() => {
+    if (mode !== "video") return;
+    let cancelled = false;
+    (async () => {
+      await ensureFonts();
+      const img = bgSrc ? await loadImage(bgSrc) : null;
+      const logoImg = logoSrc ? await loadImage(logoSrc) : null;
+      if (cancelled || !videoCanvasRef.current) return;
+      playerRef.current?.stop();
+      const player = new ReelPlayer(
+        videoCanvasRef.current,
+        plan.brand,
+        videoPlan,
+        { image: img, logo: logoImg },
+        { style: "slides", ctaLabel: "リンクはこちら" }
+      );
+      playerRef.current = player;
+      player.play();
+    })();
+    return () => {
+      cancelled = true;
+      playerRef.current?.stop();
+      playerRef.current = null;
+    };
+  }, [mode, plan.brand, videoPlan, bgSrc, logoSrc]);
+
+  const videoSeconds = Math.round(videoPlan.scenes.length * 2.8 * 10) / 10;
+  const showPhotoControls = mode === "video" || template === "story-photo";
 
   return (
     <div className="result-grid">
       <div className="preview-card vertical">
         <div className="template-row">
-          {STORY_TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              className={`template-pill ${template === t.id ? "active" : ""}`}
-              onClick={() => setTemplate(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
+          <button
+            className={`template-pill ${mode === "image" ? "active" : ""}`}
+            onClick={() => setMode("image")}
+          >
+            🖼 静止画
+          </button>
+          <button
+            className={`template-pill ${mode === "video" ? "active" : ""}`}
+            onClick={() => setMode("video")}
+          >
+            🎬 動くストーリー
+          </button>
         </div>
-        {template === "story-photo" && (
+        {mode === "image" ? (
+          <div className="template-row">
+            {STORY_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                className={`template-pill ${template === t.id ? "active" : ""}`}
+                onClick={() => setTemplate(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="note" style={{ marginTop: 0 }}>
+            1文字ずつ現れるキネティックタイポグラフィで、見出し→補足→CTAを{videoPlan.scenes.length}カット構成にしています。
+            ストーリーは15秒以内が基本のため約{videoSeconds}秒です。
+          </p>
+        )}
+        {showPhotoControls && (
           <PhotoSourcePills uploadRef={uploadRef} choice={photo.choice} setChoice={photo.setChoice} />
         )}
-        <canvas ref={canvasRef} />
-        {template === "story-photo" && bgLoading && (
+        <canvas ref={canvasRef} hidden={mode !== "image"} />
+        <canvas ref={videoCanvasRef} hidden={mode !== "video"} />
+        {showPhotoControls && bgLoading && (
           <p className="note">
             <span className="spinner" /> AI背景画像を生成中です(20秒〜1分ほど)...
           </p>
         )}
-        {template === "story-photo" && backgrounds.error && (
+        {showPhotoControls && backgrounds.error && (
           <div className="error-box">{backgrounds.error}</div>
         )}
-        {template === "story-photo" && photo.choice === "ai" && (
+        {showPhotoControls && photo.choice === "ai" && (
           <div className="preview-actions">
             <button
               className="btn btn-ghost btn-small"
@@ -1004,22 +1172,27 @@ function StoryPanel({
             </button>
           </div>
         )}
-        <div className="preview-actions">
-          <button
-            className="btn btn-ghost"
-            onClick={() =>
-              canvasRef.current && downloadCanvas(canvasRef.current, "story_1080x1920.png")
-            }
-          >
-            ⬇ PNGをダウンロード (1080×1920)
-          </button>
-        </div>
+        {mode === "image" ? (
+          <div className="preview-actions">
+            <button
+              className="btn btn-ghost"
+              onClick={() =>
+                canvasRef.current && downloadCanvas(canvasRef.current, "story_1080x1920.png")
+              }
+            >
+              ⬇ PNGをダウンロード (1080×1920)
+            </button>
+          </div>
+        ) : (
+          <VideoExportControls exporter={exporter} seconds={videoSeconds} />
+        )}
       </div>
       <div>
         <div className="copy-card">
           <h3>ストーリー活用のヒント</h3>
           <pre>{`・リンクスタンプでLPや商品ページへ誘導しましょう
 ・アンケートやクイズスタンプを重ねると反応率が上がります
+・「動くストーリー」は静止画より滞在時間が伸びやすく、閲覧完了率の改善に効きます
 ・フィード投稿のシェア + このデザインの組み合わせも効果的です`}</pre>
         </div>
       </div>
@@ -1048,12 +1221,9 @@ function ReelPanel({
   const videoRef = useRef<HTMLVideoElement>(null);
   const brollVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const playerRef = useRef<ReelPlayer | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [recordError, setRecordError] = useState<string | null>(null);
-  const [bgMode, setBgMode] = useState<ReelBgMode>(
-    videoUrl ? "video" : uploadRef ? "photo" : "gradient"
-  );
+  const exporter = useVideoExport(playerRef, "reel_1080x1920");
+  // リールは映像が主役。アップ動画があればそれを、無ければAI動画(Sora)を初期選択にする
+  const [bgMode, setBgMode] = useState<ReelBgMode>(videoUrl ? "video" : "broll");
   /** Bロールの構成: 1本の映像 or シーンごとのカット割り */
   const [brollMode, setBrollMode] = useState<"single" | "scenes">("scenes");
   // 各シーンの背景プロンプト(なければ全体プロンプトにフォールバック)
@@ -1133,13 +1303,13 @@ function ReelPanel({
       const logoImg = logoSrc ? await loadImage(logoSrc) : null;
       if (cancelled || !canvasRef.current) return;
       playerRef.current?.stop();
-      const player = new ReelPlayer(canvasRef.current, plan.brand, plan.reel, {
-        image: img,
-        images,
-        video,
-        videos,
-        logo: logoImg,
-      });
+      const player = new ReelPlayer(
+        canvasRef.current,
+        plan.brand,
+        plan.reel,
+        { image: img, images, video, videos, logo: logoImg },
+        { style: "cinematic" }
+      );
       playerRef.current = player;
       player.play();
     })();
@@ -1162,67 +1332,22 @@ function ReelPanel({
       .join(","),
   ]);
 
-  const [mp4Ok, setMp4Ok] = useState(false);
-  useEffect(() => {
-    supportsMp4Export().then(setMp4Ok);
-  }, []);
-
-  const record = useCallback(async () => {
-    const player = playerRef.current;
-    if (!player || recording) return;
-    setRecording(true);
-    setRecordError(null);
-    setProgress(0);
-    try {
-      let blob: Blob;
-      let filename: string;
-      if (await supportsMp4Export()) {
-        // フレーム正確なオフラインレンダリング + H.264/MP4
-        blob = await exportReelMp4(player, (r) => setProgress(r));
-        filename = "reel_1080x1920.mp4";
-      } else {
-        blob = await player.record((r) => setProgress(r));
-        filename = "reel_1080x1920.webm";
-      }
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (e) {
-      setRecordError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRecording(false);
-      playerRef.current?.play();
-    }
-  }, [recording]);
-
   const seconds = Math.round((plan.reel.scenes.length * 2.8) * 10) / 10;
 
   return (
     <div className="result-grid">
       <div className="preview-card vertical">
+        <p className="note" style={{ marginTop: 0 }}>
+          リールは<strong>映像が主役</strong>の1本動画です。テキストは冒頭のフックと下部テロップに絞り、
+          プロのリール編集と同じ見せ方にしています。文字中心のスライド演出は「ストーリー」タブの動画をお使いください。
+        </p>
         <div className="template-row">
           <button
-            className={`template-pill ${bgMode === "gradient" ? "active" : ""}`}
-            onClick={() => setBgMode("gradient")}
+            className={`template-pill ${bgMode === "broll" ? "active" : ""}`}
+            onClick={() => setBgMode("broll")}
           >
-            グラデーション
+            🎞 AI動画 (Sora)
           </button>
-          <button
-            className={`template-pill ${bgMode === "ai" ? "active" : ""}`}
-            onClick={() => setBgMode("ai")}
-          >
-            ✨ AI写真
-          </button>
-          {uploadRef && (
-            <button
-              className={`template-pill ${bgMode === "photo" ? "active" : ""}`}
-              onClick={() => setBgMode("photo")}
-            >
-              📷 アップ写真
-            </button>
-          )}
           {videoUrl && (
             <button
               className={`template-pill ${bgMode === "video" ? "active" : ""}`}
@@ -1231,11 +1356,25 @@ function ReelPanel({
               🎥 アップ動画
             </button>
           )}
+          {uploadRef && (
+            <button
+              className={`template-pill ${bgMode === "photo" ? "active" : ""}`}
+              onClick={() => setBgMode("photo")}
+            >
+              📷 アップ写真
+            </button>
+          )}
           <button
-            className={`template-pill ${bgMode === "broll" ? "active" : ""}`}
-            onClick={() => setBgMode("broll")}
+            className={`template-pill ${bgMode === "ai" ? "active" : ""}`}
+            onClick={() => setBgMode("ai")}
           >
-            🎞 AI動画 (Sora)
+            ✨ AI写真
+          </button>
+          <button
+            className={`template-pill ${bgMode === "gradient" ? "active" : ""}`}
+            onClick={() => setBgMode("gradient")}
+          >
+            グラデーション
           </button>
         </div>
         {videoUrl && (
@@ -1343,24 +1482,7 @@ function ReelPanel({
             </button>
           </div>
         )}
-        <div className="preview-actions">
-          <button className="btn btn-ghost" onClick={record} disabled={recording}>
-            {recording
-              ? "書き出し中..."
-              : `🎬 動画を書き出す (約${seconds}秒 / ${mp4Ok ? "MP4" : "WebM"})`}
-          </button>
-        </div>
-        {recording && (
-          <div className="record-progress">
-            <div style={{ width: `${Math.round(progress * 100)}%` }} />
-          </div>
-        )}
-        {recordError && <div className="error-box">{recordError}</div>}
-        <p className="note">
-          {mp4Ok
-            ? "フレーム落ちのない高画質MP4で書き出します。そのままInstagramに投稿できます。"
-            : "お使いのブラウザはMP4書き出し非対応のためWebM形式になります。Chrome/Edgeを使うとMP4で書き出せます。"}
-        </p>
+        <VideoExportControls exporter={exporter} seconds={seconds} />
       </div>
       <div>
         <CaptionCard caption={plan.reel.caption} hashtags={plan.reel.hashtags} />
