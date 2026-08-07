@@ -132,23 +132,73 @@ ${templateSrc}
 
 const TARGETS = ${JSON.stringify(targets)};
 const SENT_KEY = 'indeed-outreach-sent';
-let sent = JSON.parse(localStorage.getItem(SENT_KEY) || '{}');
+
+// localStorage は file:// やプライベートウィンドウで例外を投げることがある。
+// 保存できない環境でも画面自体は使えるようにフォールバックする。
+const store = (() => {
+  try {
+    localStorage.setItem('__probe', '1');
+    localStorage.removeItem('__probe');
+    return {
+      get: (k) => localStorage.getItem(k),
+      set: (k, v) => localStorage.setItem(k, v),
+      persistent: true,
+    };
+  } catch {
+    const mem = new Map();
+    return {
+      get: (k) => mem.get(k) ?? null,
+      set: (k, v) => mem.set(k, v),
+      persistent: false,
+    };
+  }
+})();
+
+let sent = JSON.parse(store.get(SENT_KEY) || '{}');
 let current = null;
 
 const $ = (id) => document.getElementById(id);
-const saveSent = () => localStorage.setItem(SENT_KEY, JSON.stringify(sent));
+const saveSent = () => store.set(SENT_KEY, JSON.stringify(sent));
+
+// file:// で開いた場合、ブラウザによってはクリップボードAPIが使えない。
+// 失敗したら旧APIにフォールバックし、それも駄目なら手動コピーを促す。
+async function copyFrom(btn, textarea) {
+  const done = (label) => {
+    const old = btn.dataset.label ?? btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = label;
+    setTimeout(() => { btn.textContent = old; }, 1600);
+  };
+  try {
+    await navigator.clipboard.writeText(textarea.value);
+    done('コピーしました');
+    return;
+  } catch { /* 次の手段へ */ }
+  try {
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    if (document.execCommand('copy')) { done('コピーしました'); return; }
+  } catch { /* 次の手段へ */ }
+  textarea.select();
+  done('選択しました。Ctrl/Cmd+Cを押してください');
+}
 
 // 差出人情報も保存する。毎回入れ直すのは現実的でない。
 const SENDER_KEY = 'indeed-outreach-sender';
 const senderFields = { 会社名: 's-company', 担当者名: 's-name', 電話: 's-tel', メール: 's-mail', 実績: 's-proof' };
 function loadSender() {
-  const saved = JSON.parse(localStorage.getItem(SENDER_KEY) || '{}');
+  const saved = JSON.parse(store.get(SENDER_KEY) || '{}');
   for (const [k, id] of Object.entries(senderFields)) $(id).value = saved[k] ?? '';
+  if (!store.persistent) {
+    document.querySelector('header').insertAdjacentHTML('beforeend',
+      '<div style="margin-top:8px;font-size:12.5px;color:#713f12;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px">' +
+      'このブラウザでは入力内容と送信済みの記録が保存できません（プライベートウィンドウの可能性）。通常のウィンドウで開き直すと保存されます。</div>');
+  }
 }
 function currentSender() {
   const s = {};
   for (const [k, id] of Object.entries(senderFields)) s[k] = $(id).value.trim() || (k === '実績' ? '' : '{{' + k + '}}');
-  localStorage.setItem(SENDER_KEY, JSON.stringify(s));
+  store.set(SENDER_KEY, JSON.stringify(s));
   return s;
 }
 
@@ -242,12 +292,7 @@ function renderDetail() {
     </div>\`;
 
   for (const btn of $('detail').querySelectorAll('[data-copy]')) {
-    btn.onclick = async () => {
-      await navigator.clipboard.writeText($(btn.dataset.copy).value);
-      const old = btn.textContent;
-      btn.textContent = 'コピーしました';
-      setTimeout(() => { btn.textContent = old; }, 1200);
-    };
+    btn.onclick = () => copyFrom(btn, $(btn.dataset.copy));
   }
   $('mark').onclick = () => {
     if (sent[t.ID]) delete sent[t.ID];
