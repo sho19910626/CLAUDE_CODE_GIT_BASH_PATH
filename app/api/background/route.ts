@@ -1,15 +1,34 @@
-// OpenAI の画像生成API (gpt-image-1) で背景ビジュアルを生成するルート。
+// OpenAI の画像生成API (gpt-image-2) で背景ビジュアルを生成するルート。
 // 日本語テキストはCanvas側で重ねるため、画像には文字を入れない指示を付加する。
 
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300;
 
+const DEFAULT_MODEL = "gpt-image-2";
+
 const PROMPT_SUFFIX =
-  "High-end commercial photography for a brand's Instagram post. " +
-  "Absolutely no text, no letters, no words, no numbers, no logos, no watermarks anywhere in the image. " +
-  "Leave clean, uncluttered negative space in the center and upper area for a text overlay. " +
-  "Professional lighting, editorial quality, shallow depth of field where appropriate.";
+  "Shot as high-end commercial photography for a brand's Instagram account. " +
+  "Photorealistic, indistinguishable from a real photograph taken by a professional photographer. " +
+  "Full-frame camera, 35mm or 50mm prime lens, natural depth of field, true-to-life skin tones and materials, " +
+  "soft directional light with gentle falloff, subtle film grain, editorial color grading. " +
+  "Absolutely no text, no letters, no words, no numbers, no logos, no watermarks, no UI elements anywhere in the image. " +
+  "Leave clean, uncluttered negative space in the center and upper area so Japanese text can be overlaid on top. " +
+  "Avoid stock-photo clichés, avoid over-saturated HDR looks, avoid plastic-looking CGI renders.";
+
+/**
+ * モデルごとの出力サイズ。
+ * gpt-image-2 は「両辺が16の倍数・長辺3840px以下・アスペクト比3:1未満」なら任意サイズを指定でき、
+ * Canvas の実サイズ(4:5=1080x1350 / 9:16=1080x1920)に近い解像度で受け取れる。
+ * gpt-image-1 系は固定サイズのみのためフォールバックする。
+ */
+function sizeFor(model: string, aspect: string | undefined): string {
+  const vertical = aspect === "vertical";
+  if (/^gpt-image-1/.test(model) || /^dall-e/.test(model)) {
+    return vertical ? "1024x1536" : "1024x1024";
+  }
+  return vertical ? "1088x1920" : "1088x1360";
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -35,8 +54,8 @@ export async function POST(req: NextRequest) {
   if (!prompt) {
     return NextResponse.json({ error: "画像プロンプトがありません" }, { status: 400 });
   }
-  const size = body.aspect === "vertical" ? "1024x1536" : "1024x1024";
-  const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+  const model = process.env.OPENAI_IMAGE_MODEL || DEFAULT_MODEL;
+  const size = sizeFor(model, body.aspect);
 
   // 参考写真がある場合は images/edits (参考画像ベースの生成) を使う
   const refMatch = body.reference
@@ -98,6 +117,14 @@ export async function POST(req: NextRequest) {
           {
             error:
               "この画像モデルの利用には OpenAI 側で組織の認証 (Organization Verification) が必要です。platform.openai.com の Settings → Organization → Verification を完了してください。",
+          },
+          { status: 502 }
+        );
+      }
+      if (/model/i.test(message) && /(not found|does not exist|unsupported|no access)/i.test(message)) {
+        return NextResponse.json(
+          {
+            error: `画像モデル「${model}」をこのアカウントで利用できません。.env に OPENAI_IMAGE_MODEL=gpt-image-1 を追記すると旧モデルで動作します。(詳細: ${message})`,
           },
           { status: 502 }
         );

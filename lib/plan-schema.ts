@@ -45,7 +45,7 @@ export const PLAN_SCHEMA = {
         },
         slides: {
           type: "array",
-          description: "カルーセル投稿のスライド構成。必ず4〜5枚: 1枚目 role=cover(表紙)、2〜4枚目 role=content(価値提供)、最後 role=cta(行動喚起)。表紙で止めて→中面で納得させ→最後に行動させるストーリー設計にする",
+          description: "カルーセル投稿のスライド構成。4〜8枚: 1枚目 role=cover(表紙)、2枚目以降 role=content(価値提供)、最後 role=cta(行動喚起)。表紙で止めて→中面で納得させ→最後に行動させるストーリー設計にする。通常は5枚、「社員の1日」「選考フロー」など時系列や手順を追うテーマでは6〜8枚にして1枚1ステップにする",
           items: {
             type: "object",
             properties: {
@@ -100,10 +100,15 @@ export const PLAN_SCHEMA = {
       required: ["template", "eyebrow", "headline", "subheadline", "cta"],
       additionalProperties: false
     },
+    postTheme: {
+      type: "string",
+      description:
+        "この投稿の企画テーマを表す日本語の短いラベル(15文字以内)。例:「社員の1日に密着」「数字で見る当社」「選考フロー完全ガイド」",
+    },
     imagePrompt: {
       type: "string",
       description:
-        "背景ビジュアル生成用の画像生成AIプロンプト(英語で記述)。ブランドと投稿内容に合うハイエンドな商業写真の描写: 被写体・構図・ライティング・色調・雰囲気を具体的に。文字を重ねるため中央〜上部に余白(negative space)を残す構図を指定。テキスト・ロゴ・人物の顔のアップは含めない",
+        "背景ビジュアル生成用の画像生成AIプロンプト(英語で記述)。ブランドと投稿内容に合うハイエンドな商業写真の描写: 被写体・構図・ライティング・レンズ・色調・雰囲気を具体的に。実在の写真と見分けがつかないフォトリアルな描写にする。文字を重ねるため中央〜上部に余白(negative space)を残す構図を指定。テキスト・ロゴは含めない。人物を入れる場合は顔の大写しを避け、手元・後ろ姿・引きの構図にする",
     },
     videoPrompt: {
       type: "string",
@@ -147,6 +152,6 @@ export const PLAN_SCHEMA = {
       additionalProperties: false
     }
   },
-  required: ["brand", "feed", "story", "reel", "imagePrompt", "videoPrompt"],
+  required: ["brand", "feed", "story", "reel", "postTheme", "imagePrompt", "videoPrompt"],
   additionalProperties: false
 } as const;

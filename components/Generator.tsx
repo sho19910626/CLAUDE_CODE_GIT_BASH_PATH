@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AccountPurpose,
   ContentPlan,
   FeedTemplate,
+  RecruitInfo,
+  RecruitTheme,
   ReelPlan,
   ReelScene,
   StoryPlan,
@@ -27,6 +30,35 @@ const FEED_TEMPLATES: { id: FeedTemplate; label: string }[] = [
   { id: "badge", label: "バッジ" },
 ];
 
+/** 採用アカウントの投稿の型。プロの採用アカウントが実際に回している企画をそのまま用意する */
+const RECRUIT_THEMES: { id: RecruitTheme; label: string; hint: string }[] = [
+  { id: "employee-interview", label: "社員インタビュー", hint: "1人に密着して言葉で語らせる" },
+  { id: "day-in-life", label: "社員の1日", hint: "出社から退勤まで時系列で(6〜8枚)" },
+  { id: "numbers", label: "数字で見る会社", hint: "1枚1数字で実態を見せる" },
+  { id: "benefits", label: "福利厚生・制度", hint: "使った社員の声とセットで" },
+  { id: "office-tour", label: "オフィス・職場紹介", hint: "働く人の過ごし方を描く" },
+  { id: "selection-flow", label: "選考フロー", hint: "1枚1ステップで案内(6〜8枚)" },
+  { id: "qa", label: "求職者からのQ&A", hint: "未経験・残業・転勤などの不安に回答" },
+  { id: "job-description", label: "職種・仕事内容", hint: "業務の中身に踏み込む" },
+  { id: "newgrad-voice", label: "新入社員・内定者の声", hint: "入社前の不安と入社後の実際" },
+  { id: "culture", label: "社風・カルチャー", hint: "日常のエピソードで文化を示す" },
+  { id: "message", label: "代表・先輩メッセージ", hint: "求職者への具体的な約束" },
+  { id: "requirements", label: "募集要項", hint: "職種・待遇・応募方法を整理" },
+];
+
+const EMPTY_RECRUIT: RecruitInfo = {
+  theme: "employee-interview",
+  targets: "",
+  positions: "",
+  workplace: "",
+  numbers: "",
+  benefits: "",
+  idealCandidate: "",
+  selectionFlow: "",
+  applyRoute: "",
+  episode: "",
+};
+
 const STORY_TEMPLATES: { id: StoryTemplate; label: string }[] = [
   { id: "story-photo", label: "✨ AI写真" },
   { id: "story-gradient", label: "グラデーション" },
@@ -45,14 +77,19 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
   const [error, setError] = useState<string | null>(null);
   // 進行中/完了済みのキーを同期的に判定するための ref(重複生成の防止)
   const inflight = useRef<Set<string>>(new Set());
+  const prevPlan = useRef<ContentPlan | null>(null);
 
-  // 新しいプランが来たらキャッシュを破棄
-  useEffect(() => {
+  // 新しいプランが来たらキャッシュを破棄する。
+  // useEffect でやると「子(FeedPanel)の先読み effect → 親のリセット」の順に走り、
+  // 登録済みの inflight が消されて全スライドが二重取得されてしまう。
+  // レンダー中に同期的にリセットすることで、子の effect より前に確実に反映させる。
+  if (prevPlan.current !== plan) {
+    prevPlan.current = plan;
+    inflight.current = new Set();
     setImages({});
     setLoading({});
     setError(null);
-    inflight.current = new Set();
-  }, [plan]);
+  }
 
   const keyOf = (prompt: string, aspect: Aspect) => `${aspect}::${prompt}`;
 
@@ -76,7 +113,9 @@ function useBackgrounds(plan: ContentPlan | null, reference: string | null) {
         if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
         setImages((s) => ({ ...s, [k]: `data:image/png;base64,${data.image}` }));
       } catch (e) {
-        inflight.current.delete(k); // 失敗は再試行を許可
+        // ここで inflight から消してはいけない。先読み用の useEffect は毎レンダー走るため、
+        // 消すと「失敗 → setError で再レンダー → 再取得 → 失敗」の無限ループになり
+        // OpenAI を延々と叩き続けてしまう。再試行は regenerate() 経由のみ許可する。
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading((s) => ({ ...s, [k]: false }));
@@ -263,6 +302,8 @@ export default function Generator() {
   const [url, setUrl] = useState("");
   const [brandDescription, setBrandDescription] = useState("");
   const [message, setMessage] = useState("");
+  const [purpose, setPurpose] = useState<AccountPurpose>("brand");
+  const [recruit, setRecruit] = useState<RecruitInfo>(EMPTY_RECRUIT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<ContentPlan | null>(null);
@@ -339,7 +380,14 @@ export default function Generator() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, brandDescription, message, images: refImages }),
+        body: JSON.stringify({
+          url,
+          brandDescription,
+          message,
+          images: refImages,
+          purpose,
+          recruit: purpose === "recruit" ? recruit : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -352,7 +400,7 @@ export default function Generator() {
     } finally {
       setLoading(false);
     }
-  }, [url, brandDescription, message, refImages]);
+  }, [url, brandDescription, message, refImages, purpose, recruit]);
 
   return (
     <div className="container">
@@ -368,7 +416,29 @@ export default function Generator() {
         <div className="panel">
           <div className="field">
             <label>
-              企業HPのURL
+              アカウントの目的
+              <span className="hint">設計方針とコピーの書き方が変わります</span>
+            </label>
+            <div className="template-row">
+              <button
+                className={`template-pill ${purpose === "brand" ? "active" : ""}`}
+                onClick={() => setPurpose("brand")}
+                disabled={loading}
+              >
+                🛍 商品・サービス訴求
+              </button>
+              <button
+                className={`template-pill ${purpose === "recruit" ? "active" : ""}`}
+                onClick={() => setPurpose("recruit")}
+                disabled={loading}
+              >
+                👥 採用(公式採用アカウント)
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <label>
+              {purpose === "recruit" ? "企業HP・採用サイトのURL" : "企業HPのURL"}
               <span className="hint">AIがサイトを分析します</span>
             </label>
             <input
@@ -381,24 +451,47 @@ export default function Generator() {
           </div>
           <div className="field">
             <label>
-              企業イメージ・ブランドについて
-              <span className="hint">トーン、ターゲット、強みなど</span>
+              {purpose === "recruit"
+                ? "会社・職場について"
+                : "企業イメージ・ブランドについて"}
+              <span className="hint">
+                {purpose === "recruit"
+                  ? "事業内容、社員数、職場の雰囲気など"
+                  : "トーン、ターゲット、強みなど"}
+              </span>
             </label>
             <textarea
-              placeholder="例: 20〜30代女性向けのオーガニックコスメブランド。ナチュラルで上質、親しみやすい雰囲気。肌へのやさしさと国産原料が強み。"
+              placeholder={
+                purpose === "recruit"
+                  ? "例: 首都圏で介護施設を12拠点運営。社員180名、平均年齢34歳。未経験入社が7割で、資格取得支援に力を入れている。"
+                  : "例: 20〜30代女性向けのオーガニックコスメブランド。ナチュラルで上質、親しみやすい雰囲気。肌へのやさしさと国産原料が強み。"
+              }
               value={brandDescription}
               onChange={(e) => setBrandDescription(e.target.value)}
               disabled={loading}
               rows={5}
             />
           </div>
+
+          {purpose === "recruit" && (
+            <RecruitFields recruit={recruit} setRecruit={setRecruit} disabled={loading} />
+          )}
+
           <div className="field">
             <label>
               画像・動画に入れたい文言
-              <span className="hint">キャンペーン情報、訴求内容など</span>
+              <span className="hint">
+                {purpose === "recruit"
+                  ? "必ず載せたい訴求、締切など(任意)"
+                  : "キャンペーン情報、訴求内容など"}
+              </span>
             </label>
             <textarea
-              placeholder="例: 新商品「モイストセラム」発売記念、公式サイト限定で20%OFF。9月30日まで。"
+              placeholder={
+                purpose === "recruit"
+                  ? "例: 2027年卒の募集を開始しました。エントリー締切は10月31日。"
+                  : "例: 新商品「モイストセラム」発売記念、公式サイト限定で20%OFF。9月30日まで。"
+              }
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               disabled={loading}
@@ -408,7 +501,11 @@ export default function Generator() {
           <div className="field">
             <label>
               参考写真・動画
-              <span className="hint">任意: 商品・店舗などの実素材</span>
+              <span className="hint">
+                {purpose === "recruit"
+                  ? "任意: オフィス・社員・現場の実写真"
+                  : "任意: 商品・店舗などの実素材"}
+              </span>
             </label>
             <div className="upload-row">
               <label className="btn btn-ghost btn-small">
@@ -472,7 +569,9 @@ export default function Generator() {
               </div>
             )}
             <p className="upload-hint">
-              写真はAIが分析してコピー・配色・背景に反映します。動画はリールの背景に使えます(サーバーには送信されません)。
+              {purpose === "recruit"
+                ? "実際の職場写真があるほど、AIが生成する背景も本物の職場に近づきます。動画はリールの背景に使えます(サーバーには送信されません)。"
+                : "写真はAIが分析してコピー・配色・背景に反映します。動画はリールの背景に使えます(サーバーには送信されません)。"}
             </p>
           </div>
           <div className="field">
@@ -590,6 +689,172 @@ export default function Generator() {
   );
 }
 
+/** 採用アカウント向けの追加入力欄。すべて任意で、埋めるほど具体的なコピーになる */
+function RecruitFields({
+  recruit,
+  setRecruit,
+  disabled,
+}: {
+  recruit: RecruitInfo;
+  setRecruit: (r: RecruitInfo) => void;
+  disabled: boolean;
+}) {
+  const set = (key: keyof RecruitInfo, value: string) =>
+    setRecruit({ ...recruit, [key]: value });
+  const theme = RECRUIT_THEMES.find((t) => t.id === recruit.theme);
+
+  return (
+    <div className="recruit-box">
+      <div className="field">
+        <label>
+          投稿の型
+          <span className="hint">プロの採用アカウントが回している企画から選びます</span>
+        </label>
+        <div className="template-row">
+          {RECRUIT_THEMES.map((t) => (
+            <button
+              key={t.id}
+              className={`template-pill ${recruit.theme === t.id ? "active" : ""}`}
+              onClick={() => set("theme", t.id)}
+              disabled={disabled}
+              title={t.hint}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {theme && <p className="upload-hint">{theme.hint}</p>}
+      </div>
+
+      <div className="field-row">
+        <div className="field">
+          <label>
+            対象
+            <span className="hint">任意</span>
+          </label>
+          <input
+            placeholder="例: 2027年卒 / 中途"
+            value={recruit.targets}
+            onChange={(e) => set("targets", e.target.value)}
+            disabled={disabled}
+          />
+        </div>
+        <div className="field">
+          <label>
+            募集職種
+            <span className="hint">任意</span>
+          </label>
+          <input
+            placeholder="例: 総合職、介護スタッフ"
+            value={recruit.positions}
+            onChange={(e) => set("positions", e.target.value)}
+            disabled={disabled}
+          />
+        </div>
+      </div>
+
+      <div className="field">
+        <label>
+          勤務地
+          <span className="hint">任意: 地名は求職者の検索に直結します</span>
+        </label>
+        <input
+          placeholder="例: 東京都渋谷区(転勤なし)"
+          value={recruit.workplace}
+          onChange={(e) => set("workplace", e.target.value)}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          会社の数字
+          <span className="hint">任意: 具体的な数字ほど信頼されます</span>
+        </label>
+        <textarea
+          placeholder="例: 平均年齢34.2歳 / 有給取得率78% / 月平均残業12時間 / 育休復帰率100% / 3年定着率89%"
+          value={recruit.numbers}
+          onChange={(e) => set("numbers", e.target.value)}
+          disabled={disabled}
+          rows={3}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          福利厚生・制度
+          <span className="hint">任意</span>
+        </label>
+        <textarea
+          placeholder="例: 資格取得支援(受験料全額補助)、時短勤務、社員食堂、住宅手当2万円"
+          value={recruit.benefits}
+          onChange={(e) => set("benefits", e.target.value)}
+          disabled={disabled}
+          rows={2}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          社員の声・エピソード
+          <span className="hint">任意: 実話があると一気にリアルになります</span>
+        </label>
+        <textarea
+          placeholder="例: 入社2年目の田中は、未経験から半年で現場リーダーに。「最初は不安でしたが、先輩が毎日15分の振り返りに付き合ってくれました」"
+          value={recruit.episode}
+          onChange={(e) => set("episode", e.target.value)}
+          disabled={disabled}
+          rows={3}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          求める人物像
+          <span className="hint">任意</span>
+        </label>
+        <input
+          placeholder="例: 相手の話を最後まで聞ける人"
+          value={recruit.idealCandidate}
+          onChange={(e) => set("idealCandidate", e.target.value)}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          選考フロー
+          <span className="hint">任意</span>
+        </label>
+        <input
+          placeholder="例: エントリー→説明会→面接2回→内定(最短2週間)"
+          value={recruit.selectionFlow}
+          onChange={(e) => set("selectionFlow", e.target.value)}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="field">
+        <label>
+          応募導線
+          <span className="hint">任意: CTAに使われます</span>
+        </label>
+        <input
+          placeholder="例: プロフィールのリンクからエントリー / DMで質問もOK"
+          value={recruit.applyRoute}
+          onChange={(e) => set("applyRoute", e.target.value)}
+          disabled={disabled}
+        />
+      </div>
+
+      <p className="upload-hint">
+        すべて任意ですが、埋めるほど「盛った採用広告」ではない、実態に基づいたコピーになります。
+        年齢・性別を限定する表現は法令に触れるため、AI側で自動的に避けます。
+      </p>
+    </div>
+  );
+}
+
 function BrandSummary({ plan }: { plan: ContentPlan }) {
   const { brand } = plan;
   const c = brand.colorPalette;
@@ -600,6 +865,7 @@ function BrandSummary({ plan }: { plan: ContentPlan }) {
       </span>
       <span className="chip">{brand.industry}</span>
       <span className="chip">{brand.tone}</span>
+      {plan.postTheme && <span className="chip chip-theme">📌 {plan.postTheme}</span>}
       <span className="swatches" title="ブランドカラー">
         {[c.primary, c.secondary, c.accent, c.background].map((col) => (
           <span key={col} className="swatch" style={{ background: col }} />
