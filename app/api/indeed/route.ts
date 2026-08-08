@@ -18,6 +18,12 @@ import {
 
 export const maxDuration = 300;
 
+/** Anthropic の APIError から、画面に出せる原因テキストを取り出す */
+function apiErrorMessage(e: InstanceType<typeof Anthropic.APIError>): string {
+  const body = e.error as { error?: { message?: string } } | undefined;
+  return body?.error?.message ?? e.message ?? "詳細不明";
+}
+
 const EMPTY_HEARING: HearingSheet = {
   employmentType: "parttime",
   url: "",
@@ -115,10 +121,12 @@ export async function POST(req: NextRequest) {
     hasImages: imageBlocks.length > 0,
   });
 
+  const model = process.env.ANTHROPIC_MODEL || "claude-opus-5";
+
   try {
     const client = new Anthropic();
     const response = await client.messages.create({
-      model: process.env.ANTHROPIC_MODEL || "claude-opus-5",
+      model,
       max_tokens: 20000,
       thinking: { type: "adaptive" },
       system: INDEED_SYSTEM_PROMPT,
@@ -161,6 +169,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ proposal, siteFetched: site?.ok ?? false });
   } catch (e) {
+    // 原因を切り分けられるよう、APIが返した内容をサーバーログにそのまま残す
+    console.error("[/api/indeed] 生成に失敗しました", e);
+
     if (e instanceof Anthropic.AuthenticationError) {
       return NextResponse.json(
         { error: "APIキーが無効です。ANTHROPIC_API_KEY を確認してください。" },
@@ -174,8 +185,18 @@ export async function POST(req: NextRequest) {
       );
     }
     if (e instanceof Anthropic.APIError) {
+      const detail = apiErrorMessage(e);
+      if (e.status === 404 || /model/i.test(detail)) {
+        return NextResponse.json(
+          {
+            error:
+              `モデル「${model}」を使えませんでした。.env に ANTHROPIC_MODEL=claude-opus-4-8 を追記すると別のモデルで動きます。(詳細: ${detail})`,
+          },
+          { status: 502 }
+        );
+      }
       return NextResponse.json(
-        { error: `AI生成でエラーが発生しました (${e.status})` },
+        { error: `AI生成でエラーが発生しました (${e.status}): ${detail}` },
         { status: 502 }
       );
     }
