@@ -151,7 +151,8 @@ export async function POST(req: NextRequest) {
   const model = process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
   try {
-    const client = new Anthropic();
+    // 1段階でも数分かかることがあるため、SDK 既定より長めのタイムアウトを取る
+    const client = new Anthropic({ timeout: 15 * 60 * 1000, maxRetries: 2 });
 
     /** 1段階ぶんの構造化出力を取得する */
     const stage = async <T>(
@@ -160,27 +161,31 @@ export async function POST(req: NextRequest) {
       prompt: string,
       withImages: boolean
     ): Promise<T> => {
-      const response = await client.messages.create({
-        model,
-        max_tokens: 12000,
-        thinking: { type: "adaptive" },
-        system: INDEED_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [
-              ...(withImages ? imageBlocks : []),
-              { type: "text" as const, text: prompt },
-            ],
+      // 拡張思考を伴う長い生成は、非ストリーミングだと接続が切れる。
+      // ストリームで受け取り、完成したメッセージを組み立てる。
+      const response = await client.messages
+        .stream({
+          model,
+          max_tokens: 12000,
+          thinking: { type: "adaptive" },
+          system: INDEED_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [
+                ...(withImages ? imageBlocks : []),
+                { type: "text" as const, text: prompt },
+              ],
+            },
+          ],
+          output_config: {
+            format: {
+              type: "json_schema",
+              schema: schema as Record<string, unknown>,
+            },
           },
-        ],
-        output_config: {
-          format: {
-            type: "json_schema",
-            schema: schema as Record<string, unknown>,
-          },
-        },
-      });
+        })
+        .finalMessage();
 
       if (response.stop_reason === "refusal") {
         throw new StageError(
@@ -188,11 +193,24 @@ export async function POST(req: NextRequest) {
           422
         );
       }
+      if (response.stop_reason === "max_tokens") {
+        throw new StageError(
+          `${label}の出力が長くなりすぎて途中で切れました。ヒアリング内容を少し減らして再試行してください。`,
+          502
+        );
+      }
       const textBlock = response.content.find((b) => b.type === "text");
       if (!textBlock || textBlock.type !== "text") {
         throw new StageError(`${label}の生成結果が空でした。再試行してください。`, 502);
       }
-      return JSON.parse(textBlock.text) as T;
+      try {
+        return JSON.parse(textBlock.text) as T;
+      } catch {
+        throw new StageError(
+          `${label}の生成結果を読み取れませんでした。再試行してください。`,
+          502
+        );
+      }
     };
 
     // ① 戦略設計。②③はこの結果に従って書かれる
@@ -246,6 +264,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "APIのレート制限に達しました。しばらく待って再試行してください。" },
         { status: 429 }
+      );
+    }
+    if (e instanceof Anthropic.APIConnectionTimeoutError) {
+      return NextResponse.json(
+        {
+          error:
+            "生成に時間がかかりすぎて接続が切れました。ネットワークが不安定な場合に起きます。もう一度お試しください。",
+        },
+        { status: 504 }
+      );
+    }
+    if (e instanceof Anthropic.APIConnectionError) {
+      return NextResponse.json(
+        {
+          error:
+            "Anthropic APIに接続できませんでした。ネットワーク接続やプロキシ設定を確認してください。",
+        },
+        { status: 502 }
       );
     }
     if (e instanceof Anthropic.APIError) {
