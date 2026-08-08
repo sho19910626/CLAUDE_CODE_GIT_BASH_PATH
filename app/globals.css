@@ -505,3 +505,392 @@ body {
   margin-top: 10px;
   text-align: center;
 }
+
+/* ===================================================================
+   Indeed 提案スタジオ (/indeed)
+   =================================================================== */
+
+.ip-navlink {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 700;
+  margin-left: 10px;
+}
+.ip-navlink:hover {
+  text-decoration: underline;
+}
+
+/* --- 入力フォーム --- */
+.ip-section {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  margin-top: 4px;
+}
+.ip-section.accent {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  padding: 16px 16px 2px;
+  margin: 18px 0;
+}
+.ip-section-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+.ip-section.accent .ip-section-title {
+  color: var(--text);
+}
+.ip-section-title .hint {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+.ip-section .field textarea {
+  min-height: 64px;
+}
+.ip-section .field input::placeholder,
+.ip-section .field textarea::placeholder {
+  color: #5c6780;
+}
+.ip-sample {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* --- 提案サマリー --- */
+.ip-summary {
+  background: linear-gradient(
+    135deg,
+    rgba(124, 108, 246, 0.14),
+    rgba(227, 93, 143, 0.1)
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.ip-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+.ip-summary-head .chip {
+  background: rgba(13, 16, 23, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 14px;
+  color: var(--text-dim);
+}
+.ip-summary-head .chip strong {
+  color: var(--text);
+}
+.ip-oneline {
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.5;
+  margin: 14px 0 16px;
+}
+.ip-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ip-tabs {
+  flex-wrap: wrap;
+}
+.ip-tabs .tab {
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+/* --- 共通の行レイアウト --- */
+.ip-row {
+  margin-bottom: 14px;
+}
+.ip-row:last-child {
+  margin-bottom: 0;
+}
+.ip-row-label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.ip-body-text {
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+.ip-danger {
+  color: #ffb0b8;
+}
+.ip-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+.ip-note-inline {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-style: normal;
+}
+.ip-list {
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.ip-list li {
+  padding-left: 18px;
+  position: relative;
+  margin-bottom: 4px;
+}
+.ip-list li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.ip-list-ng li::before {
+  background: var(--err);
+}
+
+/* --- 棲み分けのヒーロー --- */
+.ip-hero {
+  border-color: var(--brand);
+}
+.ip-reframe {
+  text-align: center;
+  padding: 18px 12px 22px;
+}
+.ip-reframe-from {
+  font-size: 15px;
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--err);
+}
+.ip-reframe-arrow {
+  color: var(--brand);
+  font-size: 13px;
+  margin: 8px 0;
+}
+.ip-reframe-to {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.45;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ip-persona-label {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.6;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  border-left: 3px solid var(--brand);
+  margin-bottom: 16px;
+}
+
+/* --- 職種名・キャッチコピー --- */
+.ip-jobtitle {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--brand);
+}
+.ip-catch-grid {
+  display: grid;
+  gap: 12px;
+}
+.ip-catch {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.ip-catch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ip-catch-type {
+  background: rgba(124, 108, 246, 0.16);
+  border: 1px solid rgba(124, 108, 246, 0.4);
+  color: #b8aefc;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+}
+.ip-catch-chars {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-right: auto;
+}
+.ip-catch-copy {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.ip-catch-why,
+.ip-catch-use {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* --- ビジュアル --- */
+.ip-shots {
+  display: grid;
+  gap: 14px;
+}
+.ip-shot {
+  display: flex;
+  gap: 12px;
+}
+.ip-shot-no {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--brand);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ip-shot-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.ip-keyvisual {
+  margin-top: 14px;
+}
+.ip-keyvisual img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+
+/* --- 原稿 --- */
+.ip-head-actions {
+  display: flex;
+  gap: 8px;
+}
+.copy-card pre.ip-pre-tall {
+  max-height: 720px;
+}
+.ip-timeline {
+  display: grid;
+  gap: 8px;
+}
+.ip-tl-item {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ip-tl-time {
+  flex: none;
+  min-width: 86px;
+  font-weight: 700;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.ip-req {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 720px) {
+  .ip-req {
+    grid-template-columns: 1fr;
+  }
+}
+.ip-faq {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ip-faq:last-of-type {
+  border-bottom: none;
+}
+.ip-faq-q {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.ip-closing {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+/* --- 運用 --- */
+.ip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.ip-table th,
+.ip-table td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.ip-table th {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.ip-ab {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.ip-ab:last-child {
+  margin-bottom: 0;
+}
+.ip-ab-name {
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.ip-caution {
+  border-color: rgba(255, 107, 122, 0.45);
+}
+.ip-caution .ip-list li::before {
+  background: var(--err);
+}
