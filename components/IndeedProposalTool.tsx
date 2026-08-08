@@ -333,7 +333,9 @@ export default function IndeedProposalTool() {
           {loading && (
             <div className="loading-box">
               <span className="spinner" />
-              棲み分けを設計し、原稿まで書き上げています(1〜3分ほどかかります)
+              棲み分けを設計 → 原稿とビジュアルを書き起こしています。
+              <br />
+              3段階に分けて作るため、2〜4分ほどかかります。
             </div>
           )}
         </div>
@@ -354,9 +356,8 @@ export default function IndeedProposalTool() {
                   <span className="chip">
                     <strong>{proposal.summary.companyName}</strong>
                   </span>
-                  <span className="chip">{proposal.summary.industry}</span>
                   <span className="chip chip-theme">{proposal.summary.employmentType}</span>
-                  <span className="chip">{proposal.summary.positionLabel}</span>
+                  <span className="chip">{h.position || proposal.jobPost.title}</span>
                 </div>
                 <p className="ip-oneline">{proposal.summary.oneLine}</p>
                 <div className="ip-summary-actions">
@@ -476,8 +477,7 @@ function StrategyTab({ proposal }: { proposal: IndeedProposal }) {
       <div className="copy-card">
         <h3>ターゲット人材</h3>
         <p className="ip-persona-label">{p.persona.label}</p>
-        <Row label="いま何をしている人か" value={p.persona.whoTheyAreNow} />
-        <Row label="日常と価値観" value={p.persona.dailyLife} />
+        <Row label="いまの状況と価値観" value={p.persona.profile} />
         <Row label="いま感じている不満" value={p.persona.currentPain} />
         <Row label="刺さる一点" value={p.persona.trigger} />
         <div className="ip-row">
@@ -738,9 +738,8 @@ function PostTab({
         <Row label="給与" value={`${c.salary}\n${c.salaryNote}`} />
         <Row label="勤務時間" value={c.hours} />
         <Row label="休日・休暇" value={c.holidays} />
-        <Row label="勤務地" value={`${c.workplace}\n${c.access}`} />
+        <Row label="勤務地・アクセス" value={c.workplace} />
         <Row label="待遇・福利厚生" value={c.benefits.join(" / ")} />
-        <Row label="試用期間" value={c.trialPeriod} />
         <div className="ip-row">
           <span className="ip-row-label">選考の流れ</span>
           <div className="ip-timeline">

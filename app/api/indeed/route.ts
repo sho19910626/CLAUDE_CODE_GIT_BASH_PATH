@@ -1,12 +1,22 @@
 // ヒアリング内容から Indeed 求人提案書を生成するルート。
+//
+// 生成は3段階に分ける。提案の全項目を1つのJSON Schemaに詰めると
+// 構造化出力の文法をコンパイルできず 400 (compiled grammar is too large) になるため。
+//   ① 戦略設計 → ② 掲載原稿 / ③ ビジュアル・運用(②③は①の結果を受けて並列実行)
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { fetchSiteInfo } from "@/lib/scrape";
-import { INDEED_PROPOSAL_SCHEMA } from "@/lib/indeed-schema";
+import {
+  JOBPOST_SCHEMA,
+  STRATEGY_SCHEMA,
+  VISUAL_OPS_SCHEMA,
+} from "@/lib/indeed-schema";
 import {
   INDEED_SYSTEM_PROMPT,
-  buildIndeedUserPrompt,
+  buildJobPostPrompt,
+  buildStrategyPrompt,
+  buildVisualOpsPrompt,
 } from "@/lib/indeed-prompt";
 import {
   EMPLOYMENT_LABELS,
@@ -14,9 +24,31 @@ import {
   type HearingSheet,
   type IndeedProposal,
   type IndeedRequest,
+  type JobPostStage,
+  type StrategyStage,
+  type VisualOpsStage,
 } from "@/lib/indeed-types";
 
-export const maxDuration = 300;
+export const maxDuration = 600;
+
+type ImageBlock = {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+    data: string;
+  };
+};
+
+/** どの段階で失敗したかを画面に伝えるためのエラー */
+class StageError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
 
 /** Anthropic の APIError から、画面に出せる原因テキストを取り出す */
 function apiErrorMessage(e: InstanceType<typeof Anthropic.APIError>): string {
@@ -115,60 +147,92 @@ export async function POST(req: NextRequest) {
     })
     .filter((b): b is NonNullable<typeof b> => b !== null);
 
-  const userPrompt = buildIndeedUserPrompt({
-    hearing,
-    siteBlock,
-    hasImages: imageBlocks.length > 0,
-  });
-
+  const hasImages = imageBlocks.length > 0;
   const model = process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
   try {
     const client = new Anthropic();
-    const response = await client.messages.create({
-      model,
-      max_tokens: 20000,
-      thinking: { type: "adaptive" },
-      system: INDEED_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [...imageBlocks, { type: "text" as const, text: userPrompt }],
+
+    /** 1段階ぶんの構造化出力を取得する */
+    const stage = async <T>(
+      label: string,
+      schema: unknown,
+      prompt: string,
+      withImages: boolean
+    ): Promise<T> => {
+      const response = await client.messages.create({
+        model,
+        max_tokens: 12000,
+        thinking: { type: "adaptive" },
+        system: INDEED_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: [
+              ...(withImages ? imageBlocks : []),
+              { type: "text" as const, text: prompt },
+            ],
+          },
+        ],
+        output_config: {
+          format: {
+            type: "json_schema",
+            schema: schema as Record<string, unknown>,
+          },
         },
-      ],
-      output_config: {
-        format: {
-          type: "json_schema",
-          schema: INDEED_PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
-        },
-      },
-    });
+      });
 
-    if (response.stop_reason === "refusal") {
-      return NextResponse.json(
-        { error: "この内容では提案を生成できませんでした。入力内容を見直してください。" },
-        { status: 422 }
-      );
+      if (response.stop_reason === "refusal") {
+        throw new StageError(
+          `${label}の生成が拒否されました。入力内容を見直してください。`,
+          422
+        );
+      }
+      const textBlock = response.content.find((b) => b.type === "text");
+      if (!textBlock || textBlock.type !== "text") {
+        throw new StageError(`${label}の生成結果が空でした。再試行してください。`, 502);
+      }
+      return JSON.parse(textBlock.text) as T;
+    };
+
+    // ① 戦略設計。②③はこの結果に従って書かれる
+    const strategy = await stage<StrategyStage>(
+      "戦略設計",
+      STRATEGY_SCHEMA,
+      buildStrategyPrompt({ hearing, siteBlock, hasImages }),
+      hasImages
+    );
+    if (!strategy.positioning?.reframe?.to) {
+      throw new StageError("戦略設計の結果が不完全でした。もう一度お試しください。", 502);
     }
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      return NextResponse.json(
-        { error: "生成結果が空でした。再試行してください。" },
-        { status: 502 }
-      );
+    // ②③ は互いに独立しているので並列に走らせる
+    const [post, visualOps] = await Promise.all([
+      stage<JobPostStage>(
+        "掲載原稿",
+        JOBPOST_SCHEMA,
+        buildJobPostPrompt({ hearing, siteBlock, strategy }),
+        false
+      ),
+      stage<VisualOpsStage>(
+        "ビジュアル・運用設計",
+        VISUAL_OPS_SCHEMA,
+        buildVisualOpsPrompt({ hearing, siteBlock, hasImages, strategy }),
+        hasImages
+      ),
+    ]);
+
+    if (!post.jobPost?.body) {
+      throw new StageError("掲載原稿が不完全でした。もう一度お試しください。", 502);
     }
 
-    const proposal: IndeedProposal = JSON.parse(textBlock.text);
-    if (!proposal.positioning || !proposal.jobPost?.body) {
-      return NextResponse.json(
-        { error: "生成結果が不完全でした。もう一度お試しください。" },
-        { status: 502 }
-      );
-    }
-
+    const proposal: IndeedProposal = { ...strategy, ...post, ...visualOps };
     return NextResponse.json({ proposal, siteFetched: site?.ok ?? false });
   } catch (e) {
+    if (e instanceof StageError) {
+      console.error("[/api/indeed]", e.message);
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     // 原因を切り分けられるよう、APIが返した内容をサーバーログにそのまま残す
     console.error("[/api/indeed] 生成に失敗しました", e);
 

@@ -1,5 +1,10 @@
 // Claude の構造化出力 (output_config.format) に渡す JSON Schema。
-// 構造化出力の制約: 全オブジェクトに additionalProperties:false と required が必要。
+//
+// 構造化出力の制約:
+//  - 全オブジェクトに additionalProperties:false と required が必要
+//  - スキーマ全体が大きすぎると文法をコンパイルできず 400 になる
+//    ("The compiled grammar is too large")
+//    そのため提案を3段階に分け、1回あたりのプロパティ数を抑えている。
 
 const str = (description: string) => ({ type: "string", description });
 const strArray = (description: string) => ({
@@ -8,27 +13,23 @@ const strArray = (description: string) => ({
   description,
 });
 
-export const INDEED_PROPOSAL_SCHEMA = {
+/* ============================================================
+   ① 戦略設計 — 現状分析・棲み分け・職種名・キャッチコピー
+   ============================================================ */
+
+export const STRATEGY_SCHEMA = {
   type: "object",
   properties: {
     summary: {
       type: "object",
       properties: {
-        companyName: str("企業名"),
-        industry: str("業種"),
+        companyName: str("企業名(入力に無ければ業種を表す仮称)"),
         employmentType: str("雇用形態(アルバイト・パート / 正社員 など)"),
-        positionLabel: str("募集ポジションの短いラベル"),
         oneLine: str(
           "この提案を一文で。「〇〇ではなく△△を採る求人にします」の形で、棲み分けの転換点が一読で分かるように書く(60文字以内)"
         ),
       },
-      required: [
-        "companyName",
-        "industry",
-        "employmentType",
-        "positionLabel",
-        "oneLine",
-      ],
+      required: ["companyName", "employmentType", "oneLine"],
       additionalProperties: false,
     },
 
@@ -37,10 +38,10 @@ export const INDEED_PROPOSAL_SCHEMA = {
       description: "現状分析。今どの土俵で戦っていて、なぜ勝てないのかを突きつける",
       properties: {
         currentStage: str(
-          "今この求人が戦っている土俵。応募者がこの求人と並べて比較している選択肢の集合を具体的に書く(例: 「金融機関志望者の就職市場」「駅前チェーン飲食店のアルバイト市場」)"
+          "今この求人が戦っている土俵。応募者がこの求人と並べて比較している選択肢の集合を具体的に書く(例:「金融機関志望者の就職市場」「駅前チェーン飲食店のアルバイト市場」)"
         ),
         currentRank: str(
-          "その土俵での序列・立ち位置を、忖度せず具体的に書く(例: 「都市銀行→地方銀行→信用金庫と落ちてきた人の、最後の滑り止め」)。80文字以内"
+          "その土俵での序列・立ち位置を、忖度せず具体的に書く(例:「都市銀行→地方銀行→信用金庫と落ちてきた人の、最後の滑り止め」)。80文字以内"
         ),
         whyLosing: strArray(
           "その土俵で勝てない構造的な理由を3つ。給与・知名度・立地など、努力では覆せない要因を名指しする"
@@ -89,12 +90,11 @@ export const INDEED_PROPOSAL_SCHEMA = {
             "新しい土俵で最上位に来てほしい人物像。属性(年齢・性別・学歴)ではなく、行動と嗜好で定義する",
           properties: {
             label: str(
-              "「〇〇な人材」という一文。抽象的な性格語ではなく、その人が実際にやっている行動と情景で書く(例: 「農家のおばあちゃんと縁側でお茶を飲むのが好きな人懐っこい人材」)。50文字以内"
+              "「〇〇な人材」という一文。抽象的な性格語ではなく、その人が実際にやっている行動と情景で書く(例:「農家のおばあちゃんと縁側でお茶を飲むのが好きな人懐っこい人材」)。50文字以内"
             ),
-            whoTheyAreNow: str(
-              "その人は今どこで何をしているか。現職・生活状況を具体的に(80文字以内)"
+            profile: str(
+              "その人は今どこで何をしていて、何に時間を使い、何を大事にしているか。現職・生活状況・価値観をまとめて書く(150文字以内)"
             ),
-            dailyLife: str("その人の日常と価値観。何に時間を使い、何を大事にしているか(100文字以内)"),
             currentPain: str(
               "今の仕事や生活で感じている不満・違和感。求人が刺さる隙間になる部分(80文字以内)"
             ),
@@ -105,14 +105,7 @@ export const INDEED_PROPOSAL_SCHEMA = {
               "その人がIndeedで実際に打ちそうな検索語を5〜8個。職種名だけでなく、条件語(「未経験歓迎」「シフト自由」「土日休み」など)や地名を含む実際の検索クエリの形で書く"
             ),
           },
-          required: [
-            "label",
-            "whoTheyAreNow",
-            "dailyLife",
-            "currentPain",
-            "trigger",
-            "whereTheySearch",
-          ],
+          required: ["label", "profile", "currentPain", "trigger", "whereTheySearch"],
           additionalProperties: false,
         },
         proof: strArray(
@@ -186,72 +179,24 @@ export const INDEED_PROPOSAL_SCHEMA = {
         additionalProperties: false,
       },
     },
+  },
+  required: ["summary", "diagnosis", "positioning", "jobTitle", "catchphrases"],
+  additionalProperties: false,
+} as const;
 
-    visual: {
-      type: "object",
-      description:
-        "掲載する画像の設計。Indeedは職種名の次に画像が見られるため、棲み分けを一枚で伝える写真を指定する",
-      properties: {
-        concept: str(
-          "ビジュアル全体の狙い。この写真を見た人にどう思わせたいか(100文字以内)"
-        ),
-        mainShot: {
-          type: "object",
-          description:
-            "メイン画像1枚の撮影指示。カメラマンにそのまま渡せる粒度で書く",
-          properties: {
-            scene: str("どんな場面を撮るか。時間帯・場所・状況(80文字以内)"),
-            subject: str("誰を・何を主役にするか。表情や動作まで指定する(80文字以内)"),
-            composition: str("構図。カメラの位置・画角・被写体の配置(80文字以内)"),
-            lighting: str("光の条件。自然光か照明か、方向と硬さ(60文字以内)"),
-            mood: str("写真全体のトーン・色味・空気感(60文字以内)"),
-          },
-          required: ["scene", "subject", "composition", "lighting", "mood"],
-          additionalProperties: false,
-        },
-        shotList: {
-          type: "array",
-          description:
-            "メイン以外に掲載する写真のリストを4〜6枚。それぞれ役割を変え、応募者の不安を1枚ずつ潰していく構成にする",
-          items: {
-            type: "object",
-            properties: {
-              no: { type: "integer", description: "掲載順(1から)" },
-              title: str("この写真の役割を表す短い見出し(15文字以内)"),
-              whatToShoot: str("何をどう撮るかの具体的な指示(80文字以内)"),
-              why: str("この写真が応募者のどの不安・疑問に答えるか(60文字以内)"),
-            },
-            required: ["no", "title", "whatToShoot", "why"],
-            additionalProperties: false,
-          },
-        },
-        ngShots: strArray(
-          "撮ってはいけない写真を3〜5個。求職者に警戒される定番カット(全員で腕を組んだ集合写真、作り笑いの握手、フリー素材風のオフィス風景など)を、この案件の文脈で具体的に挙げる"
-        ),
-        imagePrompt: str(
-          "メイン画像をAIで生成する場合のプロンプト(英語で記述)。被写体・構図・レンズ・光・色調・雰囲気を具体的に。日本の実在する職場に見えるフォトリアルな描写にする。人物は顔の大写しを避け、手元・後ろ姿・引きの構図にする。テキストとロゴは含めない"
-        ),
-        textOnImage: str(
-          "画像に文字を重ねる場合の短いコピー(15文字以内)。重ねない方がよい場合は「文字は重ねない」と書く"
-        ),
-      },
-      required: [
-        "concept",
-        "mainShot",
-        "shotList",
-        "ngShots",
-        "imagePrompt",
-        "textOnImage",
-      ],
-      additionalProperties: false,
-    },
+/* ============================================================
+   ② 掲載原稿 — Indeedにそのまま貼れる完成原稿
+   ============================================================ */
 
+export const JOBPOST_SCHEMA = {
+  type: "object",
+  properties: {
     jobPost: {
       type: "object",
       description:
-        "★Indeedにそのまま貼れる完成原稿。担当者が書き足さなくても掲載できる状態まで書き切る",
+        "Indeedにそのまま貼れる完成原稿。担当者が書き足さなくても掲載できる状態まで書き切る",
       properties: {
-        title: str("Indeedの職種名欄に入れる文字列(jobTitle.recommendedと同一)"),
+        title: str("Indeedの職種名欄に入れる文字列(戦略で決めた推奨職種名をそのまま使う)"),
         lead: str(
           "原稿の冒頭2〜3行。キャッチコピーから始め、ペルソナが自分ごと化する情景を描く。会社紹介から始めない(120文字以内)"
         ),
@@ -303,17 +248,17 @@ export const INDEED_PROPOSAL_SCHEMA = {
         conditions: {
           type: "object",
           description:
-            "募集要項。ヒアリングにある情報のみを使い、無い情報は「要相談」「別途ご案内」と書く。推測で数字を作らない",
+            "募集要項。ヒアリングにある情報のみを使い、無い情報は「面談時にご案内します」と書く。推測で数字を作らない",
           properties: {
             employmentType: str("雇用形態"),
             salary: str("給与。時給・月給・年収を明記"),
-            salaryNote: str("給与の補足(昇給、手当、モデル月収、試用期間中の条件など)"),
+            salaryNote: str(
+              "給与の補足。昇給・賞与・各種手当・モデル月収・試用期間の有無と条件をまとめて書く"
+            ),
             hours: str("勤務時間・シフト"),
             holidays: str("休日・休暇"),
-            workplace: str("勤務地"),
-            access: str("アクセス(最寄駅・車通勤の可否・駐車場)"),
+            workplace: str("勤務地とアクセス(最寄駅からの所要時間、車通勤の可否、駐車場)"),
             benefits: strArray("福利厚生・待遇を箇条書きで"),
-            trialPeriod: str("試用期間の有無と条件"),
           },
           required: [
             "employmentType",
@@ -322,9 +267,7 @@ export const INDEED_PROPOSAL_SCHEMA = {
             "hours",
             "holidays",
             "workplace",
-            "access",
             "benefits",
-            "trialPeriod",
           ],
           additionalProperties: false,
         },
@@ -375,6 +318,75 @@ export const INDEED_PROPOSAL_SCHEMA = {
       ],
       additionalProperties: false,
     },
+  },
+  required: ["jobPost"],
+  additionalProperties: false,
+} as const;
+
+/* ============================================================
+   ③ ビジュアル・運用・掲載前チェック
+   ============================================================ */
+
+export const VISUAL_OPS_SCHEMA = {
+  type: "object",
+  properties: {
+    visual: {
+      type: "object",
+      description:
+        "掲載する画像の設計。Indeedは職種名の次に画像が見られるため、棲み分けを一枚で伝える写真を指定する",
+      properties: {
+        concept: str(
+          "ビジュアル全体の狙い。この写真を見た人にどう思わせたいか(100文字以内)"
+        ),
+        mainShot: {
+          type: "object",
+          description: "メイン画像1枚の撮影指示。カメラマンにそのまま渡せる粒度で書く",
+          properties: {
+            scene: str("どんな場面を撮るか。時間帯・場所・状況(80文字以内)"),
+            subject: str("誰を・何を主役にするか。表情や動作まで指定する(80文字以内)"),
+            composition: str("構図。カメラの位置・画角・被写体の配置(80文字以内)"),
+            lighting: str("光の条件。自然光か照明か、方向と硬さ(60文字以内)"),
+            mood: str("写真全体のトーン・色味・空気感(60文字以内)"),
+          },
+          required: ["scene", "subject", "composition", "lighting", "mood"],
+          additionalProperties: false,
+        },
+        shotList: {
+          type: "array",
+          description:
+            "メイン以外に掲載する写真のリストを4〜6枚。それぞれ役割を変え、応募者の不安を1枚ずつ潰していく構成にする",
+          items: {
+            type: "object",
+            properties: {
+              no: { type: "integer", description: "掲載順(1から)" },
+              title: str("この写真の役割を表す短い見出し(15文字以内)"),
+              whatToShoot: str("何をどう撮るかの具体的な指示(80文字以内)"),
+              why: str("この写真が応募者のどの不安・疑問に答えるか(60文字以内)"),
+            },
+            required: ["no", "title", "whatToShoot", "why"],
+            additionalProperties: false,
+          },
+        },
+        ngShots: strArray(
+          "撮ってはいけない写真を3〜5個。求職者に警戒される定番カット(全員で腕を組んだ集合写真、作り笑いの握手、フリー素材風のオフィス風景など)を、この案件の文脈で具体的に挙げる"
+        ),
+        imagePrompt: str(
+          "メイン画像をAIで生成する場合のプロンプト(英語で記述)。被写体・構図・レンズ・光・色調・雰囲気を具体的に。日本の実在する職場に見えるフォトリアルな描写にする。人物は顔の大写しを避け、手元・後ろ姿・引きの構図にする。テキストとロゴは含めない"
+        ),
+        textOnImage: str(
+          "画像に文字を重ねる場合の短いコピー(15文字以内)。重ねない方がよい場合は「文字は重ねない」と書く"
+        ),
+      },
+      required: [
+        "concept",
+        "mainShot",
+        "shotList",
+        "ngShots",
+        "imagePrompt",
+        "textOnImage",
+      ],
+      additionalProperties: false,
+    },
 
     operations: {
       type: "object",
@@ -420,30 +432,14 @@ export const INDEED_PROPOSAL_SCHEMA = {
           "応募時に聞く質問を3〜5個。棲み分けたペルソナかどうかが答えに表れる質問にする(スキルではなく行動・嗜好を聞く)"
         ),
       },
-      required: [
-        "kpi",
-        "budgetAdvice",
-        "abTests",
-        "postingTips",
-        "screeningQuestions",
-      ],
+      required: ["kpi", "budgetAdvice", "abTests", "postingTips", "screeningQuestions"],
       additionalProperties: false,
     },
 
     cautions: strArray(
-      "この原稿を掲載する際の注意点を3〜6個。年齢・性別・国籍の限定表現、断定的な誇大表現、給与の誤解を招く記載など、職業安定法・男女雇用機会均等法・雇用対策法の観点でのセルフチェック結果と、ヒアリングで追加確認すべき事項を書く"
+      "掲載する際の注意点を3〜6個。年齢・性別・国籍の限定表現、断定的な誇大表現、給与の誤解を招く記載など、職業安定法・男女雇用機会均等法・雇用対策法の観点でのセルフチェック結果と、ヒアリングで追加確認すべき事項を書く"
     ),
   },
-  required: [
-    "summary",
-    "diagnosis",
-    "positioning",
-    "jobTitle",
-    "catchphrases",
-    "visual",
-    "jobPost",
-    "operations",
-    "cautions",
-  ],
+  required: ["visual", "operations", "cautions"],
   additionalProperties: false,
 } as const;

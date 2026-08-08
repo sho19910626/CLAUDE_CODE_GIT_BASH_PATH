@@ -57,9 +57,7 @@ export interface HearingSheet {
 
 export interface ProposalSummary {
   companyName: string;
-  industry: string;
   employmentType: string;
-  positionLabel: string;
   /** 提案全体を一文で */
   oneLine: string;
 }
@@ -80,8 +78,8 @@ export interface Diagnosis {
 export interface Persona {
   /** 「〇〇な人材」— 情景が浮かぶ一文 */
   label: string;
-  whoTheyAreNow: string;
-  dailyLife: string;
+  /** いま何をしている人か、日常と価値観 */
+  profile: string;
   currentPain: string;
   /** この求人を見た瞬間に刺さる一点 */
   trigger: string;
@@ -187,13 +185,13 @@ export interface JobPost {
   conditions: {
     employmentType: string;
     salary: string;
+    /** 手当・賞与・昇給・試用期間などの補足 */
     salaryNote: string;
     hours: string;
     holidays: string;
+    /** 勤務地とアクセス(最寄駅・車通勤の可否) */
     workplace: string;
-    access: string;
     benefits: string[];
-    trialPeriod: string;
   };
   selectionFlow: SelectionStep[];
   faq: Faq[];
@@ -222,18 +220,35 @@ export interface Operations {
   screeningQuestions: string[];
 }
 
-export interface IndeedProposal {
+/**
+ * 生成は3段階に分けている。1回の構造化出力にすべてを詰めるとJSON Schemaが
+ * 大きくなりすぎて文法をコンパイルできない (400: compiled grammar is too large) ため。
+ * ②③は①の棲み分けを前提に書かれるので、分割は品質面でも有利に働く。
+ */
+
+/** ① 戦略設計 */
+export interface StrategyStage {
   summary: ProposalSummary;
   diagnosis: Diagnosis;
   positioning: Positioning;
   jobTitle: JobTitleProposal;
   catchphrases: Catchphrase[];
-  visual: VisualPlan;
+}
+
+/** ② 掲載原稿 */
+export interface JobPostStage {
   jobPost: JobPost;
+}
+
+/** ③ ビジュアル・運用・掲載前チェック */
+export interface VisualOpsStage {
+  visual: VisualPlan;
   operations: Operations;
   /** 原稿の法令・表現チェック結果 */
   cautions: string[];
 }
+
+export type IndeedProposal = StrategyStage & JobPostStage & VisualOpsStage;
 
 export interface IndeedRequest {
   hearing: HearingSheet;

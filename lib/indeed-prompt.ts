@@ -5,6 +5,7 @@ import {
   EMPLOYMENT_LABELS,
   type EmploymentType,
   type HearingSheet,
+  type StrategyStage,
 } from "@/lib/indeed-types";
 
 export const INDEED_SYSTEM_PROMPT = `あなたは求人広告の企画・制作を20年以上手がけてきた、日本トップクラスの採用コンサルタント兼コピーライターです。
@@ -241,18 +242,14 @@ export function buildHearingBlock(h: HearingSheet): string {
   return lines.join("\n");
 }
 
-/** 生成リクエスト全体のユーザープロンプトを組み立てる */
-export function buildIndeedUserPrompt(args: {
+/** 全段階に共通する前提ブロック(案件情報) */
+function buildContextBlock(args: {
   hearing: HearingSheet;
   siteBlock: string;
   hasImages: boolean;
 }): string {
   const { hearing, siteBlock, hasImages } = args;
-  const label = EMPLOYMENT_LABELS[hearing.employmentType];
-
   return [
-    `以下の企業について、Indeedに掲載する求人の提案を作成してください。雇用形態は【${label}】です。`,
-    "",
     EMPLOYMENT_BRIEF[hearing.employmentType],
     "",
     buildHearingBlock(hearing),
@@ -260,14 +257,96 @@ export function buildIndeedUserPrompt(args: {
     siteBlock,
     "",
     hasImages
-      ? "## 添付写真について\n添付されているのは、この企業の実際の職場・スタッフ・現場の写真です。写真から仕事の実態・空間・空気感・働いている人の様子を読み取り、棲み分けの設計、キャッチコピー、撮影指示(visual)に反映してください。写真から読み取れる事実は proof の根拠として使って構いません。"
+      ? "## 添付写真について\n添付されているのは、この企業の実際の職場・スタッフ・現場の写真です。写真から仕事の実態・空間・空気感・働いている人の様子を読み取り、判断に反映してください。写真から読み取れる事実は根拠として使って構いません。"
       : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** ① 戦略設計のプロンプト */
+export function buildStrategyPrompt(args: {
+  hearing: HearingSheet;
+  siteBlock: string;
+  hasImages: boolean;
+}): string {
+  const label = EMPLOYMENT_LABELS[args.hearing.employmentType];
+  return [
+    `以下の企業について、Indeedに掲載する求人の【戦略】を設計してください。雇用形態は【${label}】です。`,
+    "この段階で決めるのは、現状分析・棲み分け・職種名・キャッチコピーです。原稿本文はこの後の工程で書くので、ここでは書きません。",
+    "",
+    buildContextBlock(args),
     "",
     "まず、この会社が今どの土俵で戦っていて何番目なのかを冷静に見極めてください。",
     "次に、ヒアリングにある「活躍している人の特徴」と「エピソード」から、その会社にしか言えない仕事の再定義を導いてください。",
     "JAの事例における「おばあちゃんと縁側でお茶を飲む仕事」に相当する一言を見つけることが、この提案の成否を決めます。",
-    "その一言が見つかったら、職種名・キャッチコピー・写真・原稿本文・応募時の質問まで、すべてをその一言に揃えてください。",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    "その一言が見つかったら、職種名とキャッチコピーをすべてその一言に揃えてください。",
+  ].join("\n");
+}
+
+/** ①の結果を、後続工程に渡すためのテキストに畳む */
+function strategyBlock(s: StrategyStage): string {
+  const p = s.positioning;
+  return [
+    "## 確定した戦略(この工程では変更せず、必ずこれに従うこと)",
+    `- 提案の要旨: ${s.summary.oneLine}`,
+    `- 今戦っている土俵: ${s.diagnosis.currentStage}`,
+    `- その中での立ち位置: ${s.diagnosis.currentRank}`,
+    `- 仕事の再定義: 「${p.reframe.from}」→「${p.reframe.to}」`,
+    `- 新しい土俵: ${p.newStage}`,
+    `- ターゲット人材: ${p.persona.label}`,
+    `- その人の状況: ${p.persona.profile}`,
+    `- その人の不満: ${p.persona.currentPain}`,
+    `- 刺さる一点: ${p.persona.trigger}`,
+    `- 検索しそうな語: ${p.persona.whereTheySearch.join(" / ")}`,
+    `- 棲み分けの根拠: ${p.proof.join(" / ")}`,
+    `- あえて来なくていい人: ${p.excluded}`,
+    `- 競合との差: ${p.competitorGap}`,
+    `- 決定した職種名: ${s.jobTitle.recommended}`,
+    `- 原稿に埋め込む検索キーワード: ${s.jobTitle.searchKeywords.join(" / ")}`,
+    "- キャッチコピー案:",
+    ...s.catchphrases.map((c) => `  - [${c.type}] ${c.copy}(${c.useIn})`),
+  ].join("\n");
+}
+
+/** ② 掲載原稿のプロンプト */
+export function buildJobPostPrompt(args: {
+  hearing: HearingSheet;
+  siteBlock: string;
+  strategy: StrategyStage;
+}): string {
+  const label = EMPLOYMENT_LABELS[args.hearing.employmentType];
+  return [
+    `先に確定した戦略に沿って、Indeedにそのまま貼れる【掲載原稿】を書いてください。雇用形態は【${label}】です。`,
+    "",
+    buildContextBlock({ ...args, hasImages: false }),
+    "",
+    strategyBlock(args.strategy),
+    "",
+    "原稿は、上の「ターゲット人材」ただ一人に向けて書いてください。それ以外の人が読んで「自分向きではない」と感じても構いません。",
+    "冒頭はキャッチコピーから始め、会社紹介から始めないでください。",
+    "「大変なところ」は必ず正直に書いてください。ここを省くとミスマッチで辞められます。",
+    "給与・待遇・数字は、ヒアリングにある情報の範囲でのみ書き、無い情報は「面談時にご案内します」としてください。",
+  ].join("\n");
+}
+
+/** ③ ビジュアル・運用のプロンプト */
+export function buildVisualOpsPrompt(args: {
+  hearing: HearingSheet;
+  siteBlock: string;
+  hasImages: boolean;
+  strategy: StrategyStage;
+}): string {
+  const label = EMPLOYMENT_LABELS[args.hearing.employmentType];
+  return [
+    `先に確定した戦略に沿って、【掲載画像の設計】【掲載後の運用設計】【掲載前チェック】を作成してください。雇用形態は【${label}】です。`,
+    "",
+    buildContextBlock(args),
+    "",
+    strategyBlock(args.strategy),
+    "",
+    "写真は、棲み分けで定めた仕事の再定義を一枚で伝えるものにしてください。撮影指示はカメラマンにそのまま渡せる粒度で書きます。",
+    "運用設計では、応募数だけを追わせないでください。棲み分けが効いているかは、応募者の質・辞退率・定着率に表れます。",
+    "掲載前チェックには、法令上の注意点に加えて、ヒアリングで埋まっていなかった項目のうち提案の精度に効くものを挙げてください。",
+  ].join("\n");
 }

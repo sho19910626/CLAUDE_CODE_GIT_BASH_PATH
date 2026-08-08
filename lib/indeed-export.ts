@@ -50,13 +50,9 @@ export function buildJobPostText(p: IndeedProposal): string {
     "",
     "【勤務地】",
     c.workplace,
-    c.access,
     "",
     "【待遇・福利厚生】",
     ...c.benefits.map((b) => `・${b}`),
-    "",
-    "【試用期間】",
-    c.trialPeriod,
     "",
     "【選考の流れ】",
     ...j.selectionFlow.map((s, i) => `${i + 1}. ${s.step}(${s.duration})\n   ${s.what}`),
@@ -78,9 +74,8 @@ export function buildProposalMarkdown(p: IndeedProposal, h: HearingSheet): strin
 | 項目 | 内容 |
 | --- | --- |
 | 企業名 | ${s.companyName} |
-| 業種 | ${s.industry} |
 | 雇用形態 | ${s.employmentType}(${EMPLOYMENT_LABELS[h.employmentType]}) |
-| 募集ポジション | ${s.positionLabel} |
+| 募集ポジション | ${h.position || p.jobPost.title} |
 
 > **${s.oneLine}**
 
@@ -119,8 +114,7 @@ ${po.newStage}
 
 | 観点 | 内容 |
 | --- | --- |
-| いま何をしている人か | ${po.persona.whoTheyAreNow} |
-| 日常と価値観 | ${po.persona.dailyLife} |
+| いまの状況と価値観 | ${po.persona.profile} |
 | いま感じている不満 | ${po.persona.currentPain} |
 | 刺さる一点 | ${po.persona.trigger} |
 
