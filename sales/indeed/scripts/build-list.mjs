@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, isCorporate, industryWeight } from './classify.mjs';
+import { classify, isCorporate, industryWeight, spendBoost, APPROACH } from './classify.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', 'data');
@@ -95,6 +95,7 @@ function aggregate(postings) {
     const prefs = [...new Set(ps.map((p) => p.pref))];
     const cities = [...new Set(ps.map((p) => p.city))];
     const industry = mode(ps.map((p) => p.industry));
+    const industries = [...new Set(ps.map((p) => p.industry))];
     const dates = ps.map((p) => new Date(p.posted)).sort((a, b) => a - b);
     const first = dates[0];
     const last = dates[dates.length - 1];
@@ -106,6 +107,9 @@ function aggregate(postings) {
       prefs,
       cities,
       industry,
+      // 県も業種もまたいでいる場合、同名の別法人を1社に合算している疑いがある。
+      // （例：福岡の人材会社と群馬の運送会社が同じ社名だった、など）
+      sameNameRisk: prefs.length > 1 && industries.length > 1,
       postings: ps.length,
       first: first.toISOString().slice(0, 10),
       last: last.toISOString().slice(0, 10),
@@ -132,19 +136,23 @@ function score(c) {
 // 「月いくら使っていそうか」の推定。
 // 断定はできないので、観測件数からの目安として幅で持つ。
 // 前提：地方のスポンサー求人1枠あたり月2〜5万円程度。
-function estimateSpend(c) {
+const SPEND_TIERS = ['10万円未満の可能性', '10万円前後', '10〜30万円', '30万円〜'];
+
+function estimateSpend(c, segment) {
   const scale = c.postings + c.cities.length;
-  if (scale >= 14) return '30万円〜';
-  if (scale >= 8) return '10〜30万円';
-  if (scale >= 5) return '10万円前後';
-  return '10万円未満の可能性';
+  let tier = 0;
+  if (scale >= 14) tier = 3;
+  else if (scale >= 8) tier = 2;
+  else if (scale >= 5) tier = 1;
+  // 派遣会社は観測できない求人が桁違いに多いため1段引き上げる
+  tier = Math.min(SPEND_TIERS.length - 1, tier + spendBoost(segment));
+  return SPEND_TIERS[tier];
 }
 
 // 優先度。フォーム営業を上から順に叩くための並び。
-function priority(c, s, segment) {
-  if (segment === '派遣・紹介') return 'D';
-  if (segment === '全国大手') return 'C';
-  if (segment === '単店舗') return 'C';
+// 区分による自動降格はしない。全国大手も派遣会社も、証拠（スコア）で同じ土俵に載せる。
+// 提案の切り替えは「アプローチ」列で行う。
+function priority(s) {
   if (s >= 110) return 'S';
   if (s >= 70) return 'A';
   if (s >= 45) return 'B';
@@ -156,17 +164,21 @@ function main() {
   const companies = aggregate(readRaw());
 
   const rows = companies.map((c) => {
-    const segment = classify(c.name);
+    const segment = classify(c.name, c.industry);
     const s = score(c);
     const m = manual.get(c.name) ?? {};
     return {
       ...c,
       segment,
+      approach: APPROACH[segment],
       score: s,
-      priority: priority(c, s, segment),
-      spend: estimateSpend(c),
+      priority: priority(s),
+      spend: estimateSpend(c, segment),
       yearRound: c.spanDays >= 90 ? '○' : c.spanDays >= 30 ? '△' : '要確認',
-      needsParent: isCorporate(c.name) ? '' : '要確認',
+      caution: [
+        isCorporate(c.name) ? '' : '運営元の法人名を要確認',
+        c.sameNameRisk ? '同名別法人の合算の可能性' : '',
+      ].filter(Boolean).join(' / '),
       manual: m,
     };
   });
@@ -175,9 +187,9 @@ function main() {
   rows.sort((a, b) => order[a.priority] - order[b.priority] || b.score - a.score);
 
   const header = [
-    'ID', '優先度', '企業名', '区分', '業種', '都道府県', '主要エリア',
+    'ID', '優先度', '企業名', '区分', 'アプローチ', '業種', '都道府県', '主要エリア',
     '掲載件数', '拠点数', '通年採用', '初回掲載', '最終掲載', '掲載期間日数',
-    '推定月額出稿', 'スコア', '法人格',
+    '推定月額出稿', 'スコア', '注意',
     '問い合わせ先検索', '求人サンプル', 'HP_URL', 'フォームURL',
     'ステータス', '送信日', '返信', 'メモ',
   ];
@@ -190,6 +202,7 @@ function main() {
       r.priority,
       r.name,
       r.segment,
+      r.approach,
       r.industry,
       r.prefs.join('/'),
       r.cities.slice(0, 3).join('/'),
@@ -201,7 +214,7 @@ function main() {
       r.spanDays,
       r.spend,
       r.score,
-      r.needsParent,
+      r.caution,
       searchUrl,
       r.jobUrls[0],
       r.manual.hp ?? '',
