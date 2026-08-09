@@ -18,6 +18,12 @@
 
 import { actionById } from "./playbook";
 import {
+  periodSeasonIndex,
+  seasonFactor,
+  seedSeasonCurve,
+  type SeasonMetric,
+} from "./season";
+import {
   dayCount,
   proportionsDiffer,
   rate,
@@ -52,33 +58,44 @@ function sumWindow(
   snapshots: MetricSnapshot[],
   date: string,
   side: "before" | "after"
-): { impressions: number; clicks: number; applies: number; days: number } {
+): {
+  impressions: number;
+  clicks: number;
+  applies: number;
+  days: number;
+  start: string | null;
+  end: string | null;
+} {
   const pivot = Date.parse(date);
   const limit = WINDOW_DAYS * 86_400_000;
   let impressions = 0;
   let clicks = 0;
   let applies = 0;
   let days = 0;
+  let start: string | null = null;
+  let end: string | null = null;
 
   for (const s of snapshots) {
-    const start = Date.parse(s.periodStart);
-    const end = Date.parse(s.periodEnd);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    const from = Date.parse(s.periodStart);
+    const to = Date.parse(s.periodEnd);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
 
     // 施策日をまたぐ期間は、どちらの効果か分離できないので捨てる
     if (side === "before") {
-      if (end >= pivot) continue;
-      if (pivot - end > limit) continue;
+      if (to >= pivot) continue;
+      if (pivot - to > limit) continue;
     } else {
-      if (start < pivot) continue;
-      if (start - pivot > limit) continue;
+      if (from < pivot) continue;
+      if (from - pivot > limit) continue;
     }
     impressions += s.impressions;
     clicks += s.clicks;
     applies += s.applies;
     days += dayCount(s.periodStart, s.periodEnd);
+    if (!start || s.periodStart < start) start = s.periodStart;
+    if (!end || s.periodEnd > end) end = s.periodEnd;
   }
-  return { impressions, clicks, applies, days };
+  return { impressions, clicks, applies, days, start, end };
 }
 
 /** 施策 1 件から観測できる効果をすべて取り出す */
@@ -123,7 +140,25 @@ export function measureIntervention(
       an = after.impressions;
     }
 
-    const lift = relativeLift(b, a);
+    // ── 季節補正 ──
+    // 7月に打った施策を8月の数字で測ると、お盆の落ち込みぶんだけ
+    // 「効かなかった」と誤って学習してしまう。前後それぞれの期間の
+    // 季節指数で割り戻し、季節要因を取り除いた上で効果を測る。
+    const curve = seedSeasonCurve(job.industry, job.employmentType);
+    const metric: SeasonMetric =
+      action.stage === "apply" ? "apply" : action.stage === "ctr" ? "ctr" : "impressions";
+    const beforeSeason =
+      before.start && before.end
+        ? seasonFactor(periodSeasonIndex(before.start, before.end, curve), metric)
+        : 1;
+    const afterSeason =
+      after.start && after.end
+        ? seasonFactor(periodSeasonIndex(after.start, after.end, curve), metric)
+        : 1;
+    const bAdj = beforeSeason > 0 ? b / beforeSeason : b;
+    const aAdj = afterSeason > 0 ? a / afterSeason : a;
+
+    const lift = relativeLift(bAdj, aAdj);
     if (lift === null || !Number.isFinite(lift)) continue;
 
     const significant =
@@ -145,6 +180,8 @@ export function measureIntervention(
       before: b,
       after: a,
       lift,
+      rawLift: relativeLift(b, a) ?? lift,
+      seasonAdjustment: beforeSeason > 0 ? afterSeason / beforeSeason : 1,
       sharedWith: shared,
       significant,
       beforeDenominator: bn,

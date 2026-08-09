@@ -17,6 +17,7 @@ import { analyzeCatch, analyzeDescription, analyzeTitle } from "./copycheck";
 import { aggregate, diagnoseJob, jobHeadroom } from "./diagnose";
 import { buildEffectIndex, measureAll, type EffectIndex } from "./learn";
 import { PLAYBOOK, type ActionContext, type WageMarket } from "./playbook";
+import { buildSeasonIndex, type SeasonIndex } from "./season";
 import { employmentDef, employmentLabel, industryDef } from "./seed";
 import { percentile } from "./stats";
 import type {
@@ -235,6 +236,8 @@ export interface StoreAnalysis {
   benchmarks: BenchmarkIndex;
   effects: EffectIndex;
   wageMarket: WageMarketIndex;
+  /** 季節指数。診断のベンチマーク補正と、推移の季節調整に使う */
+  season: SeasonIndex;
   jobs: JobAnalysis[];
   /** 全求人の合計 */
   totals: {
@@ -261,6 +264,11 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
     measureAll(activeJobs, store.snapshots, store.interventions)
   );
   const wageMarket = buildWageMarket(activeJobs);
+  const season = buildSeasonIndex(
+    store.snapshots,
+    new Map(activeJobs.map((j) => [j.id, j.industry])),
+    new Map(activeJobs.map((j) => [j.id, j.employmentType]))
+  );
 
   const byJob = new Map<string, MetricSnapshot[]>();
   for (const s of store.snapshots) {
@@ -273,7 +281,12 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
     const snapshots = (byJob.get(job.id) ?? []).sort((a, b) =>
       a.periodStart.localeCompare(b.periodStart)
     );
-    const diagnosis = diagnoseJob(job, snapshots, benchmarks.forJob(job));
+    const diagnosis = diagnoseJob(
+      job,
+      snapshots,
+      benchmarks.forJob(job),
+      season.curveForJob(job.id)
+    );
     const recommendations = buildRecommendations(
       job,
       diagnosis,
@@ -290,6 +303,7 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
     benchmarks,
     effects,
     wageMarket,
+    season,
     jobs,
     totals: {
       impressions: totalsSource.impressions,

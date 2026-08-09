@@ -160,6 +160,7 @@ export default function IndeedApp() {
             setStore={setStore}
             effects={analysis.effects}
             rollups={analysis.benchmarks.rollups}
+            seasonCurve={analysis.season.curveForJob(selected.job.id)}
             onBack={() => setSelectedJobId(null)}
             onEditJob={() => setEditingJob(selected.job)}
             notify={notify}

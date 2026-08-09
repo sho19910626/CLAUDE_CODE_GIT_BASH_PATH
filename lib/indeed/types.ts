@@ -159,8 +159,12 @@ export interface LiftObservation {
   before: number;
   /** 施策後の指標値 */
   after: number;
-  /** 相対リフト率。+0.25 なら 25% 改善 */
+  /** 季節要因を取り除いた相対リフト率。+0.25 なら 25% 改善。学習に使うのはこちら */
   lift: number;
+  /** 季節補正前の見かけのリフト率。画面に「見かけ vs 実質」を出すのに使う */
+  rawLift: number;
+  /** 前後の期間の季節指数の比。1 未満なら不利な時期に測っている */
+  seasonAdjustment: number;
   /** 同時実施した施策数。1/n を効果の帰属重みにする */
   sharedWith: number;
   /** 統計的に有意(2 標本の Wilson 区間が重ならない)か */
@@ -271,7 +275,17 @@ export interface StageDiagnosis {
 export interface JobDiagnosis {
   jobId: string;
   metrics: AggregatedMetrics;
+  /** 診断対象の期間の季節に合わせて補正済みのベンチマーク */
   benchmark: SegmentBenchmark;
+  /** 診断対象の期間が平年と比べてどういう時期か */
+  season: {
+    /** 1.0 が平年並み。0.8 なら平年より 2 割動きが少ない時期 */
+    index: number;
+    /** 「求職者が平年より動かない時期」など。平年並みなら null */
+    label: string | null;
+    /** ベンチマークを季節補正したか */
+    adjusted: boolean;
+  };
   stages: StageDiagnosis[];
   /** 最も伸びしろが大きい段階。null は「データ不足」または「課題なし」 */
   bottleneck: FunnelStage | null;

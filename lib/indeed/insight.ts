@@ -13,6 +13,7 @@ import { jobHeadroom } from "./diagnose";
 import { comparePeers, type PeerComparison } from "./peers";
 import { actionShort } from "./playbook";
 import type { JobAnalysis } from "./recommend";
+import { MONTH_NOTE } from "./season";
 import { analyzeTrend, type TrendAnalysis } from "./trend";
 import type {
   FunnelStage,
@@ -75,6 +76,8 @@ export interface Insight {
   combined: string | null;
   /** この段階を直したあと、次に効いてくる段階 */
   nextStep: string | null;
+  /** 時期を踏まえた動き方の助言 */
+  timing: string | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -125,6 +128,8 @@ export interface InsightContext {
   interventions?: Intervention[];
   /** 自社の他求人(比較用) */
   rollups?: JobRollup[];
+  /** 季節指数のカーブ。推移の季節調整に使う */
+  seasonCurve?: number[];
 }
 
 export function buildInsight(
@@ -289,7 +294,11 @@ export function buildInsight(
 
   // ===== 推移(前期比) =====
   const trendAnalysis: TrendAnalysis | null = context.snapshots
-    ? analyzeTrend(context.snapshots, context.interventions ?? [])
+    ? analyzeTrend(
+        context.snapshots,
+        context.interventions ?? [],
+        context.seasonCurve
+      )
     : null;
 
   // ===== 自社の他求人との比較 =====
@@ -306,6 +315,9 @@ export function buildInsight(
 
   // ===== 次に効いてくる段階 =====
   const nextStep = findNextStep(diagnosis, stage);
+
+  // ===== 時期を踏まえた動き方 =====
+  const timing = buildTiming(diagnosis, context.snapshots);
 
   // --- どうなるか ---
   //
@@ -379,6 +391,7 @@ export function buildInsight(
           )
           .join("\n")
       : "",
+    timing ? `\n■ 時期について\n${timing}` : "",
     `\n■ 見込み`,
     outlook,
     combined ?? "",
@@ -400,8 +413,57 @@ export function buildInsight(
     outlook,
     combined,
     nextStep,
+    timing,
     text,
   };
+}
+
+/**
+ * 時期を踏まえた動き方の助言。
+ *
+ * 「今が動かない時期かどうか」だけでなく、「次に何が来るか」まで言う。
+ * 12月に「応募が少ないですね」と報告するだけでは何の役にも立たないが、
+ * 「1月から急増するので年内に原稿を整えておきましょう」なら手が打てる。
+ */
+function buildTiming(
+  diagnosis: JobDiagnosis,
+  snapshots: MetricSnapshot[] | undefined
+): string | null {
+  const { index, label } = diagnosis.season;
+  if (!label && !snapshots?.length) return null;
+
+  // 直近の実績が終わった月の翌月を「これから」とみなす
+  const ends = (snapshots ?? []).map((s) => s.periodEnd).sort();
+  const lastEnd = ends[ends.length - 1];
+  const month = lastEnd ? Number(lastEnd.slice(5, 7)) : null;
+  const nextMonth = month ? (month % 12) + 1 : null;
+
+  const parts: string[] = [];
+
+  if (label) {
+    parts.push(
+      `この期間は${label}です(季節指数 ${index.toFixed(2)}、平年 = 1.00)。` +
+        `診断のベンチマークはこの時期に合わせて補正済みなので、上の判定は季節を差し引いたうえでの評価です。`
+    );
+  }
+
+  if (index <= 0.9) {
+    parts.push(
+      "応募が少ないこと自体は時期の問題なので、慌てて条件を下げる判断は避けてください。" +
+        "一方で他社も掲載を控える時期なので、出し続けていれば埋もれにくいという利点はあります。"
+    );
+  } else if (index >= 1.15) {
+    parts.push(
+      "求職者が動く時期なので、ここで取り切れないと年間の採用計画に響きます。" +
+        "競合の求人も増えて埋もれやすいため、この時期こそ予算と原稿を優先的に投じる価値があります。"
+    );
+  }
+
+  if (nextMonth && MONTH_NOTE[nextMonth]) {
+    parts.push(`次の月について: ${MONTH_NOTE[nextMonth]}。`);
+  }
+
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 /** 「5/1〜7/31 の3期間・92日間の合計」のような但し書きを作る */

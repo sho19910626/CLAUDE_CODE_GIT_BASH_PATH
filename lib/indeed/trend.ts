@@ -8,6 +8,13 @@
 // 変化の直前に記録された施策があれば突き合わせて、
 // 「その変化はこの施策の後に起きている」と示す。
 
+import {
+  MONTH_NOTE,
+  dominantMonth,
+  periodSeasonIndex,
+  seasonFactor,
+  type SeasonMetric,
+} from "./season";
 import { dayCount, proportionsDiffer, rate, relativeLift } from "./stats";
 import type { Intervention, MetricSnapshot } from "./types";
 
@@ -32,8 +39,13 @@ export interface MetricChange {
   label: string;
   before: number;
   after: number;
-  /** 相対変化率。-0.21 なら 21% 低下 */
+  /** 見かけの相対変化率。-0.21 なら 21% 低下 */
   lift: number;
+  /** 季節要因を取り除いた実質の変化率 */
+  adjustedLift: number;
+  /** 季節要因だけで説明できる変化率(期待される増減) */
+  expectedBySeason: number;
+  /** 判定は季節調整後の値で行う */
   direction: TrendDirection;
   /** 統計的に差があると言えるか */
   significant: boolean;
@@ -92,7 +104,9 @@ function monthLabel(iso: string): string {
 
 export function analyzeTrend(
   snapshots: MetricSnapshot[],
-  interventions: Intervention[] = []
+  interventions: Intervention[] = [],
+  /** 季節指数のカーブ。省略すると季節調整なし */
+  seasonCurve?: number[]
 ): TrendAnalysis {
   const points = [...snapshots]
     .sort((a, b) => a.periodStart.localeCompare(b.periodStart))
@@ -122,17 +136,38 @@ export function analyzeTrend(
   const before = points[points.length - 2];
   const changes: MetricChange[] = [];
 
+  // 前後それぞれの期間の季節指数。お盆や年末の落ち込みを「悪化」と誤読しないために使う
+  const curve = seasonCurve;
+  const seasonOf = (p: TrendPoint, metric: SeasonMetric) =>
+    curve ? seasonFactor(periodSeasonIndex(p.periodStart, p.periodEnd, curve), metric) : 1;
+
+  /** 見かけの変化率から季節要因を取り除く */
+  const adjust = (
+    lift: number,
+    metric: SeasonMetric
+  ): { adjustedLift: number; expectedBySeason: number } => {
+    const b = seasonOf(before, metric);
+    const a = seasonOf(after, metric);
+    if (b <= 0 || a <= 0) return { adjustedLift: lift, expectedBySeason: 0 };
+    const expectedBySeason = a / b - 1;
+    // (実測比 ÷ 季節要因で期待される比) - 1 が実質の変化
+    const adjustedLift = (1 + lift) / (a / b) - 1;
+    return { adjustedLift, expectedBySeason };
+  };
+
   // --- 表示数(1日あたりで比較。期間の長さが違っても比べられる) ---
   const impLift = relativeLift(before.impressionsPerDay, after.impressionsPerDay);
   if (impLift !== null) {
+    const adj = adjust(impLift, "impressions");
     changes.push({
       metric: "impressions",
       label: "表示数",
       before: before.impressionsPerDay,
       after: after.impressionsPerDay,
       lift: impLift,
-      direction: direction(impLift),
-      significant: Math.abs(impLift) >= 0.25,
+      ...adj,
+      direction: direction(adj.adjustedLift),
+      significant: Math.abs(adj.adjustedLift) >= 0.25,
     });
   }
 
@@ -140,13 +175,15 @@ export function analyzeTrend(
   if (before.impressions >= MIN_IMPRESSIONS && after.impressions >= MIN_IMPRESSIONS) {
     const l = relativeLift(before.ctr, after.ctr);
     if (l !== null) {
+      const adj = adjust(l, "ctr");
       changes.push({
         metric: "ctr",
         label: "クリック率",
         before: before.ctr,
         after: after.ctr,
         lift: l,
-        direction: direction(l),
+        ...adj,
+        direction: direction(adj.adjustedLift),
         significant: proportionsDiffer(
           before.clicks,
           before.impressions,
@@ -161,13 +198,15 @@ export function analyzeTrend(
   if (before.clicks >= MIN_CLICKS && after.clicks >= MIN_CLICKS) {
     const l = relativeLift(before.applyRate, after.applyRate);
     if (l !== null) {
+      const adj = adjust(l, "apply");
       changes.push({
         metric: "apply",
         label: "応募率",
         before: before.applyRate,
         after: after.applyRate,
         lift: l,
-        direction: direction(l),
+        ...adj,
+        direction: direction(adj.adjustedLift),
         significant: proportionsDiffer(
           before.applies,
           before.clicks,
@@ -206,7 +245,14 @@ export function analyzeTrend(
     changes,
     relatedInterventions,
     longRun,
-    narrative: buildNarrative(before, after, changes, relatedInterventions, longRun),
+    narrative: buildNarrative(
+      before,
+      after,
+      changes,
+      relatedInterventions,
+      longRun,
+      !!seasonCurve
+    ),
   };
 }
 
@@ -215,32 +261,70 @@ function buildNarrative(
   after: TrendPoint,
   changes: MetricChange[],
   interventions: Intervention[],
-  longRun: TrendAnalysis["longRun"]
+  longRun: TrendAnalysis["longRun"],
+  seasonAware: boolean
 ): string | null {
+  // 判定は季節調整後の値で行う。「見かけは落ちたが、季節を考えれば横ばい」を
+  // 悪化として扱わないため
   const moved = changes.filter((c) => c.direction !== "flat");
   const period = `${monthLabel(before.periodStart)} → ${monthLabel(after.periodStart)}`;
+  const parts: string[] = [];
+
+  // --- 季節要因の説明を先に置く ---
+  // 見かけは落ちているのに実質は横ばい以上、というケースが最も誤解を生むので、
+  // 数字の話に入る前に「その落ち込みは季節です」と伝える
+  const seasonal = changes.filter(
+    (c) => Math.abs(c.expectedBySeason) >= 0.05
+  );
+  const month = dominantMonth(after.periodStart, after.periodEnd);
+  if (seasonAware && seasonal.length > 0 && month) {
+    const applyChange = seasonal.find((c) => c.metric === "apply") ?? seasonal[0];
+    const seasonWord = applyChange.expectedBySeason < 0 ? "落ちる" : "伸びる";
+    parts.push(
+      `${monthLabel(after.periodStart)}は${MONTH_NOTE[month]}。` +
+        `この時期は例年 ${signed(applyChange.expectedBySeason)} 程度${seasonWord}ので、` +
+        `以下の変化はその季節要因を差し引いた実質の値で見ています。`
+    );
+  }
 
   if (moved.length === 0) {
-    return `${period} で表示数・クリック率・応募率とも大きな変化はありません。数字が動いていないということは、今の状態が自然に良くなることも期待できないので、何か手を打たないと現状のまま推移します。`;
+    const looked = changes.filter((c) => Math.abs(c.lift) >= MEANINGFUL);
+    if (seasonAware && looked.length > 0) {
+      // 見かけは動いたが季節で説明がつく = 実は何も起きていない
+      parts.push(
+        `見かけ上は ${looked.map((c) => `${c.label} ${signed(c.lift)}`).join("、")} と動いていますが、` +
+          `季節要因を差し引くと ${looked.map((c) => `${c.label} ${signed(c.adjustedLift)}`).join("、")} で、実質的には横ばいです。` +
+          `時期どおりの動きなので、この変化を理由に原稿を触る必要はありません。`
+      );
+      return parts.join(" ");
+    }
+    parts.push(
+      `${period} で表示数・クリック率・応募率とも大きな変化はありません。数字が動いていないということは、今の状態が自然に良くなることも期待できないので、何か手を打たないと現状のまま推移します。`
+    );
+    return parts.join(" ");
   }
 
   const imp = changes.find((c) => c.metric === "impressions");
   const ctr = changes.find((c) => c.metric === "ctr");
   const apply = changes.find((c) => c.metric === "apply");
-  const parts: string[] = [];
 
-  // 何が動いたかの事実
+  // 何が動いたかの事実。季節で説明がつくぶんは分けて示す
   parts.push(
     `${period} の変化: ` +
       moved
-        .map(
-          (c) =>
-            `${c.label} ${signed(c.lift)}(` +
-            (c.metric === "impressions"
+        .map((c) => {
+          const values =
+            c.metric === "impressions"
               ? `${c.before.toFixed(0)} → ${c.after.toFixed(0)} 回/日`
-              : `${pct(c.before)} → ${pct(c.after)}`) +
-            `)`
-        )
+              : `${pct(c.before)} → ${pct(c.after)}`;
+          const gapFromSeason = Math.abs(c.lift - c.adjustedLift) >= 0.05;
+          return (
+            `${c.label} ${values}` +
+            (seasonAware && gapFromSeason
+              ? `(見かけ ${signed(c.lift)} / 季節要因を除くと ${signed(c.adjustedLift)})`
+              : `(${signed(c.lift)})`)
+          );
+        })
         .join("、") +
       "。"
   );

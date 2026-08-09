@@ -5,6 +5,12 @@
 // 直したときのリターンは大きい。提案が現場で納得されるかどうかはここで決まる。
 
 import { BENCHMARK_LEVEL_LABEL } from "./benchmark";
+import {
+  describeSeason,
+  periodSeasonIndex,
+  seasonFactor,
+  seedSeasonCurve,
+} from "./season";
 import { dayCount, rate, wilsonInterval } from "./stats";
 import type {
   AggregatedMetrics,
@@ -92,12 +98,54 @@ function pct(v: number): string {
   return `${(v * 100).toFixed(2)}%`;
 }
 
+/**
+ * ベンチマークを、診断対象の期間の季節に合わせて補正する。
+ *
+ * ベンチマークは年間を通した平均的な水準なので、お盆や年末年始のデータを
+ * そのままぶつけると、季節で落ちているだけの求人まで「要改善」と判定してしまう。
+ * その期間の季節指数で基準側を下げ、同じ時期どうしで比べられるようにする。
+ */
+function adjustBenchmarkForSeason(
+  benchmark: SegmentBenchmark,
+  index: number
+): { adjusted: SegmentBenchmark; index: number } {
+  if (Math.abs(index - 1) < 0.02) return { adjusted: benchmark, index };
+  const scale = (b: SegmentBenchmark["ctr"], metric: "ctr" | "apply" | "impressions") => {
+    const f = seasonFactor(index, metric);
+    return { center: b.center * f, p25: b.p25 * f, p75: b.p75 * f };
+  };
+  return {
+    index,
+    adjusted: {
+      ...benchmark,
+      ctr: scale(benchmark.ctr, "ctr"),
+      applyRate: scale(benchmark.applyRate, "apply"),
+      impressionsPerDay: scale(benchmark.impressionsPerDay, "impressions"),
+    },
+  };
+}
+
 export function diagnoseJob(
   job: JobRecord,
   snapshots: MetricSnapshot[],
-  benchmark: SegmentBenchmark
+  rawBenchmark: SegmentBenchmark,
+  /** 季節補正のカーブ。省略時は業種・雇用形態のシード値を使う */
+  seasonCurve?: number[]
 ): JobDiagnosis {
   const m = aggregate(snapshots);
+
+  // 診断対象の期間が、平年と比べてどういう時期かを求める
+  const curve = seasonCurve ?? seedSeasonCurve(job.industry, job.employmentType);
+  const starts = snapshots.map((s) => s.periodStart).sort();
+  const ends = snapshots.map((s) => s.periodEnd).sort();
+  const seasonIndexValue =
+    starts.length > 0
+      ? periodSeasonIndex(starts[0], ends[ends.length - 1], curve)
+      : 1;
+  const { adjusted: benchmark } = adjustBenchmarkForSeason(
+    rawBenchmark,
+    seasonIndexValue
+  );
   const scale = 30 / m.days; // 月間換算
 
   const ctrOk = m.impressions >= MIN_IMPRESSIONS_FOR_CTR;
@@ -243,6 +291,11 @@ export function diagnoseJob(
     jobId: job.id,
     metrics: m,
     benchmark,
+    season: {
+      index: seasonIndexValue,
+      label: describeSeason(seasonIndexValue),
+      adjusted: Math.abs(seasonIndexValue - 1) >= 0.02,
+    },
     stages,
     bottleneck,
     summary,

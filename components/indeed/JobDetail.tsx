@@ -36,6 +36,8 @@ interface Props {
   effects: EffectIndex;
   /** 自社の他求人との比較に使う */
   rollups: JobRollup[];
+  /** 季節指数のカーブ */
+  seasonCurve: number[];
   onBack: () => void;
   onEditJob: () => void;
   notify: (message: string) => void;
@@ -46,6 +48,7 @@ export default function JobDetail({
   store,
   setStore,
   rollups,
+  seasonCurve,
   onBack,
   onEditJob,
   notify,
@@ -72,8 +75,9 @@ export default function JobDetail({
         snapshots,
         interventions: store.interventions.filter((i) => i.jobId === job.id),
         rollups,
+        seasonCurve,
       }),
-    [job, diagnosis, recommendations, snapshots, store.interventions, rollups]
+    [job, diagnosis, recommendations, snapshots, store.interventions, rollups, seasonCurve]
   );
 
   const toggleAction = (id: string) =>
@@ -504,6 +508,12 @@ function InsightCard({
       <Section label="原因の見立て">
         <p className="idd-insight-reasoning">{insight.reasoning}</p>
       </Section>
+
+      {insight.timing && (
+        <Section label="時期について">
+          <p className="idd-insight-reasoning">{insight.timing}</p>
+        </Section>
+      )}
 
       {insight.plan.length > 0 && (
         <div className="idd-insight-actions">
