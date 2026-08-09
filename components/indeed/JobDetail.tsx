@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BENCHMARK_LEVEL_LABEL } from "@/lib/indeed/benchmark";
+import { BENCHMARK_LEVEL_LABEL, type JobRollup } from "@/lib/indeed/benchmark";
 import { buildInsight, type Insight } from "@/lib/indeed/insight";
 import type { EffectIndex } from "@/lib/indeed/learn";
 import { measureIntervention } from "@/lib/indeed/learn";
@@ -34,6 +34,8 @@ interface Props {
   store: IndeedStore;
   setStore: (updater: (prev: IndeedStore) => IndeedStore) => void;
   effects: EffectIndex;
+  /** 自社の他求人との比較に使う */
+  rollups: JobRollup[];
   onBack: () => void;
   onEditJob: () => void;
   notify: (message: string) => void;
@@ -43,6 +45,7 @@ export default function JobDetail({
   analysis,
   store,
   setStore,
+  rollups,
   onBack,
   onEditJob,
   notify,
@@ -64,8 +67,13 @@ export default function JobDetail({
   );
 
   const insight = useMemo(
-    () => buildInsight(job, diagnosis, recommendations),
-    [job, diagnosis, recommendations]
+    () =>
+      buildInsight(job, diagnosis, recommendations, {
+        snapshots,
+        interventions: store.interventions.filter((i) => i.jobId === job.id),
+        rollups,
+      }),
+    [job, diagnosis, recommendations, snapshots, store.interventions, rollups]
   );
 
   const toggleAction = (id: string) =>
@@ -470,22 +478,77 @@ function InsightCard({
         </button>
       </div>
 
-      <p className="idd-insight-problem">{insight.problem}</p>
-      <p className="idd-insight-reasoning">{insight.reasoning}</p>
+      <Section label="現状">
+        <p className="idd-insight-problem">{insight.problem}</p>
+      </Section>
 
-      {insight.actions.length > 0 && (
+      {insight.trend && (
+        <Section label="推移">
+          <p className="idd-insight-reasoning">{insight.trend}</p>
+        </Section>
+      )}
+
+      {insight.comparison && (
+        <Section label="自社の他求人との比較">
+          <p className="idd-insight-reasoning">{insight.comparison}</p>
+          {insight.differences.length > 0 && (
+            <ul className="idd-diffs">
+              {insight.differences.map((d, i) => (
+                <li key={i}>{d}</li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      )}
+
+      <Section label="原因の見立て">
+        <p className="idd-insight-reasoning">{insight.reasoning}</p>
+      </Section>
+
+      {insight.plan.length > 0 && (
         <div className="idd-insight-actions">
           <span className="idd-insight-label">やること</span>
-          <ol>
-            {insight.actions.map((a, i) => (
-              <li key={i}>{a}</li>
-            ))}
-          </ol>
+          {insight.plan.map((g) => (
+            <div key={g.phase} className="idd-plan-group">
+              <div className="idd-plan-phase">
+                {g.phase}
+                <span className="idd-sub">{g.note}</span>
+              </div>
+              <ul>
+                {g.items.map((it) => (
+                  <li key={it.actionId}>
+                    <span className="idd-plan-label">{it.label}</span>
+                    <span className="idd-plan-gain">月 +{it.gain.toFixed(1)}件</span>
+                    {it.unverified && <span className="idd-sub">(原稿未登録・要確認)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
 
-      <p className="idd-insight-outlook">{insight.outlook}</p>
+      <Section label="見込み">
+        <p className="idd-insight-outlook">{insight.outlook}</p>
+        {insight.combined && <p className="idd-insight-outlook">{insight.combined}</p>}
+        {insight.nextStep && <p className="idd-insight-outlook">{insight.nextStep}</p>}
+      </Section>
     </div>
+  );
+}
+
+function Section({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="idd-insight-section">
+      <h3 className="idd-insight-heading">{label}</h3>
+      {children}
+    </section>
   );
 }
 

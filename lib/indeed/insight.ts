@@ -8,13 +8,18 @@
 //
 // の順で短い文章にする。AI は使わない。同じ数字からは必ず同じ考察が出る。
 
+import type { JobRollup } from "./benchmark";
 import { jobHeadroom } from "./diagnose";
+import { comparePeers, type PeerComparison } from "./peers";
 import { actionShort } from "./playbook";
 import type { JobAnalysis } from "./recommend";
+import { analyzeTrend, type TrendAnalysis } from "./trend";
 import type {
   FunnelStage,
+  Intervention,
   JobDiagnosis,
   JobRecord,
+  MetricSnapshot,
   Recommendation,
   StageDiagnosis,
 } from "./types";
@@ -28,6 +33,24 @@ export type InsightPattern =
   | "double-weak" // 一覧でも詳細でも負けている
   | "healthy"; // 詰まりなし
 
+/** 実行プランの 1 項目 */
+export interface PlanItem {
+  actionId: string;
+  label: string;
+  /** 単独で実施した場合の月間応募増 */
+  gain: number;
+  /** その求人での根拠 */
+  evidence: string;
+  unverified: boolean;
+}
+
+/** 実施の重さでまとめた実行プラン */
+export interface PlanGroup {
+  phase: string;
+  note: string;
+  items: PlanItem[];
+}
+
 export interface Insight {
   pattern: InsightPattern;
   /** 一言でいうと */
@@ -36,10 +59,22 @@ export interface Insight {
   problem: string;
   /** なぜそうなっていると考えられるか */
   reasoning: string;
-  /** どうしたらいいか(最大 3 つ) */
+  /** 前期からどう変わったか。実績が 1 期間だけなら案内文 */
+  trend: string | null;
+  /** 自社の他求人と比べてどうか */
+  comparison: string | null;
+  /** 上位求人との具体的な差分 */
+  differences: string[];
+  /** 実施の重さでまとめた実行プラン */
+  plan: PlanGroup[];
+  /** どうしたらいいか(最大 3 つ・短い言い方) */
   actions: string[];
   /** どうなるか */
   outlook: string;
+  /** プラン全体をやりきった場合の見込み */
+  combined: string | null;
+  /** この段階を直したあと、次に効いてくる段階 */
+  nextStep: string | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -84,10 +119,19 @@ function firstEvidence(
   return recs.find((x) => x.stage === stage && !x.unverified) ?? null;
 }
 
+/** 考察を厚くするための追加情報。無くても考察は成立する */
+export interface InsightContext {
+  snapshots?: MetricSnapshot[];
+  interventions?: Intervention[];
+  /** 自社の他求人(比較用) */
+  rollups?: JobRollup[];
+}
+
 export function buildInsight(
   job: JobRecord,
   diagnosis: JobDiagnosis,
-  recommendations: Recommendation[]
+  recommendations: Recommendation[],
+  context: InsightContext = {}
 ): Insight {
   const [imp, ctr, apply] = diagnosis.stages;
   const m = diagnosis.metrics;
@@ -235,6 +279,33 @@ export function buildInsight(
   }
 
   const actions = pickActions(recommendations, stage, lead);
+  const monthlyApplies = (m.applies * 30) / m.days;
+
+  // 診断は登録済みの実績をすべて合計して行う(母数が多いほど判定が安定するため)。
+  // ただし複数期間をまとめた数字だと明示しないと、下の「推移」に出る直近の値と
+  // 食い違って見えるので、集計範囲を必ず添える。
+  const periodNote = describePeriod(context.snapshots, m.days);
+  if (periodNote) problem = `${problem}(${periodNote})`;
+
+  // ===== 推移(前期比) =====
+  const trendAnalysis: TrendAnalysis | null = context.snapshots
+    ? analyzeTrend(context.snapshots, context.interventions ?? [])
+    : null;
+
+  // ===== 自社の他求人との比較 =====
+  const peer: PeerComparison | null =
+    context.rollups && stage
+      ? comparePeers(job, context.rollups, stage)
+      : null;
+
+  // ===== 実行プラン(実施の重さでまとめる) =====
+  const plan = buildPlan(recommendations);
+
+  // ===== 全部やりきった場合の見込み =====
+  const combined = estimateCombined(diagnosis, recommendations, monthlyApplies);
+
+  // ===== 次に効いてくる段階 =====
+  const nextStep = findNextStep(diagnosis, stage);
 
   // --- どうなるか ---
   //
@@ -242,7 +313,6 @@ export function buildInsight(
   // まず「基準並みに戻す」を本線として示し、上位25%は上振れたときの数字として添える。
   // どちらも他の段階が今のままという前提の単純計算なので、そのことも明記する。
   const target = stage ? diagnosis.stages.find((s) => s.stage === stage) : null;
-  const monthlyApplies = (m.applies * 30) / m.days;
   const stageWord =
     stage === "impressions"
       ? "表示数"
@@ -266,8 +336,6 @@ export function buildInsight(
     outlook =
       "この状態では見込みの試算もあてになりません。次の実績を登録した時点であらためて判定します。";
   } else if (ctrUnknown && applyUnknown) {
-    // 露出不足でクリック・応募がまだ評価できない場合、
-    // ベンチマーク由来の率で応募数を試算しても数字が独り歩きするだけ
     outlook =
       "クリック率・応募率がまだ評価できる母数に達していないため、応募増の試算は出しません。まず露出を増やして、判定できるだけのデータを貯めてください。";
   } else if (target && target.realisticGain >= 0.5) {
@@ -287,17 +355,162 @@ export function buildInsight(
 
   const text = [
     `【${headline}】`,
+    "",
+    `■ 現状`,
     problem,
-    reasoning,
-    actions.length > 0
-      ? `やること: ${actions.map((a, i) => `${i + 1}) ${a}`).join(" / ")}`
+    trendAnalysis?.narrative ? `\n■ 推移\n${trendAnalysis.narrative}` : "",
+    peer?.narrative
+      ? `\n■ 自社の他求人との比較\n${peer.narrative}` +
+        (peer.differences.length > 0
+          ? "\n" + peer.differences.map((d) => `・${d}`).join("\n")
+          : "")
       : "",
+    `\n■ 原因の見立て`,
+    reasoning,
+    plan.length > 0
+      ? "\n■ やること\n" +
+        plan
+          .map(
+            (g) =>
+              `【${g.phase}】${g.note}\n` +
+              g.items
+                .map((it) => `  ・${it.label}(月+${it.gain.toFixed(1)}件)`)
+                .join("\n")
+          )
+          .join("\n")
+      : "",
+    `\n■ 見込み`,
     outlook,
+    combined ?? "",
+    nextStep ?? "",
   ]
-    .filter(Boolean)
+    .filter((line) => line !== "")
     .join("\n");
 
-  return { pattern, headline, problem, reasoning, actions, outlook, text };
+  return {
+    pattern,
+    headline,
+    problem,
+    reasoning,
+    trend: trendAnalysis?.narrative ?? null,
+    comparison: peer?.narrative ?? null,
+    differences: peer?.differences ?? [],
+    plan,
+    actions,
+    outlook,
+    combined,
+    nextStep,
+    text,
+  };
+}
+
+/** 「5/1〜7/31 の3期間・92日間の合計」のような但し書きを作る */
+function describePeriod(
+  snapshots: MetricSnapshot[] | undefined,
+  days: number
+): string | null {
+  if (!snapshots || snapshots.length === 0) return null;
+  const starts = snapshots.map((s) => s.periodStart).sort();
+  const ends = snapshots.map((s) => s.periodEnd).sort();
+  const short = (iso: string) => {
+    const m = iso.match(/^\d{4}-(\d{2})-(\d{2})/);
+    return m ? `${Number(m[1])}/${Number(m[2])}` : iso;
+  };
+  const range = `${short(starts[0])}〜${short(ends[ends.length - 1])}`;
+  return snapshots.length === 1
+    ? `${range}・${days}日間`
+    : `${range}・${snapshots.length}期間 ${days}日間の合計`;
+}
+
+// ===== 実行プラン =====
+
+const PHASES: { effort: 1 | 2 | 3; phase: string; note: string }[] = [
+  { effort: 1, phase: "今すぐできる", note: "管理画面の設定変更だけで終わります" },
+  { effort: 2, phase: "今週中に", note: "原稿の書き換えが必要です" },
+  { effort: 3, phase: "クライアントに相談", note: "条件そのものの見直しが必要です" },
+];
+
+function buildPlan(recs: Recommendation[]): PlanGroup[] {
+  return PHASES.map(({ effort, phase, note }) => ({
+    phase,
+    note,
+    items: recs
+      .filter((r) => r.effort === effort)
+      // 提案全体の並びは段階の判定による重みも掛かっているため、
+      // プランの中では純粋に効果の大きい順に並べ直す
+      .sort((a, b) => b.expectedGain - a.expectedGain)
+      .slice(0, 4)
+      .map((r) => ({
+        actionId: r.actionId,
+        label: actionShort(r.actionId),
+        gain: r.expectedGain,
+        evidence: r.evidence,
+        unverified: r.unverified,
+      })),
+  })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * プランをやりきった場合の見込み。
+ *
+ * 同じ段階の施策は効果が重なるので足し算しない(その段階で最も効果の大きい 1 つを採る)。
+ * 段階をまたぐ改善は掛け算で効くので、そこだけ掛け合わせる。
+ * どの段階も上位25%の水準で頭打ちにして、過大な数字が出ないようにしている。
+ */
+function estimateCombined(
+  diagnosis: JobDiagnosis,
+  recs: Recommendation[],
+  monthlyApplies: number
+): string | null {
+  if (recs.length === 0 || monthlyApplies <= 0) return null;
+
+  let multiplier = 1;
+  let stagesUsed = 0;
+  for (const s of diagnosis.stages) {
+    if (s.verdict === "insufficient") continue;
+    const best = recs
+      .filter((r) => r.stage === s.stage)
+      .sort((a, b) => b.expectedLift - a.expectedLift)[0];
+    if (!best) continue;
+    // その段階の伸びしろ(上位25%まで)を超えるリフトは見込まない
+    const ceiling = s.value > 0 ? s.target / s.value : 1 + best.expectedLift;
+    multiplier *= Math.min(1 + best.expectedLift, Math.max(1, ceiling));
+    stagesUsed++;
+  }
+
+  const projected = monthlyApplies * multiplier;
+  if (stagesUsed === 0 || projected < monthlyApplies * 1.05) return null;
+
+  return (
+    `プランを一通りやりきった場合の見込みは、月の応募 約 ${monthlyApplies.toFixed(1)} 件 → ${projected.toFixed(1)} 件前後です` +
+    `(同じ段階の施策は効果が重なるため足し算せず、最も効くもの 1 つで見積もっています)。`
+  );
+}
+
+/** 今のボトルネックを直したあと、次に効いてくる段階 */
+function findNextStep(
+  diagnosis: JobDiagnosis,
+  current: FunnelStage | null
+): string | null {
+  const next = diagnosis.stages
+    .filter((s) => s.stage !== current && s.verdict !== "insufficient")
+    .filter((s) => s.realisticGain >= 0.5)
+    .sort((a, b) => b.realisticGain - a.realisticGain)[0];
+  if (!next) return null;
+
+  const word =
+    next.stage === "impressions"
+      ? "表示数"
+      : next.stage === "ctr"
+        ? "クリック率"
+        : "応募率";
+  const fmt = (v: number) =>
+    next.stage === "impressions" ? `${v.toFixed(0)}回/日` : `${(v * 100).toFixed(1)}%`;
+
+  return (
+    `そのあとは【${word}】が次のボトルネックになります` +
+    `(現在 ${fmt(next.value)}、基準 ${fmt(next.benchmark)})。ここも直すとさらに月 +${next.realisticGain.toFixed(1)} 件の余地があります。`
+  );
 }
 
 // ===== 全求人まとめての考察 =====
