@@ -1593,3 +1593,226 @@ body {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* =====================================================================
+   Indeed 求人診断 — 数字を入れてその場で答えを出す画面 (/indeed)
+   ===================================================================== */
+
+.qa .container,
+.qa {
+  max-width: 1240px;
+}
+.qa-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+}
+@media (max-width: 1000px) {
+  .qa-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qa-input {
+  position: sticky;
+  top: 24px;
+}
+@media (max-width: 1000px) {
+  .qa-input {
+    position: static;
+  }
+}
+.qa-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.qa-section-head h2 {
+  font-size: 16px;
+  font-weight: 900;
+}
+.qa .field {
+  margin-bottom: 14px;
+}
+.qa .field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.qa-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 4px;
+}
+.qa-hint-inline {
+  font-weight: 400;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* 3 つの数字は横並びで、大きく打ちやすく */
+.qa-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.qa-number input {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: right;
+  padding: 12px;
+}
+.qa-two {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 12px;
+}
+
+/* 入力から自動計算される率 */
+.qa-derived {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.qa-derived > div {
+  text-align: center;
+}
+.qa-derived span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.qa-derived strong {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--brand-2);
+}
+
+.qa-toggle {
+  width: 100%;
+  background: var(--bg-panel-2);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 10px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.qa-toggle:hover {
+  border-color: var(--brand);
+  color: var(--text);
+}
+.qa-more {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.qa-more h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+.qa-more h3:first-child {
+  margin-top: 0;
+}
+.qa-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 結果がまだ出ていないとき */
+.qa-placeholder {
+  text-align: center;
+  padding: 72px 32px;
+}
+.qa-placeholder-icon {
+  font-size: 42px;
+  margin-bottom: 14px;
+}
+.qa-placeholder h3 {
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+.qa-placeholder p {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.9;
+  max-width: 460px;
+  margin: 0 auto 20px;
+}
+
+/* 判定の内訳 */
+.qa-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+.qa-stage {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.qa-stage:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.qa-stage-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+.qa-stage-body p {
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .qa-stage {
+    grid-template-columns: 1fr;
+  }
+  .qa-numbers {
+    grid-template-columns: 1fr;
+  }
+  .qa-two {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qa-footer {
+  margin-top: 28px;
+  text-align: center;
+}
+.qa .idd-insight {
+  margin-bottom: 16px;
+}
+
+.qa-nudge {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  line-height: 1.8;
+}
+/* 暗い背景でも読めるリンク色 */
+.idd .inline-link,
+.idd .linklike {
+  color: #a99bff;
+}
