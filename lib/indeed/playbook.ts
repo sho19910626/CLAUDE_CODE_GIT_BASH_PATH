@@ -746,3 +746,44 @@ export const PLAYBOOK_BY_ID = new Map(PLAYBOOK.map((a) => [a.id, a]));
 export function actionById(id: string): PlaybookAction | undefined {
   return PLAYBOOK_BY_ID.get(id);
 }
+
+/**
+ * 施策の短い言い方(「やること」の形)。
+ * カタログの title は課題の指摘なので長い。考察やダッシュボードでは、
+ * 一目で行動が分かるこちらを使う。
+ */
+const SHORT_LABEL: Record<string, string> = {
+  "imp-sponsor-start": "スポンサー掲載に切り替える",
+  "imp-budget-up": "日予算・入札を上げる",
+  "imp-title-keyword": "タイトルの職種名を検索される言葉にする",
+  "imp-title-location": "タイトルに市区町村を入れる",
+  "imp-refresh": "原稿を更新して鮮度を戻す",
+  "imp-split-location": "拠点ごとに求人を分ける",
+  "imp-wage-field": "給与欄を範囲で入力する",
+  "ctr-wage-below-market": "給与を相場水準に上げる(難しければ手当込みで見せる)",
+  "ctr-wage-range": "給与に上限を添えて範囲で見せる",
+  "ctr-catch-length": "キャッチコピーを70文字まで使い切る",
+  "ctr-catch-conditions": "キャッチに給与と休日・勤務時間を入れる",
+  "ctr-catch-cliche": "常套句を削って数字と事実に置き換える",
+  "ctr-catch-age-range": "キャッチに「20〜50代活躍中」を入れる",
+  "ctr-title-hook": "タイトルに条件を1つ足す(未経験可・土日休みなど)",
+  "ctr-photos": "職場写真を載せる",
+  "ctr-company-context": "社名に業態と規模の説明を添える",
+  "apply-desc-format": "仕事内容を◆◆3ブロック構成に組み直す",
+  "apply-desc-length": "仕事内容の文量を350文字前後に調整する",
+  "apply-line-break": "1行24文字以内で改行する",
+  "apply-points": "条件をポイント欄の箇条書きに整理する",
+  "apply-concrete": "作業内容に数字を入れて具体化する",
+  "apply-form-friction": "応募フォームの設問を3問以内に減らす",
+  "apply-selection-flow": "選考フローと返信の目安を書く",
+  "apply-mismatch": "キャッチの条件を詳細でも再掲する",
+  "apply-requirements-soft": "「必須」を減らして応募のハードルを下げる",
+  "apply-expression-fix": "法令・運用ルールに沿って表現を直す",
+  "apply-hot-buttons": "この業種で必ず聞かれる項目に答える",
+  "apply-commute": "最寄駅・車通勤・駐車場を書く",
+};
+
+/** 施策の短い言い方。未定義なら title をそのまま返す */
+export function actionShort(id: string): string {
+  return SHORT_LABEL[id] ?? actionById(id)?.title ?? id;
+}

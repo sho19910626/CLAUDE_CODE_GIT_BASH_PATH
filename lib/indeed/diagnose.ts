@@ -119,6 +119,10 @@ export function diagnoseJob(
     0,
     (ipdBm.p75 - ipd) * 30 * ctrForCalc * applyForCalc
   );
+  const impressionRealistic = Math.max(
+    0,
+    (ipdBm.center - ipd) * 30 * ctrForCalc * applyForCalc
+  );
   const impressionStage: StageDiagnosis = {
     stage: "impressions",
     label: STAGE_LABEL.impressions,
@@ -135,6 +139,7 @@ export function diagnoseJob(
     ratio: ipdBm.center > 0 ? ipd / ipdBm.center : 1,
     ci: { low: ipd, high: ipd },
     potentialGain: impressionGain,
+    realisticGain: impressionRealistic,
     reason: !daysOk
       ? `集計期間が ${m.days} 日と短く、1 日あたり表示数の判定はまだできません(${MIN_DAYS_FOR_IMPRESSIONS} 日以上を推奨)。`
       : `1 日あたり ${ipd.toFixed(0)} 回表示。同セグメントの基準は ${ipdBm.center.toFixed(0)} 回/日、上位 25% は ${ipdBm.p75.toFixed(0)} 回/日。` +
@@ -150,6 +155,10 @@ export function diagnoseJob(
     0,
     m.impressions * (benchmark.ctr.p75 - m.ctr) * applyForCalc * scale
   );
+  const ctrRealistic = Math.max(
+    0,
+    m.impressions * (benchmark.ctr.center - m.ctr) * applyForCalc * scale
+  );
   const ctrVerdict = verdictFor(m.ctr, ctrCi, benchmark.ctr, ctrOk);
   const ctrStage: StageDiagnosis = {
     stage: "ctr",
@@ -161,6 +170,7 @@ export function diagnoseJob(
     ratio: benchmark.ctr.center > 0 ? m.ctr / benchmark.ctr.center : 1,
     ci: ctrCi,
     potentialGain: ctrOk ? ctrGain : 0,
+    realisticGain: ctrOk ? ctrRealistic : 0,
     reason: !ctrOk
       ? `表示数が ${m.impressions.toLocaleString()} 回と少なく、クリック率はまだ評価できません(${MIN_IMPRESSIONS_FOR_CTR} 回以上で判定します)。`
       : `${pct(m.ctr)}(95% 信頼区間 ${pct(ctrCi.low)}〜${pct(ctrCi.high)})。基準は ${pct(benchmark.ctr.center)}、上位 25% は ${pct(benchmark.ctr.p75)}。` +
@@ -175,6 +185,10 @@ export function diagnoseJob(
   const applyGain = Math.max(
     0,
     m.clicks * (benchmark.applyRate.p75 - m.applyRate) * scale
+  );
+  const applyRealistic = Math.max(
+    0,
+    m.clicks * (benchmark.applyRate.center - m.applyRate) * scale
   );
   const applyVerdict = verdictFor(
     m.applyRate,
@@ -192,6 +206,7 @@ export function diagnoseJob(
     ratio: benchmark.applyRate.center > 0 ? m.applyRate / benchmark.applyRate.center : 1,
     ci: applyCi,
     potentialGain: applyOk ? applyGain : 0,
+    realisticGain: applyOk ? applyRealistic : 0,
     reason: !applyOk
       ? `クリック数が ${m.clicks.toLocaleString()} 件と少なく、応募率はまだ評価できません(${MIN_CLICKS_FOR_APPLY} 件以上で判定します)。`
       : `${pct(m.applyRate)}(95% 信頼区間 ${pct(applyCi.low)}〜${pct(applyCi.high)})。基準は ${pct(benchmark.applyRate.center)}、上位 25% は ${pct(benchmark.applyRate.p75)}。` +
@@ -240,6 +255,23 @@ export function diagnoseJob(
           : "判定に十分なデータ量があります。",
     },
   };
+}
+
+/**
+ * 求人 1 件の「現実的な伸びしろ」(月間応募の増加見込み)。
+ *
+ * 上位25%ではなく基準並みまでを本線にする。大きく下回っている求人に
+ * 「上位25%まで行けます」と言うのは過大な期待になるため。
+ * また、クリック率・応募率がまだ評価できない求人は、ベンチマーク由来の率で
+ * 応募数を試算しても数字が独り歩きするだけなので 0 として扱う。
+ * 合計や並び替えに使う数字は必ずこれに統一する。
+ */
+export function jobHeadroom(diagnosis: JobDiagnosis): number {
+  const [, ctr, apply] = diagnosis.stages;
+  if (ctr.verdict === "insufficient" && apply.verdict === "insufficient") {
+    return 0;
+  }
+  return Math.max(0, ...diagnosis.stages.map((s) => s.realisticGain));
 }
 
 function buildSummary(

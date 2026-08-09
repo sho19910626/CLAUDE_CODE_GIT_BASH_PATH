@@ -256,8 +256,14 @@ export interface StageDiagnosis {
   ratio: number;
   /** 実測値の 95% 信頼区間。母数が小さいときの過剰反応を防ぐ */
   ci: { low: number; high: number };
-  /** この段階を目標値まで改善したときに増える月間応募数の試算 */
+  /** この段階を上位25%(target)まで改善したときに増える月間応募数の試算 */
   potentialGain: number;
+  /**
+   * ベンチマークの中央値まで戻したときの月間応募増。
+   * 大きく下回っている求人に「上位25%まで行けます」と言うのは現実的でないため、
+   * 考察ではまずこちらを本線として示す。
+   */
+  realisticGain: number;
   /** 判定の根拠を日本語で説明した文 */
   reason: string;
 }

@@ -14,7 +14,7 @@
 
 import { buildBenchmarks, normalizeCategory, type BenchmarkIndex } from "./benchmark";
 import { analyzeCatch, analyzeDescription, analyzeTitle } from "./copycheck";
-import { aggregate, diagnoseJob } from "./diagnose";
+import { aggregate, diagnoseJob, jobHeadroom } from "./diagnose";
 import { buildEffectIndex, measureAll, type EffectIndex } from "./learn";
 import { PLAYBOOK, type ActionContext, type WageMarket } from "./playbook";
 import { employmentDef, employmentLabel, industryDef } from "./seed";
@@ -244,7 +244,7 @@ export interface StoreAnalysis {
     cost?: number;
     ctr: number;
     applyRate: number;
-    /** 全求人の提案を積み上げた、月間応募の増加余地(段階ごとの上限の合計) */
+    /** 各求人を同セグメントの基準並みまで戻した場合の、月間応募の増加余地の合計 */
     headroom: number;
   };
 }
@@ -284,12 +284,7 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
   });
 
   const totalsSource = aggregate(store.snapshots);
-  const headroom = jobs.reduce((sum, j) => {
-    const best = j.diagnosis.stages
-      .map((s) => s.potentialGain)
-      .sort((a, b) => b - a)[0];
-    return sum + (best ?? 0);
-  }, 0);
+  const headroom = jobs.reduce((sum, j) => sum + jobHeadroom(j.diagnosis), 0);
 
   return {
     benchmarks,

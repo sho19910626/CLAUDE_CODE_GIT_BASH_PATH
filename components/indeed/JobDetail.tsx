@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { BENCHMARK_LEVEL_LABEL } from "@/lib/indeed/benchmark";
+import { buildInsight, type Insight } from "@/lib/indeed/insight";
 import type { EffectIndex } from "@/lib/indeed/learn";
 import { measureIntervention } from "@/lib/indeed/learn";
 import type { JobAnalysis } from "@/lib/indeed/recommend";
@@ -58,6 +59,11 @@ export default function JobDetail({
         .filter((i) => i.jobId === job.id)
         .sort((a, b) => b.date.localeCompare(a.date)),
     [store.interventions, job.id]
+  );
+
+  const insight = useMemo(
+    () => buildInsight(job, diagnosis, recommendations),
+    [job, diagnosis, recommendations]
   );
 
   const toggleAction = (id: string) =>
@@ -127,11 +133,13 @@ export default function JobDetail({
         </div>
       </div>
 
-      <div className="panel idd-summary">
-        <h3>診断サマリ</h3>
-        <p>{diagnosis.summary}</p>
+      <InsightCard insight={insight} notify={notify} />
+
+      <details className="panel idd-details">
+        <summary>数字の内訳を見る</summary>
+        <p className="idd-mt">{diagnosis.summary}</p>
         <p className="idd-note">{diagnosis.dataSufficiency.message}</p>
-      </div>
+      </details>
 
       <div className="idd-funnel">
         <FunnelStep
@@ -408,6 +416,52 @@ export default function JobDetail({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * 考察カード。数値の羅列ではなく
+ * 「どこが良くないか → なぜか → どうするか → どうなるか」の順に読ませる。
+ */
+function InsightCard({
+  insight,
+  notify,
+}: {
+  insight: Insight;
+  notify: (message: string) => void;
+}) {
+  return (
+    <div className={`idd-insight pattern-${insight.pattern}`}>
+      <div className="idd-insight-head">
+        <h2>{insight.headline}</h2>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => {
+            void navigator.clipboard.writeText(insight.text);
+            notify("考察をコピーしました。そのまま報告に使えます。");
+          }}
+        >
+          コピー
+        </button>
+      </div>
+
+      <p className="idd-insight-problem">{insight.problem}</p>
+      <p className="idd-insight-reasoning">{insight.reasoning}</p>
+
+      {insight.actions.length > 0 && (
+        <div className="idd-insight-actions">
+          <span className="idd-insight-label">やること</span>
+          <ol>
+            {insight.actions.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <p className="idd-insight-outlook">{insight.outlook}</p>
+    </div>
   );
 }
 

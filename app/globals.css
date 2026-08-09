@@ -1303,3 +1303,185 @@ body {
 .lede-link:hover {
   text-decoration: underline;
 }
+
+/* ===== 考察カード ===== */
+.idd-insight {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 20px;
+}
+.idd-insight.pattern-not-seen {
+  border-left-color: #4a8fe0;
+}
+.idd-insight.pattern-not-chosen {
+  border-left-color: var(--brand);
+}
+.idd-insight.pattern-not-applied {
+  border-left-color: var(--brand-2);
+}
+.idd-insight.pattern-double-weak {
+  border-left-color: var(--err);
+}
+.idd-insight.pattern-healthy {
+  border-left-color: var(--ok);
+}
+.idd-insight.pattern-no-data {
+  border-left-color: var(--text-dim);
+}
+.idd-insight.pattern-portfolio {
+  border-left-color: var(--brand-2);
+  background: linear-gradient(
+    180deg,
+    rgba(227, 93, 143, 0.08),
+    var(--bg-panel)
+  );
+}
+.idd-insight-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.idd-insight-head h2 {
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+.idd-insight-problem {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.85;
+  margin-bottom: 10px;
+}
+.idd-insight-reasoning {
+  font-size: 13.5px;
+  line-height: 2;
+  color: var(--text-dim);
+}
+.idd-insight-actions {
+  margin-top: 16px;
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.idd-insight-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand-2);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.idd-insight-actions ol {
+  margin-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.95;
+}
+.idd-insight-outlook {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--text);
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+/* 全求人まとめの内訳 */
+.idd-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.idd-breakdown-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.idd-breakdown-count {
+  font-size: 20px;
+  font-weight: 900;
+}
+.idd-breakdown-label {
+  font-size: 12px;
+}
+.idd-breakdown-item.p-not-seen {
+  border-color: #4a8fe0;
+}
+.idd-breakdown-item.p-double-weak {
+  border-color: rgba(255, 107, 122, 0.6);
+}
+.idd-breakdown-item.p-healthy {
+  border-color: rgba(62, 207, 142, 0.5);
+}
+
+/* 一覧のパターン表示 */
+.idd-pattern {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 11px;
+  margin-bottom: 5px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.idd-pattern.p-not-seen {
+  border-color: #4a8fe0;
+  color: #7fb4f0;
+}
+.idd-pattern.p-not-chosen {
+  border-color: var(--brand);
+  color: #a99bff;
+}
+.idd-pattern.p-not-applied {
+  border-color: var(--brand-2);
+  color: #f08bb0;
+}
+.idd-pattern.p-double-weak {
+  border-color: rgba(255, 107, 122, 0.6);
+  color: var(--err);
+}
+.idd-pattern.p-healthy {
+  border-color: rgba(62, 207, 142, 0.5);
+  color: var(--ok);
+}
+
+/* 折りたたみ(数字の内訳) */
+.idd-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  list-style: none;
+}
+.idd-details > summary::before {
+  content: "▸ ";
+}
+.idd-details[open] > summary::before {
+  content: "▾ ";
+}
+.idd-details > summary::-webkit-details-marker {
+  display: none;
+}
+.idd-details p {
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+@media (max-width: 720px) {
+  .idd-insight {
+    padding: 18px;
+  }
+  .idd-insight-head h2 {
+    font-size: 17px;
+  }
+}
