@@ -283,9 +283,12 @@ export function buildBenchmarks(
 
   function forJob(job: JobRecord): SegmentBenchmark {
     const seed = seedRates(job.industry, job.employmentType);
-    const seedIpd = job.sponsored
-      ? SEED_IMPRESSIONS_PER_DAY.sponsored
-      : SEED_IMPRESSIONS_PER_DAY.organic;
+    const seedIpd =
+      job.sponsored === true
+        ? SEED_IMPRESSIONS_PER_DAY.sponsored
+        : job.sponsored === false
+          ? SEED_IMPRESSIONS_PER_DAY.organic
+          : SEED_IMPRESSIONS_PER_DAY.unknown;
 
     const bAll = all.rollups.length > 0 ? all : null;
     const b1 = l1.get(KEY_L1(job)) ?? null;

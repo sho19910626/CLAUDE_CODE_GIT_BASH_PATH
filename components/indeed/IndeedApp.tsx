@@ -9,12 +9,14 @@ import {
   importJson,
   mergeStores,
   readStore,
+  upsertJob,
   writeStore,
 } from "@/lib/indeed/store";
-import type { IndeedStore } from "@/lib/indeed/types";
+import type { IndeedStore, JobRecord } from "@/lib/indeed/types";
 import Dashboard from "./Dashboard";
 import ImportPanel from "./ImportPanel";
 import JobDetail from "./JobDetail";
+import JobForm from "./JobForm";
 import LearningPanel from "./LearningPanel";
 
 type Tab = "dashboard" | "import" | "learning";
@@ -30,6 +32,8 @@ export default function IndeedApp() {
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<Tab>("dashboard");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  // 診断画面から直接「原稿を登録する」に飛べるようにするための編集状態
+  const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // 初回だけ localStorage から復元する。以降は state が正で、変更のたびに書き戻す
@@ -139,13 +143,24 @@ export default function IndeedApp() {
       </div>
 
       {tab === "dashboard" &&
-        (selected ? (
+        (editingJob ? (
+          <JobForm
+            job={editingJob}
+            onCancel={() => setEditingJob(null)}
+            onSave={(job) => {
+              setStore((prev) => upsertJob(prev, job));
+              setEditingJob(null);
+              notify(`「${job.name}」を保存しました。診断に反映しました。`);
+            }}
+          />
+        ) : selected ? (
           <JobDetail
             analysis={selected}
             store={store}
             setStore={setStore}
             effects={analysis.effects}
             onBack={() => setSelectedJobId(null)}
+            onEditJob={() => setEditingJob(selected.job)}
             notify={notify}
           />
         ) : (

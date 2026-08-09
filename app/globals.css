@@ -1485,3 +1485,26 @@ body {
     font-size: 17px;
   }
 }
+
+.idd-field-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.idd-field-head label {
+  margin-bottom: 0;
+}
+
+.idd-rec-unverified {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.idd-alert.hint {
+  background: var(--bg-panel-2);
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-bottom: 4px;
+}

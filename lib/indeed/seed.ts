@@ -178,8 +178,17 @@ export const SEED_EMPLOYMENT_MULTIPLIER: Record<
   outsourcing: { ctr: 0.9, applyRate: 0.7 },
 };
 
-/** 1 日あたり表示数のシード値。予算で大きく変わるため広めに構える */
-export const SEED_IMPRESSIONS_PER_DAY = { sponsored: 220, organic: 45 };
+/**
+ * 1 日あたり表示数のシード値。予算で大きく変わるため広めに構える。
+ * unknown は掲載形態が未設定のとき用で、有料・無料の中間(幾何平均)に置く。
+ * 未設定を無料掲載とみなすと基準が下がり、露出不足の求人まで「良好」と
+ * 判定してしまうため、決めつけずに中間を使う。
+ */
+export const SEED_IMPRESSIONS_PER_DAY = {
+  sponsored: 220,
+  organic: 45,
+  unknown: Math.round(Math.sqrt(220 * 45)), // 約 99
+};
 
 /**
  * 求人ごとの成果のばらつき(四分位の広がり)。

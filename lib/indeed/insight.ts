@@ -124,10 +124,13 @@ export function buildInsight(
         reasoning =
           "無料掲載のままなので、時間が経つほど新着求人に押し出されて検索結果の下に沈みます。原稿の良し悪し以前に、見られる量そのものが足りていません。";
         lead = "imp-sponsor-start";
-      } else {
+      } else if (job.sponsored === true) {
         reasoning =
           "スポンサー掲載でこの表示数ということは、日予算が早い時間に尽きているか、タイトルの職種名・勤務地が求職者の検索語と噛み合っていないかのどちらかです。";
         lead = "imp-budget-up";
+      } else {
+        reasoning =
+          "掲載形態が未登録なので断定はできませんが、この表示数だと「無料掲載のまま沈んでいる」か「スポンサーの日予算が早い時間に尽きている」かのどちらかです。求人を編集して掲載形態を登録すると、どちらなのかまで判定できます。";
       }
       if (ctr.verdict === "good" || apply.verdict === "good") {
         reasoning +=
@@ -212,7 +215,7 @@ export function buildInsight(
         ? `一方で1日あたりの表示は ${gap(imp)} にとどまっています。クリックされた人はきちんと応募しているので、文言をこれ以上直しても応募は大きく増えません。見られる回数を増やすのが最短です。`
         : "3段階とも基準以上です。この求人は原稿を触るより、掲載を維持しながら他の求人に手をかけたほうが全体の応募は増えます。";
       stage = roomToGrow ? "impressions" : null;
-      if (roomToGrow) {
+      if (roomToGrow && job.sponsored !== undefined) {
         lead = job.sponsored === false ? "imp-sponsor-start" : "imp-budget-up";
       }
       break;

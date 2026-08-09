@@ -183,8 +183,11 @@ export default function ImportPanel({ store, setStore, notify, onDone }: Props) 
       </div>
 
       <div className="field">
-        <label>
-          データを貼り付け
+        {/* label の中にボタンを置くと、そのボタンが支援技術からボタンとして
+            認識されなくなる(label は自分がラベル付けする入力欄しか含められない)。
+            見出しとボタンは並べて置き、label は textarea だけに紐づける */}
+        <div className="idd-field-head">
+          <label htmlFor="idd-paste">データを貼り付け</label>
           <button
             type="button"
             className="linklike"
@@ -192,8 +195,9 @@ export default function ImportPanel({ store, setStore, notify, onDone }: Props) 
           >
             サンプルを入れる
           </button>
-        </label>
+        </div>
         <textarea
+          id="idd-paste"
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={10}

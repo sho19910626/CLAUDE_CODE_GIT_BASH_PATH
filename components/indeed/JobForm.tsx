@@ -57,22 +57,25 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
       </div>
 
       <div className="idd-form-grid">
-        <Field label="求人名" required>
+        <Field label="求人名" required htmlFor="job-name">
           <input
+            id="job-name"
             value={draft.name}
             onChange={(e) => set("name", e.target.value)}
             placeholder="【○○市】フォークリフト/日勤のみ"
           />
         </Field>
-        <Field label="企業名">
+        <Field label="企業名" htmlFor="job-company">
           <input
+            id="job-company"
             value={draft.company}
             onChange={(e) => set("company", e.target.value)}
             placeholder="○○物流株式会社"
           />
         </Field>
-        <Field label="業種">
+        <Field label="業種" htmlFor="job-industry">
           <select
+            id="job-industry"
             value={draft.industry}
             onChange={(e) => set("industry", e.target.value as IndustryId)}
           >
@@ -83,15 +86,17 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
             ))}
           </select>
         </Field>
-        <Field label="職種" hint="ベンチマークの最小単位。表記を揃えるほど精度が上がります">
+        <Field label="職種" hint="ベンチマークの最小単位。表記を揃えるほど精度が上がります" htmlFor="job-category">
           <input
+            id="job-category"
             value={draft.jobCategory}
             onChange={(e) => set("jobCategory", e.target.value)}
             placeholder="フォークリフト"
           />
         </Field>
-        <Field label="雇用形態">
+        <Field label="雇用形態" htmlFor="job-employment">
           <select
+            id="job-employment"
             value={draft.employmentType}
             onChange={(e) => set("employmentType", e.target.value as EmploymentTypeId)}
           >
@@ -102,8 +107,9 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
             ))}
           </select>
         </Field>
-        <Field label="都道府県">
+        <Field label="都道府県" htmlFor="job-pref">
           <select
+            id="job-pref"
             value={draft.prefecture}
             onChange={(e) => set("prefecture", e.target.value)}
           >
@@ -114,16 +120,18 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
             ))}
           </select>
         </Field>
-        <Field label="市区町村">
+        <Field label="市区町村" htmlFor="job-city">
           <input
+            id="job-city"
             value={draft.city ?? ""}
             onChange={(e) => set("city", e.target.value || undefined)}
             placeholder="小牧市"
           />
         </Field>
-        <Field label="掲載開始日" hint="鮮度の判定に使います">
+        <Field label="掲載開始日" hint="鮮度の判定に使います" htmlFor="job-posted">
           <input
             type="date"
+            id="job-posted"
             value={draft.postedAt ?? ""}
             onChange={(e) => set("postedAt", e.target.value || undefined)}
           />
@@ -206,10 +214,11 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
 
       <h3 className="idd-form-section">応募までの障壁</h3>
       <div className="idd-form-grid">
-        <Field label="応募フォームの設問数" hint="4問以上だと応募完了率が落ちます">
+        <Field label="応募フォームの設問数" hint="4問以上だと応募完了率が落ちます" htmlFor="job-questions">
           <input
             type="number"
             min={0}
+            id="job-questions"
             value={draft.friction?.questionCount ?? ""}
             onChange={(e) =>
               setFriction(
@@ -242,9 +251,10 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
       </div>
 
       <h3 className="idd-form-section">掲載中の原稿(任意・入れると提案が具体的になります)</h3>
-      <Field label="求人タイトル">
+      <Field label="求人タイトル" htmlFor="job-title">
         <input
-          value={draft.copy?.title ?? ""}
+          id="job-title"
+            value={draft.copy?.title ?? ""}
           onChange={(e) => setCopy("title", e.target.value)}
           placeholder="【小牧市】フォークリフト/日勤のみ・土日祝休み"
         />
@@ -253,9 +263,10 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
         </span>
       </Field>
 
-      <Field label="キャッチコピー(F列)" hint="全角70文字以内">
+      <Field label="キャッチコピー(F列)" hint="全角70文字以内" htmlFor="job-catch">
         <textarea
-          value={catchText}
+          id="job-catch"
+            value={catchText}
           onChange={(e) => setCopy("catch", e.target.value)}
           rows={3}
           placeholder="フォークリフト／時給1,350円～／土日祝休み／日勤のみ／20〜50代活躍中（資格を活かせます！）"
@@ -291,9 +302,10 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
         )}
       </Field>
 
-      <Field label="仕事内容(G列)" hint="◆◆お仕事内容◆◆ / ◆◆具体的な内容◆◆ / ◆◆ポイント◆◆ の3ブロック・350文字前後">
+      <Field label="仕事内容(G列)" hint="◆◆お仕事内容◆◆ / ◆◆具体的な内容◆◆ / ◆◆ポイント◆◆ の3ブロック・350文字前後" htmlFor="job-desc">
         <textarea
-          value={descText}
+          id="job-desc"
+            value={descText}
           onChange={(e) => setCopy("description", e.target.value)}
           rows={12}
           placeholder={"◆◆お仕事内容◆◆\n\nフォークリフトを使用した運搬スタッフ\n\n◆◆具体的な内容◆◆\n\n・日用品を保管する\n　倉庫内での運搬作業！\n\n◆◆ポイント◆◆\n・土日祝休みでプライベート充実"}
@@ -361,25 +373,42 @@ export default function JobForm({ job, onSave, onCancel, onDelete }: Props) {
   );
 }
 
+/**
+ * 入力欄 1 つぶんの枠。
+ * htmlFor を渡すと label と入力欄が紐づき、ラベルをクリックしてフォーカスでき、
+ * スクリーンリーダーも項目名を読み上げられるようになる。
+ * 給与欄やチェックボックス群のように入力欄が複数ある枠では、
+ * 紐づけ先を 1 つに決められないので htmlFor を省き、グループとして名前を付ける。
+ */
 function Field({
   label,
   hint,
   required,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  htmlFor?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="field">
-      <label>
+  const labelId = `${htmlFor ?? label}-label`;
+  const body = (
+    <>
+      <label id={labelId} htmlFor={htmlFor}>
         {label}
         {required && <span className="idd-req">必須</span>}
         {hint && <span className="hint">{hint}</span>}
       </label>
       {children}
+    </>
+  );
+  return htmlFor ? (
+    <div className="field">{body}</div>
+  ) : (
+    <div className="field" role="group" aria-labelledby={labelId}>
+      {body}
     </div>
   );
 }

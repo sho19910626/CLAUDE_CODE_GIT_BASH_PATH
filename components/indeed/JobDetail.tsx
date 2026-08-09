@@ -35,6 +35,7 @@ interface Props {
   setStore: (updater: (prev: IndeedStore) => IndeedStore) => void;
   effects: EffectIndex;
   onBack: () => void;
+  onEditJob: () => void;
   notify: (message: string) => void;
 }
 
@@ -43,6 +44,7 @@ export default function JobDetail({
   store,
   setStore,
   onBack,
+  onEditJob,
   notify,
 }: Props) {
   const { job, snapshots, diagnosis, recommendations } = analysis;
@@ -122,13 +124,20 @@ export default function JobDetail({
         <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>
           ← 一覧へ
         </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onEditJob}>
+          求人・原稿を編集
+        </button>
         <div>
           <h2>{job.name}</h2>
           <p className="idd-jobmeta">
             {job.company} ・ {industryLabel(job.industry)} ・ {job.jobCategory} ・{" "}
             {employmentLabel(job.employmentType)} ・ {job.prefecture}
             {job.city ? ` ${job.city}` : ""} ・{" "}
-            {job.sponsored ? "スポンサー掲載" : "無料掲載"}
+            {job.sponsored === true
+              ? "スポンサー掲載"
+              : job.sponsored === false
+                ? "無料掲載"
+                : "掲載形態 未設定"}
           </p>
         </div>
       </div>
@@ -220,6 +229,21 @@ export default function JobDetail({
           期待値は各施策を<strong>単独で</strong>実施した場合の見込みなので、足し合わせた数にはなりません。
           過去に同じ施策を実施して効果を記録していれば、その実測値が期待値に反映されます。
         </p>
+
+        {recommendations.some((r) => r.unverified) && (
+          <p className="idd-alert hint">
+            📝 原稿(求人タイトル・キャッチコピー・仕事内容)が未登録のため、
+            一部の提案は「該当するかどうか未確認」のまま出しています。
+            <button
+              type="button"
+              className="linklike"
+              onClick={onEditJob}
+            >
+              原稿を登録する
+            </button>
+            と、文字数・構成・表現まで実際に照合したうえで指摘できます。
+          </p>
+        )}
 
         {recommendations.length === 0 ? (
           <p className="idd-empty-inline">
@@ -541,12 +565,15 @@ function RecCard({
                 : "応募率"}
           </span>
           <span className="idd-rec-title">{rec.title}</span>
-          {rec.unverified && <span className="idd-chip warn">原稿未登録・要確認</span>}
         </div>
 
-        <p className="idd-rec-evidence">
-          <strong>この求人での根拠:</strong> {rec.evidence}
-        </p>
+        {rec.unverified ? (
+          <p className="idd-rec-unverified">原稿未登録のため未確認</p>
+        ) : (
+          <p className="idd-rec-evidence">
+            <strong>この求人での根拠:</strong> {rec.evidence}
+          </p>
+        )}
 
         <div className="idd-rec-metrics">
           <span className="idd-gain">月間応募 +{rec.expectedGain.toFixed(1)} 件</span>
