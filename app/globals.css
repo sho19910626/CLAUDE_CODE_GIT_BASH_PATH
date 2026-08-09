@@ -520,6 +520,67 @@ body {
   text-decoration: underline;
 }
 
+/* --- 営業コンソールからの引き継ぎ --- */
+.ip-handoff-open {
+  width: 100%;
+  margin-bottom: 18px;
+}
+.ip-handoff {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand-2);
+  border-radius: 10px;
+  background: var(--bg-panel-2);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.ip-handoff.done {
+  border-left-color: var(--ok);
+}
+.ip-handoff-title {
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.ip-handoff textarea {
+  width: 100%;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.ip-handoff-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ip-handoff-line {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.ip-handoff-line span {
+  display: inline-block;
+  min-width: 78px;
+  font-weight: 700;
+  color: var(--ok);
+}
+.ip-handoff-line.ask span {
+  color: var(--brand-2);
+}
+.ip-handoff-note {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
 /* --- 入力フォーム --- */
 .ip-section {
   border-top: 1px solid var(--border);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   EMPLOYMENT_LABELS,
@@ -9,6 +9,12 @@ import {
   type IndeedProposal,
 } from "@/lib/indeed-types";
 import { buildJobPostText, buildProposalMarkdown } from "@/lib/indeed-export";
+import {
+  applyHandoff,
+  decodeHandoff,
+  parseHandoffInput,
+  type HandoffResult,
+} from "@/lib/indeed-handoff";
 
 const EMPTY: HearingSheet = {
   employmentType: "parttime",
@@ -96,6 +102,41 @@ export default function IndeedProposalTool() {
       setH((prev) => ({ ...prev, [key]: value })),
     []
   );
+
+  /* ---- 営業コンソールからの引き継ぎ ---- */
+  const [handoff, setHandoff] = useState<HandoffResult | null>(null);
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [handoffInput, setHandoffInput] = useState("");
+  const [handoffError, setHandoffError] = useState("");
+
+  const receive = useCallback((result: HandoffResult) => {
+    setH((prev) => ({ ...prev, ...result.patch }));
+    setHandoff(result);
+    setHandoffOpen(false);
+    setHandoffInput("");
+    setHandoffError("");
+  }, []);
+
+  // 引き継ぎURL (?handoff=...) で開かれた場合
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("handoff");
+    if (!token) return;
+    const parsed = decodeHandoff(token);
+    if (parsed) receive(applyHandoff(parsed));
+    // 再読み込みで二重に適用されないよう、URLからは消しておく
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [receive]);
+
+  const pasteHandoff = useCallback(() => {
+    const parsed = parseHandoffInput(handoffInput);
+    if (!parsed) {
+      setHandoffError(
+        "引き継ぎデータとして読み取れませんでした。営業コンソールの「提案スタジオへ引き継ぐ」でコピーした内容を貼り付けてください。"
+      );
+      return;
+    }
+    receive(applyHandoff(parsed));
+  }, [handoffInput, receive]);
 
   const copy = useCallback(async (text: string, tag: string) => {
     try {
@@ -212,6 +253,58 @@ export default function IndeedProposalTool() {
       <div className="grid">
         {/* ===== 入力 ===== */}
         <div className="panel">
+          {/* 営業コンソールからの引き継ぎ */}
+          {handoff ? (
+            <div className="ip-handoff done">
+              <p className="ip-handoff-title">営業リストから引き継ぎました</p>
+              <p className="ip-handoff-line">
+                <span>入力済み</span>
+                {handoff.filled.join(" / ")}
+              </p>
+              <p className="ip-handoff-line ask">
+                <span>要ヒアリング</span>
+                {handoff.toAsk.join(" / ")}
+              </p>
+              <p className="ip-handoff-note">
+                引き継げるのは外から見える情報だけです。★の2項目が空のままだと、
+                どの会社にも当てはまる提案しか出せません。商談で必ず聞いてください。
+              </p>
+            </div>
+          ) : handoffOpen ? (
+            <div className="ip-handoff">
+              <p className="ip-handoff-title">営業リストから引き継ぐ</p>
+              <textarea
+                value={handoffInput}
+                rows={3}
+                placeholder="営業コンソールの「提案スタジオへ引き継ぐ」でコピーした内容を貼り付け"
+                onChange={(e) => setHandoffInput(e.target.value)}
+              />
+              <div className="ip-handoff-actions">
+                <button className="btn btn-ghost btn-small" onClick={pasteHandoff}>
+                  読み込む
+                </button>
+                <button
+                  className="btn btn-ghost btn-small"
+                  onClick={() => {
+                    setHandoffOpen(false);
+                    setHandoffError("");
+                  }}
+                >
+                  閉じる
+                </button>
+              </div>
+              {handoffError && <div className="error-box">{handoffError}</div>}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost btn-small ip-handoff-open"
+              onClick={() => setHandoffOpen(true)}
+            >
+              営業リストから引き継ぐ
+            </button>
+          )}
+
           <div className="field">
             <label>
               雇用形態<span className="hint">提案のトーンが切り替わります</span>
