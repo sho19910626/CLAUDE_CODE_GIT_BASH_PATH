@@ -505,3 +505,801 @@ body {
   margin-top: 10px;
   text-align: center;
 }
+
+/* =====================================================================
+   Indeed 求人診断 (/indeed)
+   既存の Insta Studio と同じトークンを使いつつ、.idd 配下だけに閉じた指定にする
+   ===================================================================== */
+
+.idd .btn-primary,
+.idd .btn {
+  width: auto;
+}
+.idd .btn-sm {
+  font-size: 12px;
+  padding: 7px 12px;
+}
+.idd .btn-danger {
+  background: rgba(255, 107, 122, 0.12);
+  border: 1px solid rgba(255, 107, 122, 0.4);
+  color: var(--err);
+}
+.idd .panel {
+  margin-bottom: 20px;
+}
+.idd .panel > h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.idd .lede .inline-link {
+  color: var(--brand);
+  margin-left: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.idd .lede .inline-link:hover {
+  text-decoration: underline;
+}
+.idd .linklike {
+  background: none;
+  border: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  text-decoration: underline;
+}
+
+/* ===== タブ ===== */
+.idd-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.idd-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  color: var(--text-dim);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.idd-tab:hover {
+  border-color: var(--brand);
+}
+.idd-tab.active {
+  border-color: var(--brand);
+  color: var(--text);
+  background: var(--bg-panel-2);
+}
+.idd-tab-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+.idd-tab-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.idd-tab-spacer {
+  flex: 1;
+}
+.idd-io {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.idd-io label.btn {
+  cursor: pointer;
+}
+
+/* ===== KPI ===== */
+.idd-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.idd-kpi {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.idd-kpi.accent {
+  border-color: var(--brand);
+  background: linear-gradient(
+    180deg,
+    rgba(124, 108, 246, 0.12),
+    var(--bg-panel)
+  );
+}
+.idd-kpi-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.idd-kpi-value {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+.idd-kpi-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ===== ツールバー ===== */
+.idd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.idd-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.idd-inline-field select,
+.idd select,
+.idd input,
+.idd textarea {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.idd select:focus,
+.idd input:focus,
+.idd textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.idd input:disabled,
+.idd select:disabled {
+  opacity: 0.45;
+}
+.idd-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.idd-checkbox input {
+  accent-color: var(--brand);
+  width: 15px;
+  height: 15px;
+  padding: 0;
+}
+
+/* ===== テーブル ===== */
+.idd-table-wrap {
+  overflow-x: auto;
+}
+.idd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.idd-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.idd-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.idd-table tbody tr:hover {
+  background: var(--bg-panel-2);
+}
+.idd-table .rt {
+  text-align: right;
+}
+.idd-table tr.muted {
+  opacity: 0.45;
+}
+.idd-import-table td {
+  min-width: 120px;
+}
+.idd-import-table select,
+.idd-import-table input {
+  width: 100%;
+}
+.idd-jobname {
+  font-weight: 700;
+  font-size: 13px;
+}
+.idd-jobmeta,
+.idd-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.idd-toprec {
+  font-size: 12px;
+  max-width: 320px;
+}
+.idd-warn {
+  font-size: 11px;
+  color: #f0b429;
+  margin-top: 4px;
+}
+.idd-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.8;
+  margin-top: 10px;
+}
+.idd-note strong {
+  color: var(--text);
+}
+
+/* ===== 判定の色 ===== */
+.idd-v {
+  font-weight: 700;
+  font-size: 13px;
+}
+.idd-v.v-good {
+  color: var(--ok);
+}
+.idd-v.v-avg {
+  color: var(--text);
+}
+.idd-v.v-weak {
+  color: var(--err);
+}
+.idd-v.v-none {
+  color: var(--text-dim);
+}
+.idd-gain {
+  color: var(--brand-2);
+  font-weight: 700;
+}
+.idd-lift {
+  font-weight: 700;
+}
+.idd-lift.up {
+  color: var(--ok);
+}
+.idd-lift.down {
+  color: var(--err);
+}
+
+/* ===== チップ ===== */
+.idd-chip {
+  display: inline-block;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.idd-chip.danger {
+  border-color: rgba(255, 107, 122, 0.5);
+  color: var(--err);
+}
+.idd-chip.warn {
+  border-color: rgba(240, 180, 41, 0.5);
+  color: #f0b429;
+}
+.idd-chip.learned {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.idd-chip.stage-impressions {
+  border-color: #4a8fe0;
+  color: #7fb4f0;
+}
+.idd-chip.stage-ctr {
+  border-color: var(--brand);
+  color: #a99bff;
+}
+.idd-chip.stage-apply {
+  border-color: var(--brand-2);
+  color: #f08bb0;
+}
+.idd-badge {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+/* ===== 空状態 ===== */
+.idd-empty {
+  text-align: center;
+  padding: 48px 32px;
+}
+.idd-empty h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.idd-empty p {
+  color: var(--text-dim);
+  font-size: 13px;
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.9;
+}
+.idd-empty-inline {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 16px 0;
+}
+
+/* ===== 詳細画面 ===== */
+.idd-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.idd-detail-head h2 {
+  font-size: 20px;
+  font-weight: 900;
+}
+.idd-summary p {
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+/* ===== ファネル ===== */
+.idd-funnel {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.idd-funnel-step {
+  flex: 1;
+  min-width: 150px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.idd-funnel-step.v-good {
+  border-left-color: var(--ok);
+}
+.idd-funnel-step.v-weak {
+  border-left-color: var(--err);
+}
+.idd-funnel-step.v-avg {
+  border-left-color: var(--brand);
+}
+.idd-funnel-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.idd-funnel-value {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+.idd-funnel-arrow {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 6px;
+  min-width: 80px;
+}
+.idd-funnel-rate {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand-2);
+}
+
+/* ===== 段階別カード ===== */
+.idd-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.idd-stage {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.idd-stage.v-weak {
+  border-color: rgba(255, 107, 122, 0.45);
+}
+.idd-stage.v-good {
+  border-color: rgba(62, 207, 142, 0.35);
+}
+.idd-stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.idd-stage-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.idd-stage-nums {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.idd-stage-value {
+  font-size: 20px;
+  font-weight: 900;
+}
+.idd-stage-reason {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.8;
+  margin-top: 10px;
+}
+.idd-stage-gain {
+  font-size: 12px;
+  color: var(--brand-2);
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+/* 実測値・基準・目標を 1 本のバーで示す */
+.idd-bar {
+  position: relative;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  margin-top: 10px;
+  overflow: visible;
+}
+.idd-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  border-radius: 4px;
+}
+.idd-bar-mark {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+}
+.idd-bar-mark.benchmark {
+  background: var(--text-dim);
+}
+.idd-bar-mark.target {
+  background: var(--ok);
+}
+
+/* ===== 提案カード ===== */
+.idd-recs {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.idd-rec {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.idd-rec.checked {
+  border-color: var(--brand);
+}
+.idd-rec-check input {
+  accent-color: var(--brand);
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  padding: 0;
+}
+.idd-rec-body {
+  flex: 1;
+  min-width: 0;
+}
+.idd-rec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.idd-rec-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.idd-rec-evidence {
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--text);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.idd-rec-metrics {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.idd-rec-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--text-dim);
+}
+.idd-rec-detail ol {
+  margin: 8px 0 0 20px;
+}
+.idd-rec-detail li {
+  margin-bottom: 4px;
+}
+.idd-selected {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 10px 0;
+}
+
+/* ===== フォーム ===== */
+.idd-form-head h2 {
+  font-size: 18px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+.idd-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0 18px;
+}
+.idd-form-section {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 20px 0 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.idd-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.idd .field input,
+.idd .field select,
+.idd .field textarea {
+  width: 100%;
+}
+.idd-req {
+  font-size: 10px;
+  color: var(--err);
+  margin-left: 6px;
+}
+.idd-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.idd-row input {
+  min-width: 0;
+}
+.idd-tilde {
+  color: var(--text-dim);
+}
+.idd-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0;
+}
+.idd-counter {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+.idd-checkline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+}
+.idd-check {
+  font-size: 11px;
+}
+.idd-check.ok {
+  color: var(--ok);
+}
+.idd-check.no {
+  color: var(--err);
+}
+.idd-ng {
+  list-style: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.idd-ng li {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.idd-ng .idd-chip {
+  margin-right: 8px;
+}
+
+/* ===== AI 提案 ===== */
+.idd-advice {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.idd-advice h4 {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.idd-advice ul {
+  margin-left: 18px;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.idd-pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+.idd-ideas {
+  list-style: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.idd-ideas li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.idd-ideas li span {
+  flex: 1;
+}
+
+/* ===== 学習状況 ===== */
+.idd-progress {
+  height: 6px;
+  width: 90px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-left: auto;
+}
+.idd-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+}
+.idd-howto {
+  margin-left: 20px;
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--text-dim);
+}
+.idd-howto li {
+  margin-bottom: 10px;
+}
+.idd-howto strong {
+  color: var(--text);
+}
+.idd-mt {
+  margin-top: 18px;
+}
+
+/* ===== アラート / トースト ===== */
+.idd-alert {
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 14px;
+}
+.idd-alert.error {
+  background: rgba(255, 107, 122, 0.1);
+  border: 1px solid rgba(255, 107, 122, 0.4);
+  color: var(--err);
+}
+.idd-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  max-width: 420px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--brand);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+
+@media (max-width: 720px) {
+  .idd-funnel-arrow {
+    min-width: 100%;
+    padding: 4px 0;
+  }
+  .idd-toast {
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+}
+
+.lede-link {
+  color: var(--brand);
+  margin-left: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lede-link:hover {
+  text-decoration: underline;
+}

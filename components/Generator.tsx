@@ -410,6 +410,9 @@ export default function Generator() {
       </div>
       <p className="lede">
         企業HPのURL・ブランドイメージ・伝えたい文言を入力するだけで、フィード画像 / ストーリー / リール動画をAIが設計・生成します。
+        <a href="/indeed" className="lede-link">
+          Indeed 求人診断はこちら →
+        </a>
       </p>
 
       <div className="grid">
