@@ -150,7 +150,70 @@ export async function POST(req: NextRequest) {
   const hasImages = imageBlocks.length > 0;
   const model = process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
-  try {
+  // 生成は数分かかる。その間まったく通信が流れないと、ブラウザや
+  // 中継サーバー(Renderのロードバランサ等)が接続を切ってしまい、
+  // 画面には "Failed to fetch" とだけ出る。
+  // 進捗と ping を1行ずつ流し続けることで接続を維持し、
+  // ついでに待ち時間の状況を画面に出せるようにする (NDJSON)。
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (event: StreamEvent) => {
+        if (closed) return;
+        controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      };
+      const heartbeat = setInterval(() => send({ type: "ping" }), 10_000);
+      try {
+        const proposal = await generateProposal({
+          model,
+          hearing,
+          siteBlock,
+          imageBlocks,
+          hasImages,
+          onProgress: (step, message) => send({ type: "progress", step, message }),
+        });
+        send({ type: "done", proposal, siteFetched: site?.ok ?? false });
+      } catch (e) {
+        const { error } = describeError(e, model);
+        send({ type: "error", error });
+      } finally {
+        clearInterval(heartbeat);
+        closed = true;
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      // nginx 系のリバースプロキシに、途中で溜め込まず素通しさせる
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+/** ストリームで流すイベント */
+type StreamEvent =
+  | { type: "ping" }
+  | { type: "progress"; step: number; message: string }
+  | { type: "done"; proposal: IndeedProposal; siteFetched: boolean }
+  | { type: "error"; error: string };
+
+/** 3段階の生成をまとめて実行する */
+async function generateProposal(args: {
+  model: string;
+  hearing: HearingSheet;
+  siteBlock: string;
+  imageBlocks: ImageBlock[];
+  hasImages: boolean;
+  onProgress: (step: number, message: string) => void;
+}): Promise<IndeedProposal> {
+  const { model, hearing, siteBlock, imageBlocks, hasImages, onProgress } = args;
+
+  {
     // 1段階でも数分かかることがあるため、SDK 既定より長めのタイムアウトを取る
     const client = new Anthropic({ timeout: 15 * 60 * 1000, maxRetries: 2 });
 
@@ -214,6 +277,7 @@ export async function POST(req: NextRequest) {
     };
 
     // ① 戦略設計。②③はこの結果に従って書かれる
+    onProgress(1, "現状を分析し、棲み分けを設計しています");
     const strategy = await stage<StrategyStage>(
       "戦略設計",
       STRATEGY_SCHEMA,
@@ -225,6 +289,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ②③ は互いに独立しているので並列に走らせる
+    onProgress(2, `「${strategy.positioning.reframe.to}」で原稿とビジュアルを起こしています`);
     const [post, visualOps] = await Promise.all([
       stage<JobPostStage>(
         "掲載原稿",
@@ -244,63 +309,58 @@ export async function POST(req: NextRequest) {
       throw new StageError("掲載原稿が不完全でした。もう一度お試しください。", 502);
     }
 
-    const proposal: IndeedProposal = { ...strategy, ...post, ...visualOps };
-    return NextResponse.json({ proposal, siteFetched: site?.ok ?? false });
-  } catch (e) {
-    if (e instanceof StageError) {
-      console.error("[/api/indeed]", e.message);
-      return NextResponse.json({ error: e.message }, { status: e.status });
-    }
-    // 原因を切り分けられるよう、APIが返した内容をサーバーログにそのまま残す
-    console.error("[/api/indeed] 生成に失敗しました", e);
-
-    if (e instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json(
-        { error: "APIキーが無効です。ANTHROPIC_API_KEY を確認してください。" },
-        { status: 500 }
-      );
-    }
-    if (e instanceof Anthropic.RateLimitError) {
-      return NextResponse.json(
-        { error: "APIのレート制限に達しました。しばらく待って再試行してください。" },
-        { status: 429 }
-      );
-    }
-    if (e instanceof Anthropic.APIConnectionTimeoutError) {
-      return NextResponse.json(
-        {
-          error:
-            "生成に時間がかかりすぎて接続が切れました。ネットワークが不安定な場合に起きます。もう一度お試しください。",
-        },
-        { status: 504 }
-      );
-    }
-    if (e instanceof Anthropic.APIConnectionError) {
-      return NextResponse.json(
-        {
-          error:
-            "Anthropic APIに接続できませんでした。ネットワーク接続やプロキシ設定を確認してください。",
-        },
-        { status: 502 }
-      );
-    }
-    if (e instanceof Anthropic.APIError) {
-      const detail = apiErrorMessage(e);
-      if (e.status === 404 || /model/i.test(detail)) {
-        return NextResponse.json(
-          {
-            error:
-              `モデル「${model}」を使えませんでした。.env に ANTHROPIC_MODEL=claude-opus-4-8 を追記すると別のモデルで動きます。(詳細: ${detail})`,
-          },
-          { status: 502 }
-        );
-      }
-      return NextResponse.json(
-        { error: `AI生成でエラーが発生しました (${e.status}): ${detail}` },
-        { status: 502 }
-      );
-    }
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: `予期しないエラー: ${message}` }, { status: 500 });
+    return { ...strategy, ...post, ...visualOps };
   }
+}
+
+/** 例外を、画面に出せる日本語のメッセージに変換する */
+function describeError(e: unknown, model: string): { error: string; status: number } {
+  if (e instanceof StageError) {
+    console.error("[/api/indeed]", e.message);
+    return { error: e.message, status: e.status };
+  }
+  // 原因を切り分けられるよう、APIが返した内容をサーバーログにそのまま残す
+  console.error("[/api/indeed] 生成に失敗しました", e);
+
+  if (e instanceof Anthropic.AuthenticationError) {
+    return {
+      error: "APIキーが無効です。ANTHROPIC_API_KEY を確認してください。",
+      status: 500,
+    };
+  }
+  if (e instanceof Anthropic.RateLimitError) {
+    return {
+      error: "APIのレート制限に達しました。しばらく待って再試行してください。",
+      status: 429,
+    };
+  }
+  if (e instanceof Anthropic.APIConnectionTimeoutError) {
+    return {
+      error:
+        "生成に時間がかかりすぎて接続が切れました。ネットワークが不安定な場合に起きます。もう一度お試しください。",
+      status: 504,
+    };
+  }
+  if (e instanceof Anthropic.APIConnectionError) {
+    return {
+      error:
+        "Anthropic APIに接続できませんでした。ネットワーク接続やプロキシ設定を確認してください。",
+      status: 502,
+    };
+  }
+  if (e instanceof Anthropic.APIError) {
+    const detail = apiErrorMessage(e);
+    if (e.status === 404 || /model/i.test(detail)) {
+      return {
+        error: `モデル「${model}」を使えませんでした。ANTHROPIC_MODEL に claude-opus-4-8 などを設定すると別のモデルで動きます。(詳細: ${detail})`,
+        status: 502,
+      };
+    }
+    return {
+      error: `AI生成でエラーが発生しました (${e.status}): ${detail}`,
+      status: 502,
+    };
+  }
+  const message = e instanceof Error ? e.message : String(e);
+  return { error: `予期しないエラー: ${message}`, status: 500 };
 }

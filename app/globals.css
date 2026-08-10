@@ -520,6 +520,55 @@ body {
   text-decoration: underline;
 }
 
+/* --- 生成中の進捗 --- */
+.ip-steps {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.ip-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.ip-step-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ip-step.now {
+  color: var(--text);
+  font-weight: 700;
+}
+.ip-step.now .ip-step-mark {
+  border-color: var(--brand);
+  background: rgba(124, 108, 246, 0.16);
+  color: #b8aefc;
+}
+.ip-step.done .ip-step-mark {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.ip-step-message {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.ip-step-note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
 /* --- 営業コンソールからの引き継ぎ --- */
 .ip-handoff-open {
   width: 100%;

@@ -86,6 +86,9 @@ export default function IndeedProposalTool() {
   const [h, setH] = useState<HearingSheet>(EMPTY);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<{ step: number; message: string } | null>(
+    null
+  );
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<IndeedProposal | null>(null);
   const [tab, setTab] = useState<Tab>("strategy");
@@ -169,23 +172,78 @@ export default function IndeedProposalTool() {
     setProposal(null);
     setKeyVisual("");
     setImgError("");
+    setProgress({ step: 1, message: "サーバーに接続しています" });
     try {
       const res = await fetch("/api/indeed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hearing: h, images }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? `エラー (${res.status})`);
-      setProposal(data.proposal as IndeedProposal);
+
+      // 入力不備などは、ストリームに入る前にJSONで返ってくる
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? `エラー (${res.status})`);
+      }
+
+      // 1行1イベントのNDJSONを読みながら進捗を反映する
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let done: IndeedProposal | null = null;
+
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let ev: {
+            type: string;
+            step?: number;
+            message?: string;
+            error?: string;
+            proposal?: IndeedProposal;
+          };
+          try {
+            ev = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (ev.type === "progress") {
+            setProgress({ step: ev.step ?? 1, message: ev.message ?? "" });
+          } else if (ev.type === "error") {
+            throw new Error(ev.error ?? "生成に失敗しました");
+          } else if (ev.type === "done" && ev.proposal) {
+            done = ev.proposal;
+          }
+        }
+      }
+
+      if (!done) {
+        throw new Error(
+          "生成の途中で接続が切れました。もう一度お試しください。何度も起きる場合はネットワーク環境をご確認ください。"
+        );
+      }
+
+      setProposal(done);
       setTab("strategy");
       requestAnimationFrame(() =>
         resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const message = e instanceof Error ? e.message : String(e);
+      setError(
+        message === "Failed to fetch"
+          ? "サーバーとの接続が切れました。アプリが起動しているか確認して、もう一度お試しください。"
+          : message
+      );
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   }, [h, images]);
 
@@ -425,10 +483,29 @@ export default function IndeedProposalTool() {
           {error && <div className="error-box">{error}</div>}
           {loading && (
             <div className="loading-box">
-              <span className="spinner" />
-              棲み分けを設計 → 原稿とビジュアルを書き起こしています。
-              <br />
-              3段階に分けて作るため、2〜4分ほどかかります。
+              <div className="ip-steps">
+                {["棲み分けを設計", "原稿とビジュアルを執筆"].map((label, i) => {
+                  const step = i + 1;
+                  const current = progress?.step ?? 1;
+                  const state =
+                    step < current ? "done" : step === current ? "now" : "";
+                  return (
+                    <div className={`ip-step ${state}`} key={label}>
+                      <span className="ip-step-mark">
+                        {step < current ? "✓" : step}
+                      </span>
+                      {label}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="ip-step-message">
+                <span className="spinner" />
+                {progress?.message ?? "準備しています"}
+              </p>
+              <p className="ip-step-note">
+                全体で2〜4分ほどかかります。この画面を閉じずにお待ちください。
+              </p>
             </div>
           )}
         </div>
