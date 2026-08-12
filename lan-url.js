@@ -24,22 +24,43 @@ function lanAddresses() {
 
 const addresses = lanAddresses();
 
+/** 共有できるツール。どちらも同じサーバーから配信される */
+const TOOLS = [
+  { label: "営業コンソール      ", path: "/console.html" },
+  { label: "Indeed 提案スタジオ ", path: "/indeed" },
+];
+
+function show(host) {
+  for (const { label, path } of TOOLS) {
+    console.log(`   ${label} http://${host}:${PORT}${path}`);
+  }
+}
+
 console.log("");
-console.log("========================================================");
+console.log("============================================================");
 if (addresses.length === 0) {
   console.log(" 社内ネットワークのアドレスが見つかりませんでした。");
   console.log(" 有線LANまたはWi-Fiに接続してから、開き直してください。");
 } else {
-  console.log(" 他の人には、このURLを伝えてください:");
+  const [primary, ...others] = addresses;
+  console.log(` 他の人には、このURLを伝えてください:  (${primary.name})`);
   console.log("");
-  for (const { name, address } of addresses) {
-    console.log(`   http://${address}:${PORT}/indeed   (${name})`);
+  show(primary.address);
+  console.log("");
+  console.log(" 画面の上部にお互いへのリンクがあるので、");
+  console.log(" どちらか一方を伝えれば行き来できます。");
+  if (others.length > 0) {
+    console.log("");
+    console.log(" 上のアドレスで繋がらない場合は、こちらもお試しください:");
+    for (const { name, address } of others) {
+      console.log(`   http://${address}:${PORT}/indeed   (${name})`);
+    }
   }
-  console.log("");
-  console.log(" 複数ある場合は、上から順に試してもらってください。");
 }
 console.log("");
-console.log(" このPCでは http://localhost:" + PORT + "/indeed で使えます。");
+console.log(" このPCでは:");
+show("localhost");
+console.log("");
 console.log(" この画面を閉じるとアプリが止まり、全員が使えなくなります。");
-console.log("========================================================");
+console.log("============================================================");
 console.log("");
