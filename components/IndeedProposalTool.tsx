@@ -303,8 +303,11 @@ export default function IndeedProposalTool() {
       <p className="lede">
         競合と同じ土俵で戦うのをやめ、自社が一番になれる土俵に「棲み分ける」求人を設計します。
         アルバイト・パートから正社員まで対応。
+        <a href="/console.html" className="ip-navlink">
+          営業コンソール →
+        </a>
         <Link href="/" className="ip-navlink">
-          Insta Studio はこちら →
+          Insta Studio →
         </Link>
       </p>
 
