@@ -25,6 +25,18 @@ if not exist ".env" (
   exit /b 1
 )
 
+rem Another server on port 3000 breaks this one. Stop before that happens.
+netstat -ano | findstr ":3000" | findstr "LISTENING" >nul
+if not errorlevel 1 (
+  echo [ERROR] Port 3000 is already in use.
+  echo.
+  echo   Another black window is still running the app.
+  echo   Close ALL other black windows, then run this file again.
+  echo.
+  pause
+  exit /b 1
+)
+
 if not exist "node_modules" (
   echo Installing dependencies. First run takes a few minutes...
   call npm install
