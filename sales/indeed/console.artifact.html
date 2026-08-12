@@ -228,7 +228,8 @@ textarea {
   <div class="bar-top">
     <div>
       <h1>Indeed運用代行 — フォーム営業コンソール</h1>
-      <p class="sub">東京・大阪・仙台を除く36道府県／通年採用を続けている企業</p>
+      <p class="sub">東京・大阪・仙台を除く39道府県／通年採用を続けている企業</p>
+      <p class="sub" id="studio-link-row"></p>
     </div>
     <div class="progress">
       <div class="progress-label"><span>送信済み</span><span><b id="p-done">0</b> / <b id="p-total">0</b></span></div>
@@ -243,6 +244,11 @@ textarea {
     <input id="s-tel" placeholder="電話番号" autocomplete="tel" />
     <input id="s-mail" placeholder="メールアドレス" autocomplete="email" />
     <input id="s-proof" class="grow" placeholder="同業実績（任意・空欄なら文面に出ません）" />
+  </div>
+
+  <div class="field-row">
+    <span class="legend">連携先</span>
+    <input id="s-studio" class="grow" placeholder="提案スタジオのURL（例: https://recruit-studio.onrender.com/indeed）" />
   </div>
 
   <div class="field-row">
@@ -636,6 +642,17 @@ const store = (() => {
 let sent = JSON.parse(store.get(SENT_KEY) || '{}');
 let current = null;
 
+// 提案スタジオ（棲み分け提案を作るアプリ）の場所。
+// クラウドに置くとアドレスが変わるため、画面から設定できるようにしている。
+const STUDIO_KEY = 'indeed-studio-url';
+// 提案スタジオと同じサーバーに置かれている場合は、そのアドレスを既定にする
+// (アプリ側の public/console.html が window.__STUDIO_BASE を先に設定する)
+const STUDIO_DEFAULT = window.__STUDIO_BASE || 'http://localhost:3000/indeed';
+function studioUrl() {
+  const v = $('s-studio').value.trim();
+  return v || STUDIO_DEFAULT;
+}
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const saveSent = () => store.set(SENT_KEY, JSON.stringify(sent));
@@ -657,10 +674,68 @@ async function copyFrom(btn, textarea) {
   flash('選択しました。Ctrl/Cmd+C');
 }
 
+/** 文字列をそのままクリップボードへ。copyFrom と同じ理由でフォールバックを持つ。 */
+async function copyText(btn, text) {
+  const old = btn.dataset.label ?? btn.textContent;
+  btn.dataset.label = old;
+  const flash = (label) => {
+    btn.textContent = label;
+    setTimeout(() => { btn.textContent = old; }, 2400);
+  };
+  try { await navigator.clipboard.writeText(text); flash('コピーしました'); return; } catch {}
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    flash(document.execCommand('copy') ? 'コピーしました' : 'コピーできませんでした');
+  } catch { flash('コピーできませんでした'); }
+  ta.remove();
+}
+
+/**
+ * 提案スタジオへの引き継ぎURLを組み立てる。
+ *
+ * 渡すのは「外から見える事実」だけ。棲み分けの設計に不可欠な
+ * 「活躍している人の特徴」「エピソード」は商談で聞くしかないため渡さない。
+ * スタジオ側では、それらが要ヒアリング項目として明示される。
+ */
+function buildHandoffUrl(t) {
+  const payload = {
+    v: 1,
+    src: 'form-sales-console',
+    id: t.ID,
+    company: t.企業名,
+    industry: t.業種,
+    segment: t.区分,
+    roles: (INDUSTRIES[t.業種] ?? {}).職種例 ?? '',
+    prefectures: t.都道府県,
+    areas: t.主要エリア,
+    postings: t.掲載件数,
+    sites: t.拠点数,
+    yearRound: t.通年採用,
+    firstSeen: t.初回掲載,
+    lastSeen: t.最終掲載,
+    days: t.掲載期間日数,
+    spend: t.推定月額出稿,
+    priority: t.優先度,
+    hp: t.HP_URL,
+    jobSample: t.求人サンプル,
+    caution: t.注意,
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  const token = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return studioUrl() + '?handoff=' + token;
+}
+
 const senderFields = { 会社名: 's-company', 担当者名: 's-name', 電話: 's-tel', メール: 's-mail', 実績: 's-proof' };
 function loadSender() {
   const saved = JSON.parse(store.get(SENDER_KEY) || '{}');
   for (const [k, id] of Object.entries(senderFields)) $(id).value = saved[k] ?? '';
+  $('s-studio').value = store.get(STUDIO_KEY) ?? '';
   if (!store.persistent) {
     document.querySelector('.bar').insertAdjacentHTML('beforeend',
       '<div class="note">このブラウザでは入力内容と送信済みの記録が保存されません（プライベートウィンドウの可能性があります）。通常のウィンドウで開き直すと保存されます。</div>');
@@ -752,6 +827,7 @@ function renderDetail() {
       <a class="btn" href="${esc(t.求人サンプル)}" target="_blank" rel="noopener">Indeedの求人を確認</a>
       ${t.HP_URL ? '<a class="btn" href="' + esc(t.HP_URL) + '" target="_blank" rel="noopener">HP</a>' : ''}
       ${t.フォームURL ? '<a class="btn" href="' + esc(t.フォームURL) + '" target="_blank" rel="noopener">問い合わせフォーム</a>' : ''}
+      <button id="handoff" title="この企業の情報を引き継いで提案スタジオを開きます（開けない場合はURLをコピーします）">提案スタジオへ引き継ぐ</button>
       <button class="primary" id="mark">${isSent ? '送信済みを取り消す' : '送信済みにする'}</button>
     </div>
 
@@ -774,6 +850,14 @@ function renderDetail() {
   for (const btn of $('detail').querySelectorAll('[data-copy]')) {
     btn.onclick = () => copyFrom(btn, $(btn.dataset.copy));
   }
+  $('handoff').onclick = () => {
+    const url = buildHandoffUrl(t);
+    // 同じサーバーに同居していれば、そのまま新しいタブで開ける。
+    // アーティファクトのiframe内など開けない環境では、コピーに切り替える。
+    let opened = null;
+    try { opened = window.open(url, '_blank', 'noopener'); } catch {}
+    if (!opened) copyText($('handoff'), url);
+  };
   $('mark').onclick = () => {
     if (sent[t.ID]) delete sent[t.ID]; else sent[t.ID] = new Date().toISOString().slice(0, 10);
     saveSent(); renderList(); renderDetail();
@@ -796,6 +880,13 @@ for (const id of ['f-pri', 'f-ind', 'f-pref', 'f-seg', 'f-q', 'f-hide']) {
 }
 for (const id of Object.values(senderFields)) {
   $(id).addEventListener('input', () => { if (current) renderDetail(); });
+}
+
+$('s-studio').addEventListener('input', () => store.set(STUDIO_KEY, $('s-studio').value.trim()));
+
+if (window.__STUDIO_BASE) {
+  $('studio-link-row').innerHTML =
+    '<a href="' + window.__STUDIO_BASE + '" style="color:var(--accent);font-weight:600">Indeed 提案スタジオ →</a>';
 }
 
 loadSender();
