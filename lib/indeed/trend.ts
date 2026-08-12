@@ -102,6 +102,21 @@ function monthLabel(iso: string): string {
   return m ? `${Number(m[1])}月` : iso;
 }
 
+/** 「2026-08-10」を「8/10」に */
+function dateLabel(iso: string): string {
+  const m = iso.match(/^\d{4}-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[1])}/${Number(m[2])}` : iso;
+}
+
+/**
+ * 期間の呼び名。
+ * 週次だと前後とも同じ月になり「8月 → 8月」と意味のない表示になるため、
+ * 短い期間は日付で呼ぶ。
+ */
+function periodLabel(p: TrendPoint): string {
+  return p.days <= 10 ? `${dateLabel(p.periodStart)}の週` : monthLabel(p.periodStart);
+}
+
 export function analyzeTrend(
   snapshots: MetricSnapshot[],
   interventions: Intervention[] = [],
@@ -267,7 +282,7 @@ function buildNarrative(
   // 判定は季節調整後の値で行う。「見かけは落ちたが、季節を考えれば横ばい」を
   // 悪化として扱わないため
   const moved = changes.filter((c) => c.direction !== "flat");
-  const period = `${monthLabel(before.periodStart)} → ${monthLabel(after.periodStart)}`;
+  const period = `${periodLabel(before)} → ${periodLabel(after)}`;
   const parts: string[] = [];
 
   // --- 季節要因の説明を先に置く ---
@@ -281,7 +296,7 @@ function buildNarrative(
     const applyChange = seasonal.find((c) => c.metric === "apply") ?? seasonal[0];
     const seasonWord = applyChange.expectedBySeason < 0 ? "落ちる" : "伸びる";
     parts.push(
-      `${monthLabel(after.periodStart)}は${MONTH_NOTE[month]}。` +
+      `${periodLabel(after)}は${MONTH_NOTE[month]}。` +
         `この時期は例年 ${signed(applyChange.expectedBySeason)} 程度${seasonWord}ので、` +
         `以下の変化はその季節要因を差し引いた実質の値で見ています。`
     );

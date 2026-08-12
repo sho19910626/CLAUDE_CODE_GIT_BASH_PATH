@@ -10,6 +10,7 @@
 
 import type { JobRollup } from "./benchmark";
 import { jobHeadroom } from "./diagnose";
+import { buildJobTypeInsight, type JobTypeInsight } from "./jobtype";
 import { comparePeers, type PeerComparison } from "./peers";
 import { actionShort } from "./playbook";
 import type { JobAnalysis } from "./recommend";
@@ -78,6 +79,8 @@ export interface Insight {
   nextStep: string | null;
   /** 時期を踏まえた動き方の助言 */
   timing: string | null;
+  /** 職種・雇用形態ならではの考察 */
+  jobType: { label: string | null; text: string } | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -319,6 +322,10 @@ export function buildInsight(
   // ===== 時期を踏まえた動き方 =====
   const timing = buildTiming(diagnosis, context.snapshots);
 
+  // ===== 職種・雇用形態ならではの考察 =====
+  const jt: JobTypeInsight | null = buildJobTypeInsight(job, stage);
+  const jobType = jt && jt.text ? { label: jt.label, text: jt.text } : null;
+
   // --- どうなるか ---
   //
   // 大きく下回っている求人に「上位25%まで行けます」とだけ伝えるのは過大な期待になる。
@@ -379,6 +386,7 @@ export function buildInsight(
       : "",
     `\n■ 原因の見立て`,
     reasoning,
+    jobType ? `\n■ この職種ならではの見立て\n${jobType.text}` : "",
     plan.length > 0
       ? "\n■ やること\n" +
         plan
@@ -414,6 +422,7 @@ export function buildInsight(
     combined,
     nextStep,
     timing,
+    jobType,
     text,
   };
 }

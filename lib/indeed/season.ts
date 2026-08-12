@@ -179,7 +179,86 @@ export function periodSeasonIndex(
     sum += (curve[month - 1] ?? 1) * d;
     total += d;
   }
-  return total > 0 ? sum / total : 1;
+  const monthly = total > 0 ? sum / total : 1;
+  // 月の指数に、月の中での強弱(連休)をかけ合わせる。
+  // 1 か月まるごとなら後者は 1.0 になるので、月次で見る限り結果は変わらない。
+  return monthly * withinMonthFactor(start, end).factor;
+}
+
+// ===== 月の中の凹み(長期連休) =====
+//
+// 月次で見ているぶんには月の指数で足りるが、週次で見ると
+// 「8月全体」と「お盆の週」はまったく別物になる。
+// 連休にかかる日を安く見積もり、同じ月の他の日をそのぶん高く見積もることで、
+// 1 か月ぶんを合計すると必ず月の指数に戻るようにしている(二重に効かせない)。
+
+interface HolidayPeriod {
+  name: string;
+  /** MM-DD */
+  from: string;
+  to: string;
+  /** 通常日を 1.0 としたときの落ち込み */
+  factor: number;
+}
+
+const HOLIDAYS: HolidayPeriod[] = [
+  { name: "年末年始", from: "12-28", to: "12-31", factor: 0.5 },
+  { name: "年末年始", from: "01-01", to: "01-04", factor: 0.55 },
+  { name: "お盆", from: "08-10", to: "08-17", factor: 0.65 },
+  { name: "ゴールデンウィーク", from: "04-29", to: "05-06", factor: 0.72 },
+];
+
+function mmdd(d: Date): string {
+  return `${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** その日が連休にかかっていれば、落ち込みの係数と連休名を返す */
+function holidayOf(d: Date): HolidayPeriod | null {
+  const key = mmdd(d);
+  return HOLIDAYS.find((h) => key >= h.from && key <= h.to) ?? null;
+}
+
+/** その月の平均係数(連休を含めた月全体の平均)。正規化に使う */
+function monthHolidayMean(year: number, month: number): number {
+  const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  let sum = 0;
+  for (let day = 1; day <= days; day++) {
+    const d = new Date(Date.UTC(year, month - 1, day));
+    sum += holidayOf(d)?.factor ?? 1;
+  }
+  return sum / days;
+}
+
+/**
+ * 月の中での相対的な強弱。
+ * 1 か月をまるごと渡すと必ず 1.0 になり、連休だけを切り取ると 1 を下回る。
+ * 週次で見るときにだけ意味を持つ。
+ */
+export function withinMonthFactor(
+  start: string,
+  end: string
+): { factor: number; holiday: string | null } {
+  const s = new Date(`${start}T00:00:00Z`);
+  const e = new Date(`${end}T00:00:00Z`);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) {
+    return { factor: 1, holiday: null };
+  }
+  let sum = 0;
+  let count = 0;
+  const names = new Set<string>();
+  const limit = 400;
+  for (const d = new Date(s); d <= e && count < limit; d.setUTCDate(d.getUTCDate() + 1)) {
+    const h = holidayOf(d);
+    const mean = monthHolidayMean(d.getUTCFullYear(), d.getUTCMonth() + 1);
+    // その日の係数を、その日が属する月の平均で割って正規化する
+    sum += (h?.factor ?? 1) / (mean || 1);
+    if (h) names.add(h.name);
+    count++;
+  }
+  return {
+    factor: count > 0 ? sum / count : 1,
+    holiday: names.size > 0 ? [...names].join("・") : null,
+  };
 }
 
 /** 指標ごとの感応度をかけた補正係数 */

@@ -52,6 +52,42 @@ function thisMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** 直近の月曜日 */
+function lastMonday(): string {
+  const d = new Date();
+  const diff = (d.getDay() + 6) % 7; // 月曜からの経過日数
+  d.setDate(d.getDate() - diff - 7); // 1 週間前の月曜(先週ぶんの実績が揃っている想定)
+  return iso(d);
+}
+
+/** 週の開始日から 7 日間の範囲 */
+function weekRange(start: string): { start: string; end: string } {
+  const d = new Date(`${start}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return weekRange(lastMonday());
+  const e = new Date(d);
+  e.setDate(e.getDate() + 6);
+  return { start: iso(d), end: iso(e) };
+}
+
+/** 1 週間前 */
+function prevWeek(start: string): string {
+  const d = new Date(`${start}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return start;
+  d.setDate(d.getDate() - 7);
+  return iso(d);
+}
+
+/** 「2026-08-10」を「8/10」に */
+const shortDate = (v: string) => {
+  const m = v.match(/^\d{4}-(\d{2})-(\d{2})$/);
+  return m ? `${Number(m[1])}/${Number(m[2])}` : v;
+};
+
+type PeriodUnit = "week" | "month";
+
 interface Numbers {
   impressions: string;
   clicks: string;
@@ -62,7 +98,9 @@ const EMPTY: Numbers = { impressions: "", clicks: "", applies: "" };
 
 export default function QuickAnalyzer() {
   // --- 必須の入力 ---
+  const [unit, setUnit] = useState<PeriodUnit>("month");
   const [month, setMonth] = useState(thisMonth);
+  const [weekStart, setWeekStart] = useState(lastMonday);
   const [now, setNow] = useState<Numbers>(EMPTY);
   const [industry, setIndustry] = useState<IndustryId>("other");
   const [employmentType, setEmploymentType] = useState<EmploymentTypeId>("parttime");
@@ -100,10 +138,19 @@ export default function QuickAnalyzer() {
         ? "応募数がクリック数を上回っています。入力を確認してください。"
         : null;
 
+  // 集計単位に応じて、今回と前回の期間を決める
+  const range = unit === "week" ? weekRange(weekStart) : monthRange(month);
+  const prevRange =
+    unit === "week" ? weekRange(prevWeek(weekStart)) : monthRange(prevMonth(month));
+  const periodLabel =
+    unit === "week"
+      ? `${shortDate(range.start)}〜${shortDate(range.end)}`
+      : `${Number(month.slice(5, 7))}月`;
+  const prevLabel = unit === "week" ? "前の週" : "前の月";
+
   const result = useMemo(() => {
     if (!ready || inputError) return null;
 
-    const range = monthRange(month);
     const job: JobRecord = {
       id: "quick",
       name: title || jobCategory || "この求人",
@@ -142,16 +189,15 @@ export default function QuickAnalyzer() {
     // 前月の数字が入っていれば推移も見る
     const prevImp = n(prev.impressions);
     if (prevImp > 0) {
-      const pr = monthRange(prevMonth(month));
       snapshots.push({
         id: "prev",
         jobId: "quick",
-        periodStart: pr.start,
-        periodEnd: pr.end,
+        periodStart: prevRange.start,
+        periodEnd: prevRange.end,
         impressions: prevImp,
         clicks: n(prev.clicks),
         applies: n(prev.applies),
-        createdAt: pr.end,
+        createdAt: prevRange.end,
       });
     }
     snapshots.push({
@@ -180,7 +226,10 @@ export default function QuickAnalyzer() {
   }, [
     ready,
     inputError,
-    month,
+    range.start,
+    range.end,
+    prevRange.start,
+    prevRange.end,
     impressions,
     clicks,
     applies,
@@ -252,14 +301,49 @@ export default function QuickAnalyzer() {
           </div>
 
           <div className="field">
-            <label htmlFor="qa-month">集計月</label>
-            <input
-              id="qa-month"
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-            <span className="qa-hint">お盆・年末など時期の影響を差し引いて判定します</span>
+            <label>集計する期間</label>
+            <div className="qa-unit">
+              <button
+                type="button"
+                className={unit === "week" ? "active" : ""}
+                onClick={() => setUnit("week")}
+              >
+                1週間
+              </button>
+              <button
+                type="button"
+                className={unit === "month" ? "active" : ""}
+                onClick={() => setUnit("month")}
+              >
+                1か月
+              </button>
+            </div>
+            {unit === "week" ? (
+              <>
+                <input
+                  id="qa-week"
+                  type="date"
+                  value={weekStart}
+                  onChange={(e) => setWeekStart(e.target.value)}
+                  aria-label="週の開始日"
+                />
+                <span className="qa-hint">
+                  {shortDate(range.start)}〜{shortDate(range.end)} の 7 日間で判定します。
+                  お盆やGWなど、月の中の連休による落ち込みも差し引きます
+                </span>
+              </>
+            ) : (
+              <>
+                <input
+                  id="qa-month"
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  aria-label="集計月"
+                />
+                <span className="qa-hint">お盆・年末など時期の影響を差し引いて判定します</span>
+              </>
+            )}
           </div>
 
           <div className="qa-numbers">
@@ -346,9 +430,10 @@ export default function QuickAnalyzer() {
 
           {showMore && (
             <div className="qa-more">
-              <h3>前の月の数字</h3>
+              <h3>{prevLabel}の数字</h3>
               <p className="qa-hint">
-                入れると「先月と比べてどう変わったか」も出ます(季節の影響は差し引いて判定します)
+                入れると「{prevLabel}と比べてどう変わったか」も出ます(季節・連休の影響は差し引いて判定します)。
+                対象は {shortDate(prevRange.start)}〜{shortDate(prevRange.end)} です
               </p>
               <div className="qa-numbers">
                 <NumberField
@@ -544,11 +629,11 @@ export default function QuickAnalyzer() {
                   <Block label="現状">{result.insight.problem}</Block>
                   {n(prev.impressions) > 0 ? (
                     result.insight.trend && (
-                      <Block label="先月からの変化">{result.insight.trend}</Block>
+                      <Block label={`${prevLabel}からの変化`}>{result.insight.trend}</Block>
                     )
                   ) : (
                     <p className="qa-nudge">
-                      💡 前の月の数字も入れると「先月と比べてどう変わったか」が出ます。
+                      💡 {prevLabel}の数字も入れると「{prevLabel}と比べてどう変わったか」が出ます。
                       <button
                         type="button"
                         className="linklike"
@@ -559,6 +644,17 @@ export default function QuickAnalyzer() {
                     </p>
                   )}
                   <Block label="原因の見立て">{result.insight.reasoning}</Block>
+                  {result.insight.jobType && (
+                    <Block
+                      label={
+                        result.insight.jobType.label
+                          ? `${result.insight.jobType.label} ならではの見立て`
+                          : "この求人ならではの見立て"
+                      }
+                    >
+                      {result.insight.jobType.text}
+                    </Block>
+                  )}
                   {result.insight.timing && (
                     <Block label="時期について">{result.insight.timing}</Block>
                   )}

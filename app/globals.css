@@ -1816,3 +1816,31 @@ body {
 .idd .linklike {
   color: #a99bff;
 }
+
+/* 集計単位(1週間 / 1か月)の切り替え */
+.qa-unit {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.qa-unit button {
+  flex: 1;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.qa-unit button:hover {
+  border-color: var(--brand);
+}
+.qa-unit button.active {
+  border-color: var(--brand);
+  background: rgba(124, 108, 246, 0.15);
+  color: var(--text);
+}
