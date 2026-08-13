@@ -61,6 +61,61 @@ const NATIONAL_PATTERNS = [
   'ワールドインテック', '日総工産', 'パソナ', 'リクルート', '平山',
 ];
 
+// フランチャイズのブランド名。求人タイトルに現れるものを列挙する。
+// 本部はブランドを配るが採用は配らない。Indeed出稿は各FC運営会社の自腹なので、
+// 「タイトルにブランド名 ／ Company欄に見知らぬ運営会社名」の組み合わせが狙い目になる。
+export const FC_BRANDS = [
+  // 小売
+  '業務スーパー', 'ラ・ムー', 'ディオ', 'セブン-イレブン', 'セブンイレブン',
+  'ローソン', 'ファミリーマート', 'ミニストップ', 'セカンドストリート', 'おたからや',
+  // 飲食
+  'ほっともっと', '牛角', '鳥貴族', 'コメダ珈琲', '大戸屋', 'リンガーハット',
+  'ピザーラ', 'ドミノ・ピザ', 'ミスタードーナツ', 'モスバーガー', 'ケンタッキー',
+  'ガスト', 'かつや', '丸亀製麺', 'すき家', '吉野家', '幸楽苑', 'ゆで太郎',
+  'とんかつ新宿さぼてん', '山下本気うどん', 'ずんどう屋', 'トマト&オニオン',
+  // 美容・サービス
+  'QBハウス', 'ＱＢハウス', 'サンキューカット', 'HAIR SALON IWASAKI',
+  'カーブス', 'オートバックス', 'ホワイト急便',
+  // 学習塾
+  '明光義塾', 'ITTO個別指導学院', 'ＩＴＴＯ個別指導学院', '個別教室のトライ',
+  'スクールIE', 'ナビ個別指導学院', '公文式', 'こども英会話',
+];
+
+// ブランド名と運営会社名の一致判定に使う正規化。
+// 全角英数・記号・スペースの揺れを吸収する（「ＱＢハウス」と「QBハウス」など）。
+function normalizeForBrand(s) {
+  return s
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[\s・･‐\-−—ー.．,，&＆]/g, '')
+    .toUpperCase();
+}
+
+/**
+ * 求人タイトルからフランチャイズのブランド名を拾う。
+ * 収集時にタイトルを見て呼び出し、raw-postings.tsv の「ブランド」列に記録する。
+ * @returns {string} 見つかったブランド名。なければ空文字
+ */
+export function extractBrand(jobTitle) {
+  const t = normalizeForBrand(jobTitle ?? '');
+  return FC_BRANDS.find((b) => t.includes(normalizeForBrand(b))) ?? '';
+}
+
+/**
+ * ブランド名が運営会社名に含まれていなければFC運営とみなす。
+ * 「業務スーパー」を運営する「株式会社オーシャンシステム」はFC、
+ * 「株式会社モスフードサービス」が出す「モスバーガー」の求人は直営なので除く。
+ *
+ * 区分（地方企業／派遣など）とは独立したフラグにしている。
+ * 地方企業でありFC運営でもある、という組み合わせが普通に存在するため。
+ * @param {string} companyName
+ * @param {string[]} brands その企業で観測されたブランド名
+ * @returns {boolean}
+ */
+export function isFranchisee(companyName, brands) {
+  const c = normalizeForBrand(companyName);
+  return brands.filter(Boolean).some((b) => !c.includes(normalizeForBrand(b)));
+}
+
 // 個人店・単店舗の可能性が高い表記。規模が小さく月10万円の出稿は考えにくいので後回し。
 const SINGLE_SHOP_PATTERNS = [
   '美容室', 'ヘアダメージ研究所', 'La fith', 'Reverie', '色染堂',

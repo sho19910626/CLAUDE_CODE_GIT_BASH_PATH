@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, isCorporate, industryWeight, spendBoost, APPROACH } from './classify.mjs';
+import { classify, isCorporate, isFranchisee, industryWeight, spendBoost, APPROACH } from './classify.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', 'data');
@@ -25,8 +25,9 @@ const DAY = 24 * 60 * 60 * 1000;
 function readRaw() {
   const lines = readFileSync(RAW, 'utf8').trim().split('\n');
   return lines.slice(1).map((line) => {
-    const [name, pref, city, industry, posted, url] = line.split('\t');
-    return { name: name.trim(), pref, city, industry, posted, url };
+    // 「ブランド」は後から足した列なので、無い行（既存データ）は空として扱う。
+    const [name, pref, city, industry, posted, url, brand] = line.split('\t');
+    return { name: name.trim(), pref, city, industry, posted, url, brand: (brand ?? '').trim() };
   });
 }
 
@@ -102,11 +103,16 @@ function aggregate(postings) {
     const spanDays = Math.round((last - first) / DAY);
     const daysSinceLast = Math.round((TODAY - last) / DAY);
 
+    const brands = [...new Set(ps.map((p) => p.brand).filter(Boolean))];
+
     return {
       name,
       prefs,
       cities,
       industry,
+      brands,
+      // ブランド名が社名に含まれていなければFC運営。区分とは独立したフラグ。
+      franchise: isFranchisee(name, brands),
       // 県も業種もまたいでいる場合、同名の別法人を1社に合算している疑いがある。
       // （例：福岡の人材会社と群馬の運送会社が同じ社名だった、など）
       sameNameRisk: prefs.length > 1 && industries.length > 1,
@@ -187,7 +193,7 @@ function main() {
   rows.sort((a, b) => order[a.priority] - order[b.priority] || b.score - a.score);
 
   const header = [
-    'ID', '優先度', '企業名', '区分', 'アプローチ', '業種', '都道府県', '主要エリア',
+    'ID', '優先度', '企業名', '区分', 'FC', 'ブランド', 'アプローチ', '業種', '都道府県', '主要エリア',
     '掲載件数', '拠点数', '通年採用', '初回掲載', '最終掲載', '掲載期間日数',
     '推定月額出稿', 'スコア', '注意',
     '問い合わせ先検索', '求人サンプル', 'HP_URL', 'フォームURL',
@@ -202,6 +208,8 @@ function main() {
       r.priority,
       r.name,
       r.segment,
+      r.franchise ? '○' : '',
+      r.brands.join('/'),
       r.approach,
       r.industry,
       r.prefs.join('/'),
@@ -234,6 +242,7 @@ function main() {
   }, {});
   console.log(`企業数: ${rows.length}（求人 ${readRaw().length} 件から集約）`);
   console.log('優先度別:', Object.entries(byPriority).sort().map(([k, v]) => `${k}=${v}`).join(' '));
+  console.log(`FC運営: ${rows.filter((r) => r.franchise).length}社`);
   console.log(`出力: ${OUT}`);
 }
 

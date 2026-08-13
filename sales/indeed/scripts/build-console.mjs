@@ -305,6 +305,7 @@ const MARKUP = `
     <select id="f-ind"><option value="">業種：すべて</option></select>
     <select id="f-pref"><option value="">都道府県：すべて</option></select>
     <select id="f-seg"><option value="">区分：すべて</option></select>
+    <label class="inline"><input type="checkbox" id="f-fc" /> FC運営のみ</label>
     <input id="f-q" placeholder="企業名で検索" />
     <label class="inline"><input type="checkbox" id="f-hide" checked /> 送信済みを隠す</label>
     <button id="export">送信記録をCSV出力</button>
@@ -464,11 +465,13 @@ fillSelect('f-seg', uniq('区分'));
 function filtered() {
   const pri = $('f-pri').value, ind = $('f-ind').value, pref = $('f-pref').value;
   const seg = $('f-seg').value, q = $('f-q').value.trim(), hide = $('f-hide').checked;
+  const fcOnly = $('f-fc').checked;
   return TARGETS.filter((t) =>
     (!pri || t.優先度 === pri) &&
     (!ind || t.業種 === ind) &&
     (!pref || t.都道府県.includes(pref)) &&
     (!seg || t.区分 === seg) &&
+    (!fcOnly || t.FC === '○') &&
     (!q || t.企業名.includes(q)) &&
     (!hide || !sent[t.ID]));
 }
@@ -505,6 +508,7 @@ function renderDetail() {
   if (t.区分 === '全国大手') notes.push('全国チェーンです。すでに代理店が入っている可能性が高く、本部一括決裁のため難易度が上がります。苦戦しているエリアを1つ指定してもらう形の提案になっています。');
   if (t.区分 === '地方派遣') notes.push('地方の人材会社です。Indeedの出稿量が大きく、案件数も多いため運用の手が回っていない可能性があります。運用代行より「大量求人の運用と原稿量産」を軸にした提案が刺さります。');
   if (t.区分 === '全国大手派遣') notes.push('全国規模の人材会社です。全社提案は決裁に乗りにくいため、苦戦している支店・エリアを1つ指定してもらう形で入るのが現実的です。');
+  if (t.FC === '○') notes.push('フランチャイズ運営会社です（求人タイトルのブランド名と社名が一致していません）。本部はブランドを配りますが採用費は配らないため、出稿は御社負担です。この構造を突く文面に切り替わっています。決裁が社長・エリアマネージャーで完結しやすいのも狙い目の理由です。');
   if (t.注意) notes.push(t.注意 + '。送信前に確認してください。');
 
   $('detail').innerHTML = \`
@@ -512,6 +516,7 @@ function renderDetail() {
     <div class="chips">
       <span class="chip pri \${t.優先度}">優先度 \${t.優先度}</span>
       <span class="chip">\${esc(t.区分)}</span>
+      \${t.FC === '○' ? '<span class="chip">FC運営' + (t.ブランド ? '：' + esc(t.ブランド) : '') + '</span>' : ''}
       <span class="chip">\${esc(t.業種)}</span>
       <span class="chip">\${esc(t.都道府県)}</span>
       <span class="chip">掲載 \${t.掲載件数}件 / \${t.拠点数}拠点</span>
@@ -573,7 +578,7 @@ $('export').onclick = () => {
   URL.revokeObjectURL(url);
 };
 
-for (const id of ['f-pri', 'f-ind', 'f-pref', 'f-seg', 'f-q', 'f-hide']) {
+for (const id of ['f-pri', 'f-ind', 'f-pref', 'f-seg', 'f-fc', 'f-q', 'f-hide']) {
   $(id).addEventListener('input', () => renderList());
 }
 for (const id of Object.values(senderFields)) {
