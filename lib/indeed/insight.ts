@@ -8,7 +8,7 @@
 //
 // の順で短い文章にする。AI は使わない。同じ数字からは必ず同じ考察が出る。
 
-import type { JobRollup } from "./benchmark";
+import type { CompanyEffect, JobRollup } from "./benchmark";
 import { jobHeadroom } from "./diagnose";
 import { buildJobTypeInsight, type JobTypeInsight } from "./jobtype";
 import { comparePeers, type PeerComparison } from "./peers";
@@ -81,6 +81,8 @@ export interface Insight {
   timing: string | null;
   /** 職種・雇用形態ならではの考察 */
   jobType: { label: string | null; text: string } | null;
+  /** 企業ごとの傾向(蓄積データから学習したもの) */
+  company: string | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -133,6 +135,8 @@ export interface InsightContext {
   rollups?: JobRollup[];
   /** 季節指数のカーブ。推移の季節調整に使う */
   seasonCurve?: number[];
+  /** 企業ごとの傾向。蓄積データから学習したもの */
+  companyEffect?: CompanyEffect | null;
 }
 
 export function buildInsight(
@@ -326,6 +330,9 @@ export function buildInsight(
   const jt: JobTypeInsight | null = buildJobTypeInsight(job, stage);
   const jobType = jt && jt.text ? { label: jt.label, text: jt.text } : null;
 
+  // ===== 企業ごとの傾向 =====
+  const company = buildCompanyNote(job, context.companyEffect ?? null, stage);
+
   // --- どうなるか ---
   //
   // 大きく下回っている求人に「上位25%まで行けます」とだけ伝えるのは過大な期待になる。
@@ -387,6 +394,7 @@ export function buildInsight(
     `\n■ 原因の見立て`,
     reasoning,
     jobType ? `\n■ この職種ならではの見立て\n${jobType.text}` : "",
+    company ? `\n■ この企業の傾向(蓄積データから)\n${company}` : "",
     plan.length > 0
       ? "\n■ やること\n" +
         plan
@@ -423,6 +431,7 @@ export function buildInsight(
     nextStep,
     timing,
     jobType,
+    company,
     text,
   };
 }
@@ -491,6 +500,77 @@ function describePeriod(
   return snapshots.length === 1
     ? `${range}・${days}日間`
     : `${range}・${snapshots.length}期間 ${days}日間の合計`;
+}
+
+/**
+ * 企業ごとの傾向を文にする。
+ *
+ * 「この企業の求人は、同じ職種の基準に対していつも 2 割クリックされにくい」と分かると、
+ * 個々の求人の数字の読み方が変わる。原稿の問題ではなく企業側の要因(知名度・条件・
+ * 職場環境)である可能性が高く、打ち手の相談相手も変わるため。
+ */
+function buildCompanyNote(
+  job: JobRecord,
+  effect: CompanyEffect | null,
+  stage: FunnelStage | null
+): string | null {
+  if (!effect || effect.jobCount < 2) return null;
+
+  const pctOf = (v: number) =>
+    v >= 1 ? `${Math.round((v - 1) * 100)}% 上` : `${Math.round((1 - v) * 100)}% 下`;
+  const notable = (v: number) => Math.abs(v - 1) >= 0.1;
+
+  const parts: string[] = [
+    `${job.company} の求人は ${effect.jobCount} 件・累計 ${effect.impressions.toLocaleString()} 表示ぶんのデータが貯まっています。`,
+  ];
+
+  const ctrNotable = notable(effect.ctr);
+  const applyNotable = notable(effect.applyRate);
+
+  if (!ctrNotable && !applyNotable) {
+    parts.push(
+      "同じ職種・雇用形態の基準と比べて、この企業に特有の上振れ・下振れは見られません。今回の数字はこの求人固有の要因で説明できます。"
+    );
+    return parts.join(" ");
+  }
+
+  const traits: string[] = [];
+  if (ctrNotable) traits.push(`クリック率が基準より ${pctOf(effect.ctr)}`);
+  if (applyNotable) traits.push(`応募率が基準より ${pctOf(effect.applyRate)}`);
+  parts.push(
+    `同じ職種・雇用形態の基準と比べると、この企業の求人は一貫して ${traits.join("、")} に出ています。`
+  );
+
+  // 下振れしている段階が、いま詰まっている段階と一致するかで意味が変わる
+  const downAtStage =
+    (stage === "ctr" && effect.ctr < 0.9) ||
+    (stage === "apply" && effect.applyRate < 0.9);
+  const upAtStage =
+    (stage === "ctr" && effect.ctr > 1.1) ||
+    (stage === "apply" && effect.applyRate > 1.1);
+
+  if (downAtStage) {
+    parts.push(
+      "いま詰まっている段階と同じ方向なので、この求人だけの問題ではなく企業側の要因(知名度・条件水準・職場環境)が効いている可能性が高いです。" +
+        "原稿の微調整で取り返せる幅は限られるため、条件そのものの見直しをクライアントに提案するほうが早い場面です。"
+    );
+  } else if (upAtStage) {
+    parts.push(
+      "この企業は本来その段階が強いので、今回の落ち込みはこの求人固有の要因です。同じ企業の他の求人と原稿・条件を突き合わせると、違いがすぐ見つかるはずです。"
+    );
+  } else {
+    parts.push(
+      "いま詰まっている段階とは別の指標なので、今回の課題とは切り分けて考えてください。"
+    );
+  }
+
+  if (effect.confidence < 0.3) {
+    parts.push(
+      `ただしこの傾向は実データ反映度 ${(effect.confidence * 100).toFixed(0)}% とまだ薄く、参考程度です。同じ企業の実績が貯まるほど確かになります。`
+    );
+  }
+
+  return parts.join(" ");
 }
 
 // ===== 実行プラン =====

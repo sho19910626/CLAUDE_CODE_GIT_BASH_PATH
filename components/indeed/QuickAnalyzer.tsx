@@ -96,7 +96,7 @@ interface Numbers {
 
 const EMPTY: Numbers = { impressions: "", clicks: "", applies: "" };
 
-export default function QuickAnalyzer() {
+export default function QuickAnalyzer({ onGoPaste }: { onGoPaste?: () => void } = {}) {
   // --- 必須の入力 ---
   const [unit, setUnit] = useState<PeriodUnit>("month");
   const [month, setMonth] = useState(thisMonth);
@@ -289,6 +289,17 @@ export default function QuickAnalyzer() {
         <h1>Indeed 求人診断</h1>
         <span className="sub">数字を入れると、何が良くないか・どうすればいいかを出します</span>
       </div>
+
+      {onGoPaste && (
+        <div className="qa-modes">
+          <button type="button" onClick={onGoPaste}>
+            📋 スプレッドシートを貼り付け
+          </button>
+          <button type="button" className="active">
+            ✏️ 数字を手で入れる
+          </button>
+        </div>
+      )}
 
       <div className="qa-grid">
         {/* ===== 入力 ===== */}
@@ -724,11 +735,13 @@ export default function QuickAnalyzer() {
       </div>
 
       <p className="idd-note qa-footer">
-        入力した数字は保存されません。同じ求人を毎月記録して、施策の効果まで学習させたい場合は{" "}
+        この画面で入れた数字は保存されません。毎日の記録を貯めて、企業・業種・職種ごとに学習させたい場合は
+        「📋 スプレッドシートを貼り付け」を使ってください。
+        施策の効果測定まで行いたい場合は{" "}
         <Link href="/indeed/manage" className="inline-link">
           記録して学習させる版
         </Link>
-        {" "}をお使いください。
+        {" "}もあります。
       </p>
     </div>
   );

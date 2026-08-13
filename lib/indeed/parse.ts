@@ -50,9 +50,11 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   clicks: ["クリック数", "クリック", "click"],
   applies: ["応募数", "応募開始数", "応募者数", "apply", "application", "応募"],
   cost: ["費用", "広告費", "消化金額", "cost", "spend", "予算消化"],
+  // 毎日 1 行ずつ記録するスプレッドシートを想定し、単一の日付列を最優先で見る
+  date: ["日付", "date", "年月日", "計測日", "対象日"],
   periodStart: ["開始日", "期間開始", "from", "集計開始"],
   periodEnd: ["終了日", "期間終了", "to", "集計終了"],
-  period: ["期間", "集計期間", "date"],
+  period: ["期間", "集計期間"],
   industry: ["業種", "業界", "industry"],
   jobCategory: ["職種", "職種名", "category"],
   employmentType: ["雇用形態", "employment"],
@@ -258,9 +260,13 @@ export function parseMetricsTable(text: string): ParseResult {
       warnings.push("応募数がクリック数を上回っています。列の対応を確認してください。");
     }
 
-    // 期間: 開始日/終了日 が別列にあればそちらを優先し、なければ「期間」列を分解する
-    let periodStart = toIsoDate(cell(cols, "periodStart"));
-    let periodEnd = toIsoDate(cell(cols, "periodEnd"));
+    // 期間の決め方:
+    //   1) 「日付」列があれば、その 1 日ぶんの記録として扱う(日次記録のスプレッドシート)
+    //   2) 「開始日」「終了日」が別列にあればそれを使う
+    //   3) それも無ければ「期間」列を分解する
+    const single = toIsoDate(cell(cols, "date"));
+    let periodStart = single ?? toIsoDate(cell(cols, "periodStart"));
+    let periodEnd = single ?? toIsoDate(cell(cols, "periodEnd"));
     if (!periodStart || !periodEnd) {
       const p = splitPeriod(cell(cols, "period"));
       periodStart = periodStart ?? p.start;
@@ -314,7 +320,18 @@ export function parseMetricsTable(text: string): ParseResult {
   return { rows, mapping, errors };
 }
 
-/** 貼り付け欄に出すサンプル */
-export const SAMPLE_PASTE = `求人名\t会社名\t業種\t職種\t雇用形態\t都道府県\t時給\t期間\t表示数\tクリック数\t応募数
-【○○市】フォークリフト/日勤のみ\t○○物流\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1350\t2026/07/01 - 2026/07/31\t18420\t497\t21
-介護スタッフ(夜勤なし)\t○○ケア\t介護・福祉\t介護スタッフ\tアルバイト・パート\t大阪府\t1200\t2026/07/01 - 2026/07/31\t9310\t228\t7`;
+/**
+ * 貼り付け欄に出すサンプル(日次記録の形)。
+ * 毎日 1 行ずつ、求人ごとに記録していく想定。
+ */
+export const SAMPLE_PASTE = `日付\t企業名\t求人名\t業種\t職種\t雇用形態\t都道府県\t時給\t表示数\tクリック数\t応募数
+2026/08/03\t○○物流\t【小牧市】フォークリフト/日勤のみ\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1250\t640\t18\t1
+2026/08/04\t○○物流\t【小牧市】フォークリフト/日勤のみ\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1250\t712\t21\t1
+2026/08/05\t○○物流\t【小牧市】フォークリフト/日勤のみ\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1250\t688\t19\t0
+2026/08/06\t○○物流\t【小牧市】フォークリフト/日勤のみ\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1250\t701\t20\t1
+2026/08/07\t○○物流\t【小牧市】フォークリフト/日勤のみ\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1250\t655\t17\t1
+2026/08/03\t○○物流\t【春日井市】リフト/土日休み\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1450\t720\t40\t3
+2026/08/04\t○○物流\t【春日井市】リフト/土日休み\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1450\t755\t42\t3
+2026/08/05\t○○物流\t【春日井市】リフト/土日休み\t物流・運輸・ドライバー\tフォークリフト\t派遣\t愛知県\t1450\t690\t38\t2
+2026/08/03\t△△ケア\t介護スタッフ(夜勤なし)\t介護・福祉\t介護スタッフ\tアルバイト・パート\t大阪府\t1200\t310\t9\t0
+2026/08/04\t△△ケア\t介護スタッフ(夜勤なし)\t介護・福祉\t介護スタッフ\tアルバイト・パート\t大阪府\t1200\t298\t8\t1`;

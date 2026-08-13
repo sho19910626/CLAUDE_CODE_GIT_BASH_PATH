@@ -72,9 +72,34 @@ interface Bucket {
   rollups: JobRollup[];
 }
 
+/**
+ * 企業ごとの傾向。
+ *
+ * 同じ職種・同じ雇用形態でも、クライアントによって成果は一貫して上下する。
+ * (知名度、職場環境、条件の出し方、応募対応の速さなど)
+ * 「その企業の求人が、同セグメントの基準に対してどれだけ上振れ/下振れするか」を
+ * 経験ベイズで推定し、考察に反映する。
+ */
+export interface CompanyEffect {
+  company: string;
+  /** 1.0 が基準どおり。0.8 ならその企業の求人は基準より 2 割クリックされにくい */
+  ctr: number;
+  applyRate: number;
+  jobCount: number;
+  impressions: number;
+  clicks: number;
+  applies: number;
+  /** 実測がどれだけ効いているか (0〜1) */
+  confidence: number;
+}
+
 export interface BenchmarkIndex {
   /** 求人に対応するベンチマークを引く */
   forJob(job: JobRecord): SegmentBenchmark;
+  /** 企業ごとの傾向。データが足りなければ null */
+  companyEffect(company: string): CompanyEffect | null;
+  /** 蓄積のある企業の一覧(多い順) */
+  companies: CompanyEffect[];
   /** 求人 1 件ぶんの集計 */
   rollup(jobId: string): JobRollup | undefined;
   rollups: JobRollup[];
@@ -214,12 +239,15 @@ export function buildBenchmarks(
   const l3 = new Map<string, Bucket>();
   const l2 = new Map<string, Bucket>();
   const l1 = new Map<string, Bucket>();
+  const byCompany = new Map<string, Bucket>();
   const all: Bucket = { key: "all", impressions: 0, clicks: 0, applies: 0, rollups: [] };
 
   for (const r of rollups) {
     addToBucket(l3, KEY_L3(r.job), r);
     addToBucket(l2, KEY_L2(r.job), r);
     addToBucket(l1, KEY_L1(r.job), r);
+    const company = r.job.company?.trim();
+    if (company) addToBucket(byCompany, company, r);
     all.impressions += r.impressions;
     all.clicks += r.clicks;
     all.applies += r.applies;
@@ -406,6 +434,49 @@ export function buildBenchmarks(
     };
   }
 
+  // ===== 企業ごとの傾向 =====
+  //
+  // その企業の求人それぞれについて「セグメントの基準ならこのくらいのクリックが出るはず」を
+  // 積み上げ、実測と比べる。求人の構成(業種・職種の偏り)に左右されない比較になる。
+  const companyEffects = new Map<string, CompanyEffect>();
+  for (const [company, bucket] of byCompany) {
+    let expectedClicksC = 0;
+    let expectedAppliesC = 0;
+    for (const r of bucket.rollups) {
+      const bm = forJob(r.job);
+      expectedClicksC += r.impressions * bm.ctr.center;
+      expectedAppliesC += r.clicks * bm.applyRate.center;
+    }
+    const ctrRatio =
+      expectedClicksC > 0
+        ? clamp(
+            shrink(bucket.clicks, bucket.impressions, 0.5, CTR_PRIOR_STRENGTH) /
+              shrink(expectedClicksC, bucket.impressions, 0.5, CTR_PRIOR_STRENGTH),
+            0.3,
+            3
+          )
+        : 1;
+    const applyRatio =
+      expectedAppliesC > 0
+        ? clamp(
+            shrink(bucket.applies, bucket.clicks, 0.5, APPLY_PRIOR_STRENGTH) /
+              shrink(expectedAppliesC, bucket.clicks, 0.5, APPLY_PRIOR_STRENGTH),
+            0.3,
+            3
+          )
+        : 1;
+    companyEffects.set(company, {
+      company,
+      ctr: ctrRatio,
+      applyRate: applyRatio,
+      jobCount: bucket.rollups.length,
+      impressions: bucket.impressions,
+      clicks: bucket.clicks,
+      applies: bucket.applies,
+      confidence: shrinkConfidence(bucket.impressions, CTR_PRIOR_STRENGTH),
+    });
+  }
+
   const byIndustry = [...l1.entries()]
     .map(([industry, b]) => ({
       industry: industry as IndustryId,
@@ -422,6 +493,14 @@ export function buildBenchmarks(
 
   return {
     forJob,
+    companyEffect: (company) => {
+      const e = companyEffects.get(company?.trim() ?? "");
+      // 求人 2 件未満では企業の傾向とは言えない(その 1 件の特性でしかない)
+      return e && e.jobCount >= 2 ? e : null;
+    },
+    companies: [...companyEffects.values()].sort(
+      (a, b) => b.impressions - a.impressions
+    ),
     rollup: (id) => rollupById.get(id),
     rollups,
     learning: {

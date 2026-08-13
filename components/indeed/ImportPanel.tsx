@@ -397,6 +397,7 @@ const FIELD_LABEL: Record<string, string> = {
   clicks: "クリック数",
   applies: "応募数",
   cost: "費用",
+  date: "日付",
   periodStart: "開始日",
   periodEnd: "終了日",
   period: "期間",

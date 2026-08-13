@@ -1844,3 +1844,46 @@ body {
   background: rgba(124, 108, 246, 0.15);
   color: var(--text);
 }
+
+/* 入口の切り替え(貼り付け / 手入力) */
+.qa-modes {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 24px;
+}
+.qa-modes button {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.qa-modes button:hover {
+  border-color: var(--brand);
+}
+.qa-modes button.active {
+  border-color: var(--brand);
+  background: var(--bg-panel-2);
+  color: var(--text);
+}
+.pa-preview {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.pa-preview h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.qa .idd-table tbody tr {
+  cursor: pointer;
+}
+.qa .qa-actions {
+  gap: 10px;
+}

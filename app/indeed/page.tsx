@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import QuickAnalyzer from "@/components/indeed/QuickAnalyzer";
+import IndeedEntry from "@/components/indeed/IndeedEntry";
 
 export const metadata: Metadata = {
   title: "Indeed 求人診断 — 数字を入れると改善策が出ます",
   description:
-    "表示数・クリック数・応募数を入力すると、同じ業種・雇用形態の水準と比べて「どこが良くないか」「どうすればいいか」をその場で出します。登録も保存も不要です。",
+    "スプレッドシートの記録を貼り付けるか、数字を直接入れるだけで「どこが良くないか」「どうすればいいか」を出します。企業・業種・職種ごとに学習して精度が上がります。",
 };
 
 export default function IndeedPage() {
-  return <QuickAnalyzer />;
+  return <IndeedEntry />;
 }
