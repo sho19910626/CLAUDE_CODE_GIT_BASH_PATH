@@ -5,7 +5,7 @@
 ```
 sales/indeed/
 ├── data/
-│   ├── raw-postings.tsv   ← Indeedで観測した求人（1行=1求人）。リストの原材料
+│   ├── raw-postings.tsv   ← Indeedで観測した求人（1行=1求人）。リストの原材料。7列目にブランド名
 │   └── targets.csv        ← 企業単位に集約・スコアリングした営業リスト（成果物）
 ├── templates/
 │   └── messages.mjs       ← 業種別＋区分別のフォーム営業文面
