@@ -1,8 +1,14 @@
 // ヒアリング内容から Indeed 求人提案書を生成するルート。
 //
-// 生成は3段階に分ける。提案の全項目を1つのJSON Schemaに詰めると
-// 構造化出力の文法をコンパイルできず 400 (compiled grammar is too large) になるため。
-//   ① 戦略設計 → ② 掲載原稿 / ③ ビジュアル・運用(②③は①の結果を受けて並列実行)
+// 生成は3段階に分かれている。理由は2つ。
+//  1. 提案の全項目を1つのJSON Schemaに詰めると、構造化出力の文法を
+//     コンパイルできず 400 (compiled grammar is too large) になる
+//  2. 1回のリクエストが数分に及ぶと、ブラウザ・中継サーバー・無料の
+//     ホスティングの実行時間制限のいずれかに引っかかる
+//
+// そのため段階ごとに別のリクエストとして呼び出す。呼ぶ順番は画面側が持つ。
+//   ① strategy → ② jobpost / ③ visual (②③は①の結果を受けて並列)
+// 各段階の応答は NDJSON のストリームで、進捗と ping を流して接続を保つ。
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
@@ -22,14 +28,15 @@ import {
   EMPLOYMENT_LABELS,
   type EmploymentType,
   type HearingSheet,
-  type IndeedProposal,
-  type IndeedRequest,
   type JobPostStage,
+  type StageName,
+  type StageRequest,
   type StrategyStage,
   type VisualOpsStage,
 } from "@/lib/indeed-types";
 
-export const maxDuration = 600;
+// 1段階ぶんの上限。無料のホスティングでも収まる範囲にしている
+export const maxDuration = 300;
 
 type ImageBlock = {
   type: "image";
@@ -80,6 +87,18 @@ const EMPTY_HEARING: HearingSheet = {
   memo: "",
 };
 
+const STAGE_LABEL: Record<StageName, string> = {
+  strategy: "戦略設計",
+  jobpost: "掲載原稿",
+  visual: "ビジュアル・運用設計",
+};
+
+const STAGE_PROGRESS: Record<StageName, string> = {
+  strategy: "現状を分析し、棲み分けを設計しています",
+  jobpost: "掲載原稿を書いています",
+  visual: "撮影指示と運用設計をまとめています",
+};
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -91,11 +110,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: IndeedRequest;
+  let body: StageRequest;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "リクエストの形式が不正です" }, { status: 400 });
+  }
+
+  const stage = body.stage;
+  if (!stage || !(stage in STAGE_LABEL)) {
+    return NextResponse.json(
+      { error: "画面を再読み込みしてから、もう一度お試しください。" },
+      { status: 400 }
+    );
   }
 
   const hearing: HearingSheet = { ...EMPTY_HEARING, ...(body.hearing ?? {}) };
@@ -110,6 +137,14 @@ export async function POST(req: NextRequest) {
         error:
           "事業内容・募集職種・企業HPのURLのいずれかは入力してください(棲み分けの設計に最低限必要です)",
       },
+      { status: 400 }
+    );
+  }
+
+  // ②③ は①の結果を前提に書くため、無いと成立しない
+  if (stage !== "strategy" && !body.strategy?.positioning?.reframe?.to) {
+    return NextResponse.json(
+      { error: "戦略の情報が渡っていません。最初からやり直してください。" },
       { status: 400 }
     );
   }
@@ -131,7 +166,7 @@ export async function POST(req: NextRequest) {
       : "";
 
   const images = Array.isArray(body.images) ? body.images : [];
-  const imageBlocks = images
+  const imageBlocks: ImageBlock[] = images
     .slice(0, 3)
     .map((dataUrl) => {
       const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(dataUrl);
@@ -145,16 +180,13 @@ export async function POST(req: NextRequest) {
         },
       };
     })
-    .filter((b): b is NonNullable<typeof b> => b !== null);
+    .filter((b): b is ImageBlock => b !== null);
 
   const hasImages = imageBlocks.length > 0;
   const model = process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
-  // 生成は数分かかる。その間まったく通信が流れないと、ブラウザや
-  // 中継サーバー(Renderのロードバランサ等)が接続を切ってしまい、
-  // 画面には "Failed to fetch" とだけ出る。
-  // 進捗と ping を1行ずつ流し続けることで接続を維持し、
-  // ついでに待ち時間の状況を画面に出せるようにする (NDJSON)。
+  // 生成中まったく通信が流れないと、ブラウザや中継サーバーが接続を切り、
+  // 画面には "Failed to fetch" とだけ出る。進捗と ping を流し続けて防ぐ。
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -165,18 +197,19 @@ export async function POST(req: NextRequest) {
       };
       const heartbeat = setInterval(() => send({ type: "ping" }), 10_000);
       try {
-        const proposal = await generateProposal({
+        send({ type: "progress", message: STAGE_PROGRESS[stage] });
+        const data = await runStage({
+          stage,
           model,
           hearing,
           siteBlock,
           imageBlocks,
           hasImages,
-          onProgress: (step, message) => send({ type: "progress", step, message }),
+          strategy: body.strategy,
         });
-        send({ type: "done", proposal, siteFetched: site?.ok ?? false });
+        send({ type: "done", data });
       } catch (e) {
-        const { error } = describeError(e, model);
-        send({ type: "error", error });
+        send({ type: "error", error: describeError(e, model).error });
       } finally {
         clearInterval(heartbeat);
         closed = true;
@@ -198,119 +231,114 @@ export async function POST(req: NextRequest) {
 /** ストリームで流すイベント */
 type StreamEvent =
   | { type: "ping" }
-  | { type: "progress"; step: number; message: string }
-  | { type: "done"; proposal: IndeedProposal; siteFetched: boolean }
+  | { type: "progress"; message: string }
+  | { type: "done"; data: StrategyStage | JobPostStage | VisualOpsStage }
   | { type: "error"; error: string };
 
-/** 3段階の生成をまとめて実行する */
-async function generateProposal(args: {
+/** 指定された1段階だけを生成する */
+async function runStage(args: {
+  stage: StageName;
   model: string;
   hearing: HearingSheet;
   siteBlock: string;
   imageBlocks: ImageBlock[];
   hasImages: boolean;
-  onProgress: (step: number, message: string) => void;
-}): Promise<IndeedProposal> {
-  const { model, hearing, siteBlock, imageBlocks, hasImages, onProgress } = args;
+  strategy?: StrategyStage;
+}): Promise<StrategyStage | JobPostStage | VisualOpsStage> {
+  const { stage, model, hearing, siteBlock, imageBlocks, hasImages } = args;
 
-  {
-    // 1段階でも数分かかることがあるため、SDK 既定より長めのタイムアウトを取る
-    const client = new Anthropic({ timeout: 15 * 60 * 1000, maxRetries: 2 });
+  // 1段階でも数分かかることがあるため、SDK 既定より長めのタイムアウトを取る
+  const client = new Anthropic({ timeout: 15 * 60 * 1000, maxRetries: 2 });
+  const label = STAGE_LABEL[stage];
 
-    /** 1段階ぶんの構造化出力を取得する */
-    const stage = async <T>(
-      label: string,
-      schema: unknown,
-      prompt: string,
-      withImages: boolean
-    ): Promise<T> => {
-      // 拡張思考を伴う長い生成は、非ストリーミングだと接続が切れる。
-      // ストリームで受け取り、完成したメッセージを組み立てる。
-      const response = await client.messages
-        .stream({
-          model,
-          max_tokens: 12000,
-          thinking: { type: "adaptive" },
-          system: INDEED_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: [
-                ...(withImages ? imageBlocks : []),
-                { type: "text" as const, text: prompt },
-              ],
-            },
+  const plan = {
+    strategy: {
+      schema: STRATEGY_SCHEMA,
+      prompt: () => buildStrategyPrompt({ hearing, siteBlock, hasImages }),
+      withImages: true,
+    },
+    jobpost: {
+      schema: JOBPOST_SCHEMA,
+      prompt: () =>
+        buildJobPostPrompt({ hearing, siteBlock, strategy: args.strategy! }),
+      withImages: false,
+    },
+    visual: {
+      schema: VISUAL_OPS_SCHEMA,
+      prompt: () =>
+        buildVisualOpsPrompt({
+          hearing,
+          siteBlock,
+          hasImages,
+          strategy: args.strategy!,
+        }),
+      withImages: true,
+    },
+  }[stage];
+
+  // 拡張思考を伴う長い生成は、非ストリーミングだと接続が切れる。
+  // ストリームで受け取り、完成したメッセージを組み立てる。
+  const response = await client.messages
+    .stream({
+      model,
+      max_tokens: 12000,
+      thinking: { type: "adaptive" },
+      system: INDEED_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...(plan.withImages ? imageBlocks : []),
+            { type: "text" as const, text: plan.prompt() },
           ],
-          output_config: {
-            format: {
-              type: "json_schema",
-              schema: schema as Record<string, unknown>,
-            },
-          },
-        })
-        .finalMessage();
+        },
+      ],
+      output_config: {
+        format: {
+          type: "json_schema",
+          schema: plan.schema as unknown as Record<string, unknown>,
+        },
+      },
+    })
+    .finalMessage();
 
-      if (response.stop_reason === "refusal") {
-        throw new StageError(
-          `${label}の生成が拒否されました。入力内容を見直してください。`,
-          422
-        );
-      }
-      if (response.stop_reason === "max_tokens") {
-        throw new StageError(
-          `${label}の出力が長くなりすぎて途中で切れました。ヒアリング内容を少し減らして再試行してください。`,
-          502
-        );
-      }
-      const textBlock = response.content.find((b) => b.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        throw new StageError(`${label}の生成結果が空でした。再試行してください。`, 502);
-      }
-      try {
-        return JSON.parse(textBlock.text) as T;
-      } catch {
-        throw new StageError(
-          `${label}の生成結果を読み取れませんでした。再試行してください。`,
-          502
-        );
-      }
-    };
-
-    // ① 戦略設計。②③はこの結果に従って書かれる
-    onProgress(1, "現状を分析し、棲み分けを設計しています");
-    const strategy = await stage<StrategyStage>(
-      "戦略設計",
-      STRATEGY_SCHEMA,
-      buildStrategyPrompt({ hearing, siteBlock, hasImages }),
-      hasImages
+  if (response.stop_reason === "refusal") {
+    throw new StageError(
+      `${label}の生成が拒否されました。入力内容を見直してください。`,
+      422
     );
-    if (!strategy.positioning?.reframe?.to) {
-      throw new StageError("戦略設計の結果が不完全でした。もう一度お試しください。", 502);
-    }
-
-    // ②③ は互いに独立しているので並列に走らせる
-    onProgress(2, `「${strategy.positioning.reframe.to}」で原稿とビジュアルを起こしています`);
-    const [post, visualOps] = await Promise.all([
-      stage<JobPostStage>(
-        "掲載原稿",
-        JOBPOST_SCHEMA,
-        buildJobPostPrompt({ hearing, siteBlock, strategy }),
-        false
-      ),
-      stage<VisualOpsStage>(
-        "ビジュアル・運用設計",
-        VISUAL_OPS_SCHEMA,
-        buildVisualOpsPrompt({ hearing, siteBlock, hasImages, strategy }),
-        hasImages
-      ),
-    ]);
-
-    if (!post.jobPost?.body) {
-      throw new StageError("掲載原稿が不完全でした。もう一度お試しください。", 502);
-    }
-
-    return { ...strategy, ...post, ...visualOps };
   }
+  if (response.stop_reason === "max_tokens") {
+    throw new StageError(
+      `${label}の出力が長くなりすぎて途中で切れました。ヒアリング内容を少し減らして再試行してください。`,
+      502
+    );
+  }
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new StageError(`${label}の生成結果が空でした。再試行してください。`, 502);
+  }
+
+  let parsed: StrategyStage | JobPostStage | VisualOpsStage;
+  try {
+    parsed = JSON.parse(textBlock.text);
+  } catch {
+    throw new StageError(
+      `${label}の生成結果を読み取れませんでした。再試行してください。`,
+      502
+    );
+  }
+
+  const ok =
+    stage === "strategy"
+      ? !!(parsed as StrategyStage).positioning?.reframe?.to
+      : stage === "jobpost"
+        ? !!(parsed as JobPostStage).jobPost?.body
+        : !!(parsed as VisualOpsStage).visual?.imagePrompt;
+  if (!ok) {
+    throw new StageError(`${label}の結果が不完全でした。もう一度お試しください。`, 502);
+  }
+  return parsed;
 }
 
 /** 例外を、画面に出せる日本語のメッセージに変換する */

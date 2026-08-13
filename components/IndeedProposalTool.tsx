@@ -7,6 +7,10 @@ import {
   type EmploymentType,
   type HearingSheet,
   type IndeedProposal,
+  type JobPostStage,
+  type StageRequest,
+  type StrategyStage,
+  type VisualOpsStage,
 } from "@/lib/indeed-types";
 import { buildJobPostText, buildProposalMarkdown } from "@/lib/indeed-export";
 import {
@@ -71,6 +75,67 @@ const SAMPLE: HearingSheet = {
   budget: "年間5名採用、通年募集、スポンサー予算は月20万円程度",
   memo: "",
 };
+
+/**
+ * 1段階ぶんの生成を呼び出す。
+ *
+ * 段階ごとに別のリクエストにしているのは、1回が長すぎると
+ * ブラウザ・中継サーバー・無料ホスティングの実行時間制限に
+ * 引っかかるため。応答は NDJSON で、進捗と ping が流れてくる。
+ */
+async function runStage<T>(
+  payload: StageRequest,
+  onProgress?: (message: string) => void
+): Promise<T> {
+  const res = await fetch("/api/indeed", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  // 入力不備などは、ストリームに入る前にJSONで返ってくる
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error ?? `エラー (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done: T | null = null;
+
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let ev: { type: string; message?: string; error?: string; data?: T };
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (ev.type === "progress" && ev.message) {
+        onProgress?.(ev.message);
+      } else if (ev.type === "error") {
+        throw new Error(ev.error ?? "生成に失敗しました");
+      } else if (ev.type === "done" && ev.data) {
+        done = ev.data;
+      }
+    }
+  }
+
+  if (!done) {
+    throw new Error(
+      "生成の途中で接続が切れました。もう一度お試しください。何度も起きる場合はネットワーク環境をご確認ください。"
+    );
+  }
+  return done;
+}
 
 type Tab = "strategy" | "copy" | "visual" | "post" | "ops";
 
@@ -174,62 +239,23 @@ export default function IndeedProposalTool() {
     setImgError("");
     setProgress({ step: 1, message: "サーバーに接続しています" });
     try {
-      const res = await fetch("/api/indeed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hearing: h, images }),
+      // ① 戦略を決める。②③はこの結果に従って書かれる
+      const strategy = await runStage<StrategyStage>(
+        { stage: "strategy", hearing: h, images },
+        (message) => setProgress({ step: 1, message })
+      );
+
+      // ②③ は①にしか依存しないので並列に投げる
+      setProgress({
+        step: 2,
+        message: `「${strategy.positioning.reframe.to}」で原稿とビジュアルを起こしています`,
       });
+      const [post, visualOps] = await Promise.all([
+        runStage<JobPostStage>({ stage: "jobpost", hearing: h, strategy }),
+        runStage<VisualOpsStage>({ stage: "visual", hearing: h, images, strategy }),
+      ]);
 
-      // 入力不備などは、ストリームに入る前にJSONで返ってくる
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? `エラー (${res.status})`);
-      }
-
-      // 1行1イベントのNDJSONを読みながら進捗を反映する
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let done: IndeedProposal | null = null;
-
-      for (;;) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        buffer += decoder.decode(chunk.value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let ev: {
-            type: string;
-            step?: number;
-            message?: string;
-            error?: string;
-            proposal?: IndeedProposal;
-          };
-          try {
-            ev = JSON.parse(line);
-          } catch {
-            continue;
-          }
-          if (ev.type === "progress") {
-            setProgress({ step: ev.step ?? 1, message: ev.message ?? "" });
-          } else if (ev.type === "error") {
-            throw new Error(ev.error ?? "生成に失敗しました");
-          } else if (ev.type === "done" && ev.proposal) {
-            done = ev.proposal;
-          }
-        }
-      }
-
-      if (!done) {
-        throw new Error(
-          "生成の途中で接続が切れました。もう一度お試しください。何度も起きる場合はネットワーク環境をご確認ください。"
-        );
-      }
-
-      setProposal(done);
+      setProposal({ ...strategy, ...post, ...visualOps });
       setTab("strategy");
       requestAnimationFrame(() =>
         resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })

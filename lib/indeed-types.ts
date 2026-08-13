@@ -255,3 +255,12 @@ export interface IndeedRequest {
   /** 参考写真 (dataURL, 最大3枚)。職場の空気感をAIが視覚分析する */
   images?: string[];
 }
+
+/** 生成の段階。1回のリクエストで1段階ぶんだけ生成する */
+export type StageName = "strategy" | "jobpost" | "visual";
+
+export interface StageRequest extends IndeedRequest {
+  stage: StageName;
+  /** jobpost / visual で必須。①で確定した戦略に従って書かせる */
+  strategy?: StrategyStage;
+}
