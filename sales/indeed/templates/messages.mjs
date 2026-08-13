@@ -270,11 +270,11 @@ function observation(t) {
     : areas[0] ?? t.都道府県;
 
   // FC運営なら、ブランド名まで名指しできる。ここまで書けると一気にテンプレ感が消える。
-  const brandText = t.FC === '○' && t.ブランド
-    ? `${t.ブランド.split('/').slice(0, 2).join('・')}の`
-    : '';
+  const brand = t.FC === '○' && t.ブランド ? t.ブランド.split('/').slice(0, 2).join('・') : '';
 
-  const parts = [`Indeed上で御社の求人を拝見し、${areaText}で${brandText}${t.掲載件数}件の募集を掲載されていることに注目しました。`];
+  const parts = [brand
+    ? `Indeed上で御社の求人を拝見し、${brand}の募集を${areaText}で${t.掲載件数}件掲載されていることに注目しました。`
+    : `Indeed上で御社の求人を拝見し、${areaText}で${t.掲載件数}件の募集を掲載されていることに注目しました。`];
 
   if (t.通年採用 === '○') {
     parts.push(`掲載開始から${t.掲載期間日数}日にわたって継続的に出稿されており、単発の欠員補充ではなく通年での採用に取り組まれていると拝察しています。`);
