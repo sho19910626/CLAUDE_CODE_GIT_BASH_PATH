@@ -24,11 +24,22 @@ const DAY = 24 * 60 * 60 * 1000;
 
 function readRaw() {
   const lines = readFileSync(RAW, 'utf8').trim().split('\n');
-  return lines.slice(1).map((line) => {
+  const rows = lines.slice(1).map((line) => {
     // 「ブランド」は後から足した列なので、無い行（既存データ）は空として扱う。
     const [name, pref, city, industry, posted, url, brand] = line.split('\t');
     return { name: name.trim(), pref, city, industry, posted, url, brand: (brand ?? '').trim() };
   });
+
+  // 収集は追記で進めるため、同じ検索を2回保存してしまう事故が起きうる。
+  // 重複したまま集計すると掲載件数が水増しされ、スコアと優先度がそのぶん狂う。
+  // 求人URLを一意キーにし、後に書かれた行を残す（追記＝訂正、とみなせるため）。
+  const byUrl = new Map();
+  for (const r of rows) byUrl.set(r.url, r);
+  const deduped = [...byUrl.values()];
+  if (deduped.length !== rows.length) {
+    console.warn(`重複求人を ${rows.length - deduped.length} 件除外しました（求人URLが同一）`);
+  }
+  return deduped;
 }
 
 // 手入力した列（HP・フォームURL・ステータス等）を再ビルド時に失わないための引き継ぎ。
