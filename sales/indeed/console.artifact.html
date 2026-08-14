@@ -262,6 +262,14 @@ textarea {
     <label class="inline"><input type="checkbox" id="f-hide" checked /> 送信済みを隠す</label>
     <button id="export">送信記録をCSV出力</button>
   </div>
+
+  <div class="field-row" id="export-panel" hidden>
+    <span class="legend">送信記録 <span id="export-count"></span></span>
+    <button id="export-copy">CSVをコピー</button>
+    <button id="export-close">閉じる</button>
+    <textarea id="export-csv" rows="5" readonly
+      placeholder="コピーして targets.csv のステータス列に貼り付けてください"></textarea>
+  </div>
 </div>
 
 <main>
@@ -909,16 +917,30 @@ function renderDetail() {
   };
 }
 
+// 送信記録の書き出し。
+// ダウンロードではなく画面に出してコピーさせる方式にしている。
+// このページはArtifactとしても配信され、その閲覧環境ではページ発のダウンロードが
+// 一律ブロックされるため、a[download] だと何も起きないボタンになってしまう。
+// 表示＋コピーならオフラインの console.html でも公開ページでも同じように動く。
 $('export').onclick = () => {
   const lines = ['ID,企業名,都道府県,業種,優先度,送信日'];
   for (const t of TARGETS) {
     if (sent[t.ID]) lines.push([t.ID, t.企業名, t.都道府県, t.業種, t.優先度, sent[t.ID]].join(','));
   }
-  const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = 'indeed-outreach-sent.csv'; a.click();
-  URL.revokeObjectURL(url);
+  if (lines.length === 1) {
+    alert('送信済みの企業がまだありません。');
+    return;
+  }
+  const csv = lines.join('\n');
+  $('export-csv').value = csv;
+  $('export-count').textContent = (lines.length - 1) + '件';
+  $('export-panel').hidden = false;
+  $('export-csv').focus();
+  $('export-csv').select();
 };
+
+$('export-copy').onclick = () => copyFrom($('export-copy'), $('export-csv'));
+$('export-close').onclick = () => { $('export-panel').hidden = true; };
 
 for (const id of ['f-pri', 'f-ind', 'f-pref', 'f-seg', 'f-fc', 'f-q', 'f-hide']) {
   $(id).addEventListener('input', () => renderList());
