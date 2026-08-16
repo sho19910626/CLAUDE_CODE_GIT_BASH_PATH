@@ -62,7 +62,7 @@
 
 ### 特に優先すべき相手
 
-複数ブランドを運営している3社。FC文面の「ブランドをまたいだ予算配分を誰も見ていない」が
+複数ブランドを運営している4社。FC文面の「ブランドをまたいだ予算配分を誰も見ていない」が
 そのまま当たります。
 
 - JR九州ファーストフーズ（かつや／モス／ケンタッキー・10件8拠点・福岡＋熊本＋広島）
@@ -90,9 +90,20 @@
 ## 作業手順
 
 ```bash
-node sales/indeed/scripts/build-list.mjs      # 集計（重複は自動で除外され警告が出る）
-node sales/indeed/scripts/build-console.mjs   # コンソール生成（2種類出力）
+npm run sales:build   # 集計＋コンソール生成（重複は自動で除外され警告が出る）
 ```
+
+生成物は3つで、中身はすべて同じです。
+
+| 出力先 | 用途 |
+|---|---|
+| `sales/indeed/console.html` | ブラウザで直接開く単体ファイル |
+| `sales/indeed/console.artifact.html` | Artifactとして公開する用 |
+| `public/console.html` | **Next.jsアプリが `/console.html` で配信する用** |
+
+`public/console.html` は**手で編集しないでください。** 生成物なので次のビルドで上書きされます。
+`npm run build` の前段で `sales:build` が走るため、デプロイすれば配信版も自動で最新になります。
+（以前ここが手置きの静的ファイルで、324社のまま取り残された事故がありました）
 
 そのあと `console.artifact.html` を同じArtifact URLへ再公開する:
 https://claude.ai/code/artifact/251ee0c7-846d-476e-8edc-934f496e2ef1
