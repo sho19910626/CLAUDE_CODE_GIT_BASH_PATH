@@ -20,10 +20,29 @@ sales/indeed/
 ## 使い方
 
 ```bash
+npm run sales:build            # 集計とコンソール生成をまとめて実行
+open sales/indeed/console.html # ブラウザで開く（Linuxなら xdg-open）
+```
+
+個別に実行したいときは以下です。
+
+```bash
 node sales/indeed/scripts/build-list.mjs      # リストを再集計
 node sales/indeed/scripts/build-console.mjs   # コンソールを再生成
-open sales/indeed/console.html                # ブラウザで開く（Linuxなら xdg-open）
 ```
+
+### 生成物は3つ、すべて同じ内容です
+
+| 出力先 | 用途 |
+|---|---|
+| `sales/indeed/console.html` | ブラウザで直接開く単体ファイル（オフライン可） |
+| `sales/indeed/console.artifact.html` | claude.ai にArtifactとして公開する用 |
+| `public/console.html` | **Next.jsアプリが `/console.html` で配信する用** |
+
+`public/console.html` は**手で置かないでください。** 以前この配信用ファイルが手置きの静的ファイルで、
+リストを増やしても更新されず**324社のまま取り残された**ことがあります。いまは同じ1本のパイプラインから
+出しているのでずれません。`npm run build` からも `sales:build` が先に走るため、
+デプロイすれば必ず最新のリストになります。
 
 コンソールを開いたら、上部に自社名・担当者名・電話・メールを一度入力してください。
 以降すべての企業の文面に自動で反映され、ブラウザに保存されます。

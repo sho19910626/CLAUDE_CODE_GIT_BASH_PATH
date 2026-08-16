@@ -3,18 +3,25 @@
 //
 //   node sales/indeed/scripts/build-console.mjs
 //
-// 2種類を書き出す：
+// 3種類を書き出す：
 //   console.html          … ブラウザで直接開く単体ファイル（オフライン可）
 //   console.artifact.html … claude.ai にArtifactとして公開する用（<body>の中身のみ）
+//   public/console.html   … Next.jsアプリが /console.html で配信する用
 //
 // 中身は同じで、外側のHTML骨格の有無だけが違う。
+//
+// public/console.html を生成物に含めているのは、これが手で置かれた静的ファイルだったために
+// リストを増やしても更新されず、324社のまま取り残された事故があったため。
+// 配信用ファイルも同じ1本のパイプラインから出すことで、ずれようがなくする。
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
+// リポジトリのルート（sales/indeed/scripts → sales/indeed → sales → repo）
+const REPO = join(HERE, '..', '..', '..');
 
 function parseCsv(text) {
   const rows = [];
@@ -638,8 +645,13 @@ const artifact = `<title>${TITLE}</title>
 ${MARKUP}
 <script>${SCRIPT}</script>`;
 
+const PUBLIC = join(REPO, 'public');
+mkdirSync(PUBLIC, { recursive: true });
+
 writeFileSync(join(ROOT, 'console.html'), standalone, 'utf8');
 writeFileSync(join(ROOT, 'console.artifact.html'), artifact, 'utf8');
+writeFileSync(join(PUBLIC, 'console.html'), standalone, 'utf8');
 console.log(`${targets.length} 社を書き出しました`);
 console.log(`  ${join(ROOT, 'console.html')}`);
 console.log(`  ${join(ROOT, 'console.artifact.html')}`);
+console.log(`  ${join(PUBLIC, 'console.html')}  ← Next.jsが /console.html で配信`);
