@@ -5,9 +5,10 @@
   "description": "企業向けInstagram運用支援アプリ — フィード画像・ストーリー・リール動画をAIで自動生成",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run sales:build && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sales:build": "node sales/indeed/scripts/build-list.mjs && node sales/indeed/scripts/build-console.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
