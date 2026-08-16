@@ -8,7 +8,8 @@
     "build": "npm run sales:build && next build",
     "start": "next start",
     "lint": "next lint",
-    "sales:build": "node sales/indeed/scripts/build-list.mjs && node sales/indeed/scripts/build-console.mjs"
+    "sales:build": "node sales/indeed/scripts/build-list.mjs && node sales/indeed/scripts/build-console.mjs",
+    "sales:sync": "bash sales/indeed/scripts/sync-app.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
