@@ -1887,3 +1887,42 @@ body {
 .qa .qa-actions {
   gap: 10px;
 }
+
+/* ===== ログイン ===== */
+.login-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+}
+.login-card .header {
+  margin-bottom: 14px;
+}
+.login-card form {
+  margin-top: 18px;
+}
+.login-card .btn-primary {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* ログイン者と保存先の表示 */
+.pa-who {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.pa-who .linklike {
+  margin-left: 8px;
+}
+.idd code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12px;
+}

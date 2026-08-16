@@ -5,19 +5,13 @@ import { buildInsight } from "@/lib/indeed/insight";
 import { SAMPLE_PASTE, parseMetricsTable, type ParsedRow } from "@/lib/indeed/parse";
 import { analyzeStore, type JobAnalysis } from "@/lib/indeed/recommend";
 import { employmentLabel, industryLabel } from "@/lib/indeed/seed";
-import {
-  emptyStore,
-  exportJson,
-  importJson,
-  mergeStores,
-  newId,
-  readStore,
-  today,
-  upsertJob,
-  upsertSnapshot,
-  writeStore,
-} from "@/lib/indeed/store";
-import type { IndeedStore, JobRecord } from "@/lib/indeed/types";
+import { exportJson, newId, today } from "@/lib/indeed/store";
+import { useSharedStore } from "@/lib/indeed/shared-store";
+import type {
+  IndeedStore,
+  JobRecord,
+  MetricSnapshot,
+} from "@/lib/indeed/types";
 import { PATTERN_LABEL } from "@/lib/indeed/insight";
 import { num, pct } from "./format";
 
@@ -38,8 +32,8 @@ interface Props {
 }
 
 export default function PasteAnalyzer({ onGoManual }: Props) {
-  const [store, setStore] = useState<IndeedStore>(emptyStore);
-  const [loaded, setLoaded] = useState(false);
+  const shared = useSharedStore();
+  const store = shared.store;
   const [text, setText] = useState("");
   const [rows, setRows] = useState<ParsedRow[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -47,13 +41,6 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    setStore(readStore());
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (loaded) writeStore(store);
-  }, [store, loaded]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 4000);
@@ -69,74 +56,85 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
     setRows(result.rows.length > 0 ? result.rows : null);
   };
 
-  /** 解析済みの行を、企業＋求人ごとにまとめて取り込む */
-  const handleImport = () => {
+  /**
+   * 解析済みの行を、企業＋求人ごとにまとめて取り込む。
+   *
+   * 新しい求人の登録と実績の追加を 2 段階に分けてサーバーに送る。
+   * 求人が先に確定していないと、実績をどの求人に紐づけるか決められないため。
+   */
+  const handleImport = async () => {
     if (!rows) return;
-    let createdJobs = 0;
-    let addedDays = 0;
 
-    setStore((prev) => {
-      let next = prev;
-      const byKey = new Map<string, string>(
-        next.jobs.map((j) => [jobKey(j.company, j.name), j.id])
-      );
+    const existing = new Map<string, string>(
+      store.jobs.map((j) => [jobKey(j.company, j.name), j.id])
+    );
+    const newJobs: JobRecord[] = [];
 
-      for (const row of rows) {
-        const company = row.company?.trim() ?? "";
-        const key = jobKey(company, row.jobName);
-        let jobId = byKey.get(key);
+    for (const row of rows) {
+      const company = row.company?.trim() ?? "";
+      const key = jobKey(company, row.jobName);
+      if (existing.has(key)) continue;
+      const job: JobRecord = {
+        id: newId("job"),
+        name: row.jobName,
+        company,
+        industry: row.industry ?? "other",
+        jobCategory: row.jobCategory || row.jobName,
+        employmentType: row.employmentType ?? "parttime",
+        prefecture: row.prefecture ?? "東京都",
+        wage: row.wage
+          ? {
+              type:
+                row.employmentType === "fulltime" ||
+                row.employmentType === "contract"
+                  ? "monthly"
+                  : "hourly",
+              min: row.wage,
+            }
+          : undefined,
+        createdAt: today(),
+        updatedAt: today(),
+      };
+      newJobs.push(job);
+      existing.set(key, job.id);
+    }
 
-        if (!jobId) {
-          const job: JobRecord = {
-            id: newId("job"),
-            name: row.jobName,
-            company,
-            industry: row.industry ?? "other",
-            jobCategory: row.jobCategory || row.jobName,
-            employmentType: row.employmentType ?? "parttime",
-            prefecture: row.prefecture ?? "東京都",
-            wage: row.wage
-              ? {
-                  type:
-                    row.employmentType === "fulltime" ||
-                    row.employmentType === "contract"
-                      ? "monthly"
-                      : "hourly",
-                  min: row.wage,
-                }
-              : undefined,
-            createdAt: today(),
-            updatedAt: today(),
-          };
-          next = upsertJob(next, job);
-          byKey.set(key, job.id);
-          jobId = job.id;
-          createdJobs++;
-        }
+    if (newJobs.length > 0) {
+      const ok = await shared.send({ type: "upsertJobs", jobs: newJobs });
+      if (!ok) return;
+    }
 
-        // 日付が読めない行は取り込まない(期間が決まらないと日次の比較ができない)
-        if (!row.periodStart || !row.periodEnd) continue;
+    const snapshots: MetricSnapshot[] = [];
+    for (const row of rows) {
+      // 日付が読めない行は取り込まない(期間が決まらないと日次の比較ができない)
+      if (!row.periodStart || !row.periodEnd) continue;
+      const jobId = existing.get(jobKey(row.company?.trim() ?? "", row.jobName));
+      if (!jobId) continue;
+      snapshots.push({
+        id: newId("snap"),
+        jobId,
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        applies: row.applies,
+        cost: row.cost,
+        createdAt: today(),
+      });
+    }
 
-        next = upsertSnapshot(next, {
-          id: newId("snap"),
-          jobId,
-          periodStart: row.periodStart,
-          periodEnd: row.periodEnd,
-          impressions: row.impressions,
-          clicks: row.clicks,
-          applies: row.applies,
-          cost: row.cost,
-          createdAt: today(),
-        });
-        addedDays++;
-      }
-      return next;
-    });
+    if (snapshots.length > 0) {
+      const ok = await shared.send({ type: "upsertSnapshots", snapshots });
+      if (!ok) return;
+    }
 
     setToast(
-      createdJobs === 0 && addedDays === 0
-        ? "貼り付けた内容はすべて登録済みでした。同じデータを貼り直しても二重計上にはなりません。"
-        : `取り込みました: 新しい求人 ${createdJobs} 件 / 実績 ${addedDays} 日ぶん。企業・業種・職種ごとの学習に反映しました。`
+      newJobs.length === 0 && snapshots.length === 0
+        ? "取り込める行がありませんでした。日付の列を確認してください。"
+        : `取り込みました: 新しい求人 ${newJobs.length} 件 / 実績 ${snapshots.length} 日ぶん。` +
+          (shared.storage === "postgres"
+            ? "チーム全員のデータに反映しました。"
+            : "企業・業種・職種ごとの学習に反映しました。")
     );
     setRows(null);
     setText("");
@@ -160,7 +158,7 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  if (!loaded) {
+  if (shared.loading && store.jobs.length === 0) {
     return (
       <div className="container idd qa">
         <p className="lede">読み込み中…</p>
@@ -184,7 +182,32 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
       <div className="header">
         <h1>Indeed 求人診断</h1>
         <span className="sub">スプレッドシートの記録を貼り付けると、分析して学習します</span>
+        <div className="idd-tab-spacer" />
+        {shared.user && (
+          <span className="pa-who">
+            {shared.storage === "postgres" ? "🌐 チーム共有" : "💻 このPCのみ"} ・{" "}
+            {shared.user} さん
+            <button
+              type="button"
+              className="linklike"
+              onClick={async () => {
+                await fetch("/api/auth/login", { method: "DELETE" });
+                location.href = "/login";
+              }}
+            >
+              ログアウト
+            </button>
+          </span>
+        )}
       </div>
+
+      {shared.error && <div className="idd-alert error">⚠ {shared.error}</div>}
+      {shared.storage === "file" && (
+        <div className="idd-alert hint">
+          💻 いまは <strong>このパソコンだけ</strong>にデータを保存しています。
+          チームで共有するには、公開先に <code>DATABASE_URL</code> を設定してください(README 参照)。
+        </div>
+      )}
 
       <div className="qa-modes">
         <button type="button" className="active">
@@ -287,8 +310,13 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRows(null)}>
                 やり直す
               </button>
-              <button type="button" className="btn btn-primary" onClick={handleImport}>
-                この内容で取り込む
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={shared.saving}
+                onClick={() => void handleImport()}
+              >
+                {shared.saving ? "保存中…" : "この内容で取り込む"}
               </button>
             </div>
           </div>
@@ -399,41 +427,48 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
             </div>
           )}
 
+          {shared.audit.length > 0 && (
+            <details className="panel idd-details">
+              <summary>だれが何をしたか({shared.audit.length} 件)</summary>
+              <div className="idd-table-wrap idd-mt">
+                <table className="idd-table">
+                  <thead>
+                    <tr>
+                      <th>日時</th>
+                      <th>担当</th>
+                      <th>操作</th>
+                      <th>内容</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shared.audit.map((a, i) => (
+                      <tr key={`${a.at}-${i}`}>
+                        <td>{new Date(a.at).toLocaleString("ja-JP")}</td>
+                        <td>{a.actor}</td>
+                        <td>{a.action}</td>
+                        <td className="idd-sub">{a.detail}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="idd-note">
+                お名前は自己申告なので、これは「なりすませない証明」ではなく、
+                あとから経緯を辿るための記録です。
+              </p>
+            </details>
+          )}
+
           <div className="qa-actions">
             <button type="button" className="btn btn-ghost btn-sm" onClick={handleExport}>
               💾 データを書き出す
             </button>
-            <label className="btn btn-ghost btn-sm">
-              📂 読み込む
-              <input
-                type="file"
-                accept="application/json"
-                hidden
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  try {
-                    const incoming = importJson(await f.text());
-                    setStore((prev) => mergeStores(prev, incoming));
-                    setToast("読み込みました。");
-                  } catch {
-                    setToast("読み込みに失敗しました。書き出した JSON を選んでください。");
-                  }
-                  e.target.value = "";
-                }}
-              />
-            </label>
             <button
               type="button"
-              className="btn btn-danger btn-sm"
-              onClick={() => {
-                if (confirm("蓄積したデータをすべて消します。よろしいですか?")) {
-                  setStore(emptyStore());
-                  setToast("データを消しました。");
-                }
-              }}
+              className="btn btn-ghost btn-sm"
+              onClick={() => void shared.reload()}
             >
-              すべて消す
+              🔄 最新に更新
             </button>
           </div>
         </>
