@@ -7,8 +7,8 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
   // このファイルがある場所をワークスペースの基準にする。
-  // 親フォルダにも package-lock.json があると Next.js が基準を推測できず
-  // 「We detected multiple lockfiles」の警告が出るため、明示しておく。
+  // 上位や下位に別の package-lock.json があると Next.js がルートを取り違えて
+  // 「We detected multiple lockfiles」の警告を出すため、明示しておく。
   outputFileTracingRoot: projectRoot,
 };
 

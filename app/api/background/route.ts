@@ -8,7 +8,7 @@ export const maxDuration = 300;
 const DEFAULT_MODEL = "gpt-image-2";
 
 const PROMPT_SUFFIX =
-  "Shot as high-end commercial photography for a brand's Instagram account. " +
+  "Shot as high-end commercial photography for a brand's social media and recruiting content. " +
   "Photorealistic, indistinguishable from a real photograph taken by a professional photographer. " +
   "Full-frame camera, 35mm or 50mm prime lens, natural depth of field, true-to-life skin tones and materials, " +
   "soft directional light with gentle falloff, subtle film grain, editorial color grading. " +
@@ -20,14 +20,14 @@ const PROMPT_SUFFIX =
  * モデルごとの出力サイズ。
  * gpt-image-2 は「両辺が16の倍数・長辺3840px以下・アスペクト比3:1未満」なら任意サイズを指定でき、
  * Canvas の実サイズ(4:5=1080x1350 / 9:16=1080x1920)に近い解像度で受け取れる。
+ * landscape は Indeed の求人画像(横長)用。
  * gpt-image-1 系は固定サイズのみのためフォールバックする。
  */
 function sizeFor(model: string, aspect: string | undefined): string {
-  const vertical = aspect === "vertical";
-  if (/^gpt-image-1/.test(model) || /^dall-e/.test(model)) {
-    return vertical ? "1024x1536" : "1024x1024";
-  }
-  return vertical ? "1088x1920" : "1088x1360";
+  const legacy = /^gpt-image-1/.test(model) || /^dall-e/.test(model);
+  if (aspect === "vertical") return legacy ? "1024x1536" : "1088x1920";
+  if (aspect === "landscape") return legacy ? "1536x1024" : "1920x1088";
+  return legacy ? "1024x1024" : "1088x1360";
 }
 
 export async function POST(req: NextRequest) {

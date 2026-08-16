@@ -17,5 +17,14 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // include が **/*.ts のため、フォルダの中に別プロジェクトを置くと
+  // そちらのファイルまで型チェックされ、無関係なエラーでビルドが止まる。
+  // (既存のフォルダの中に git clone してしまったときに起こる)
+  "exclude": [
+    "node_modules",
+    "CLAUDE_CODE_GIT_BASH_PATH",
+    "**/node_modules",
+    "_backup",
+    "_stray-backup"
+  ]
 }

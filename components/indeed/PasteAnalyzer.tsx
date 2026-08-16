@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { buildInsight } from "@/lib/indeed/insight";
 import { SAMPLE_PASTE, parseMetricsTable, type ParsedRow } from "@/lib/indeed/parse";
 import { analyzeStore, type JobAnalysis } from "@/lib/indeed/recommend";
@@ -200,6 +201,16 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
           </span>
         )}
       </div>
+
+      <p className="lede">
+        掲載後の数字から「どこが良くないか」「どうすればいいか」を出します。
+        <Link href="/indeed/studio" className="lede-link">
+          掲載前の原稿を作る(提案スタジオ)→
+        </Link>
+        <a href="/console.html" className="lede-link">
+          営業コンソール →
+        </a>
+      </p>
 
       {shared.error && <div className="idd-alert error">⚠ {shared.error}</div>}
       {shared.storage === "file" && (

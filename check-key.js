@@ -96,6 +96,53 @@ async function checkAnthropic(value) {
   }
 }
 
+// 実際に使うモデルで生成できるか、どれくらい時間がかかるかを測る。
+// Indeed提案スタジオは拡張思考を使うため、ここが遅いとタイムアウトしやすい。
+async function checkModel(value, model) {
+  const target = model || "claude-opus-5";
+  console.log(`\n── 生成モデルの確認 (${target}) ──`);
+  console.log("  生成テスト中... (30秒ほどかかることがあります)");
+  const started = Date.now();
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": value.replace(/^["']+|["']+$/g, ""),
+      },
+      body: JSON.stringify({
+        model: target,
+        max_tokens: 2048,
+        thinking: { type: "adaptive" },
+        messages: [{ role: "user", content: "「棲み分け」を1文で説明してください。" }],
+      }),
+    });
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    const data = await res.json().catch(() => ({}));
+    const msg = data?.error?.message || "";
+
+    if (res.ok) {
+      console.log(`✅ ${target} で生成できました (${elapsed}秒)`);
+      if (Number(elapsed) > 60) {
+        console.log("⚠ 応答がかなり遅いです。ネットワークが不安定だとタイムアウトすることがあります。");
+      }
+      return;
+    }
+    if (res.status === 404 || /model/i.test(msg)) {
+      console.log(`❌ モデル ${target} をこのキーでは使えません (${res.status})`);
+      console.log("  → .env の ANTHROPIC_MODEL を claude-sonnet-5 などに変えてお試しください。");
+      return;
+    }
+    console.log(`❌ エラー (${res.status}): ${msg}`);
+  } catch (e) {
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(`❌ 生成に失敗しました (${elapsed}秒経過): ${e.message}`);
+    console.log("  → api.anthropic.com への接続がブロックされている可能性があります。");
+    console.log("  → 社内ネットワーク・VPN・プロキシ・ウイルス対策ソフトをご確認ください。");
+  }
+}
+
 async function checkOpenAI(value, model) {
   console.log("\n── OpenAI (AI写真背景用 / 任意) ──");
   if (!value) {
@@ -143,7 +190,7 @@ async function checkOpenAI(value, model) {
 }
 
 async function main() {
-  console.log("=== Insta Studio APIキー診断 ===\n");
+  console.log("=== APIキー・接続診断 ===\n");
 
   const envPath = path.join(__dirname, ".env");
   if (!fs.existsSync(envPath)) {
@@ -170,6 +217,7 @@ async function main() {
   }
 
   await checkAnthropic(vars.ANTHROPIC_API_KEY);
+  await checkModel(vars.ANTHROPIC_API_KEY, vars.ANTHROPIC_MODEL);
   await checkOpenAI(vars.OPENAI_API_KEY, vars.OPENAI_IMAGE_MODEL);
 
   console.log("\n診断が終わったら、サーバーを再起動 (Ctrl+C → npm run dev) してからアプリをお試しください。");

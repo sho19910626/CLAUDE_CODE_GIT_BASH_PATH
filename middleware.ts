@@ -1,20 +1,43 @@
-import { NextResponse, type NextRequest } from "next/server";
-
-// 未ログインで /indeed を開いたらログイン画面へ送る。
+// サイト全体の入口の鍵。
+//
+// 守りたいものが 2 つある:
+//   1. Indeed 求人診断 (/indeed) の中身 — クライアント企業名と成果数値が入る
+//   2. 生成系 API (/api/generate, /api/indeed ほか) — URLを知られると課金に直結する
+// どちらも「社内の 6〜20 人が見られればよい」ものなので、
+// 入口はログイン 1 か所に統一する(以前の Basic 認証はこちらに一本化した)。
 //
 // 署名の検証は Node の crypto を使うため middleware(Edge)では行わず、
 // ここではセッション Cookie の有無だけを見る。改ざんされた Cookie は
-// API 側(currentUser)で必ず弾かれるので、データが漏れることはない。
+// サーバー側(currentUser)で必ず弾かれるので、データが漏れることはない。
+//
+// APP_PASSWORD 未設定のローカル開発では素通しにする。ログインしようにも
+// 合言葉が無く、開発のたびに詰まるため。本番(NODE_ENV=production)では
+// この抜け道は使えない。
+
+import { NextResponse, type NextRequest } from "next/server";
+
+export const config = {
+  // 静的ファイルとログイン関連以外のすべて(ページ・APIルート)を通す
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|login|api/auth/login).*)",
+  ],
+};
+
 export function middleware(request: NextRequest) {
-  const hasSession = request.cookies.has("idd_session");
-  if (hasSession) return NextResponse.next();
+  const configured = (process.env.APP_PASSWORD ?? "").length > 0;
+  if (!configured && process.env.NODE_ENV !== "production") {
+    return NextResponse.next();
+  }
+
+  if (request.cookies.has("idd_session")) return NextResponse.next();
+
+  // API はログイン画面に飛ばすと fetch 側で理由が分からなくなるので 401 で返す
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  }
 
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.searchParams.set("next", request.nextUrl.pathname);
   return NextResponse.redirect(url);
 }
-
-export const config = {
-  matcher: ["/indeed/:path*"],
-};

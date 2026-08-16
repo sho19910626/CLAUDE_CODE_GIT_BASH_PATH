@@ -1,0 +1,2 @@
+# Windows のバッチファイルは CRLF でチェックアウトする
+*.bat text eol=crlf

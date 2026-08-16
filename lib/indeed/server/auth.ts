@@ -10,7 +10,8 @@
 //     「誰がやったか後から辿るための記録」として扱う
 //   - 退職者が出たらパスワードを変える運用が必要
 //
-// クライアント企業名と成果数値が入るため、パスワード未設定では起動を止める。
+// クライアント企業名と成果数値が入るため、本番ではパスワード未設定だと誰も入れない。
+// ローカル開発(NODE_ENV !== "production")のときだけ、合言葉なしで素通しにする。
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
@@ -69,8 +70,14 @@ export function checkPassword(input: string): boolean {
 export const SESSION_COOKIE = COOKIE;
 export const SESSION_MAX_AGE = MAX_AGE;
 
+/** APP_PASSWORD 未設定のローカル開発だけ、ログイン無しで使えるようにする */
+function devBypass(): boolean {
+  return !isConfigured() && process.env.NODE_ENV !== "production";
+}
+
 /** サーバー側で今のログイン者を取る。未ログインなら null */
 export async function currentUser(): Promise<string | null> {
+  if (devBypass()) return "ローカル";
   const jar = await cookies();
   return verifyToken(jar.get(COOKIE)?.value);
 }
