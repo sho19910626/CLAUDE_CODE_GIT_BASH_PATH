@@ -28,6 +28,7 @@ const addresses = lanAddresses();
 const TOOLS = [
   { label: "営業コンソール      ", path: "/console.html" },
   { label: "Indeed 提案スタジオ ", path: "/indeed" },
+  { label: "アバタースタジオ    ", path: "/avatar" },
 ];
 
 function show(host) {
@@ -48,7 +49,7 @@ if (addresses.length === 0) {
   show(primary.address);
   console.log("");
   console.log(" 画面の上部にお互いへのリンクがあるので、");
-  console.log(" どちらか一方を伝えれば行き来できます。");
+  console.log(" どれか一つを伝えれば行き来できます。");
   if (others.length > 0) {
     console.log("");
     console.log(" 上のアドレスで繋がらない場合は、こちらもお試しください:");

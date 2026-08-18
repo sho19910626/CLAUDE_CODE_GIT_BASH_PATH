@@ -508,6 +508,11 @@ body {
 
 /* ===================================================================
    Indeed 提案スタジオ (/indeed)
+
+   ここで定義する ip-* のうち、行レイアウト(.ip-row / .ip-list /
+   .ip-section / .ip-steps / .ip-summary / .ip-table など)は
+   アバタースタジオ (/avatar) でも共有して使っている。
+   変更するときは両方の画面を確認すること。
    =================================================================== */
 
 .ip-navlink {
@@ -1003,4 +1008,380 @@ body {
 }
 .ip-caution .ip-list li::before {
   background: var(--err);
+}
+
+/* ===================================================================
+   アバタースタジオ (/avatar)
+
+   行レイアウトは Indeed 提案スタジオの ip-* を共有し、
+   ここではアバター設計・台本・料金プラン固有の見た目だけを定義する。
+   =================================================================== */
+
+/* --- アバターの設定 --- */
+.av-avatar-name {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.av-avatar-name span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(124, 108, 246, 0.14);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.av-spec {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.av-spec-item {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.av-spec-item span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+.av-tool {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.av-steps {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+.av-steps li {
+  margin-bottom: 6px;
+}
+.av-keyvisual {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+.av-keyvisual img {
+  max-width: 280px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* --- コンテンツの柱とフック --- */
+.av-pillar {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.av-pillar:last-child {
+  margin-bottom: 0;
+}
+.av-pillar-head {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.av-ratio {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.av-hooks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.av-hook {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.av-hook-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--brand-2);
+}
+.av-hook-line {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.6;
+  margin: 4px 0 6px;
+}
+.av-hook-why {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* --- 台本 --- */
+.av-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-script h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.av-script-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  flex: none;
+}
+.av-script-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.av-script-meta .chip {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.av-script-meta .chip-theme {
+  color: var(--brand);
+  border-color: rgba(124, 108, 246, 0.5);
+}
+.av-beat {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-beat:last-of-type {
+  border-bottom: none;
+}
+.av-beat-hook {
+  background: rgba(227, 93, 143, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  border-bottom: none;
+  margin-bottom: 4px;
+}
+.av-beat-cta {
+  background: rgba(62, 207, 142, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  border-bottom: none;
+  margin-top: 4px;
+}
+.av-beat-time {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding-top: 2px;
+}
+.av-narration {
+  font-size: 14.5px;
+  line-height: 1.8;
+  font-weight: 600;
+}
+.av-onscreen,
+.av-visual {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 3px;
+}
+.av-onscreen {
+  color: var(--brand);
+}
+
+/* --- 量産オペレーション --- */
+.av-flow {
+  margin-bottom: 14px;
+}
+.av-flow-step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-flow-step:last-child {
+  border-bottom: none;
+}
+.av-flow-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+.av-flow-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-flow-who {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(124, 108, 246, 0.14);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.av-flow-time {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.av-flow-tool {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.av-note-inline {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.av-funnel {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.av-funnel:last-child {
+  margin-bottom: 0;
+}
+.av-funnel-stage {
+  font-size: 14.5px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-funnel-stage span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+/* --- 収益設計 --- */
+.av-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.av-plan {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.av-plan.main {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px rgba(124, 108, 246, 0.35);
+}
+.av-plan-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+.av-plan-price {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--brand);
+  margin: 4px 0 6px;
+}
+.av-plan-target {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+.av-plan-deliver {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 10px 0 4px;
+}
+.av-objection {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.av-objection:last-child {
+  margin-bottom: 0;
+}
+.av-objection-q {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--brand-2);
+  margin-bottom: 8px;
+}
+.av-check {
+  list-style: none;
+  font-size: 13.5px;
+  line-height: 1.9;
+}
+.av-check li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-check li:last-child {
+  border-bottom: none;
+}
+.av-check li::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 5px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
 }
