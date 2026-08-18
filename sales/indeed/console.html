@@ -147,6 +147,13 @@ a.btn {
 }
 a.btn:hover { border-color: var(--accent); color: var(--accent); }
 
+/* 同じサーバーに同居している他のツールへの入口 */
+.tool-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+.tool-nav a.btn { display: inline-flex; flex-direction: column; gap: 1px; line-height: 1.35; padding: 6px 12px; }
+.tool-nav a.btn b { font-size: 12.5px; font-weight: 650; }
+.tool-nav a.btn span { font-size: 11px; color: var(--muted); }
+.tool-nav a.btn:hover span { color: inherit; }
+
 main {
   display: grid; grid-template-columns: minmax(300px, 400px) 1fr;
   gap: 16px; align-items: start;
@@ -236,7 +243,7 @@ textarea {
     <div>
       <h1>Indeed運用代行 — フォーム営業コンソール</h1>
       <p class="sub">東京・大阪・仙台を除く39道府県／通年採用を続けている企業</p>
-      <p class="sub" id="studio-link-row"></p>
+      <div class="tool-nav" id="studio-link-row"></div>
     </div>
     <div class="progress">
       <div class="progress-label"><span>送信済み</span><span><b id="p-done">0</b> / <b id="p-total">0</b></span></div>
@@ -972,14 +979,43 @@ for (const id of Object.values(senderFields)) {
   $(id).addEventListener('input', () => { if (current) renderDetail(); });
 }
 
-$('s-studio').addEventListener('input', () => store.set(STUDIO_KEY, $('s-studio').value.trim()));
+$('s-studio').addEventListener('input', () => {
+  store.set(STUDIO_KEY, $('s-studio').value.trim());
+  renderToolNav();
+});
 
-if (window.__STUDIO_BASE) {
-  $('studio-link-row').innerHTML =
-    '<a href="' + window.__STUDIO_BASE + '" style="color:var(--accent);font-weight:600">Indeed 提案スタジオ →</a>';
+// ===== 同居している他のツールへの入口 =====
+//
+// 営業 → 提案 → 掲載 → 分析 が同じサーバーに載っているので、
+// 商談化したあとに開くものへ 1 クリックで行けるようにする。
+
+/** 他のツールが置かれている場所。
+ *  アプリから配信されているとき(/console.html)は同じオリジン。
+ *  ファイルを直接開いたときは「連携先」に入れたURLから逆算し、
+ *  それも無ければローカルの開発サーバーを見る。 */
+function appBase() {
+  if (location.protocol.startsWith('http')) return location.origin;
+  const v = $('s-studio').value.trim();
+  if (v) { try { return new URL(v).origin; } catch {} }
+  return 'http://localhost:3000';
+}
+
+const TOOLS = [
+  { path: '/indeed', label: '掲載後の数字を分析', note: 'Indeed 求人診断' },
+  { path: '/indeed/studio', label: '掲載原稿をつくる', note: 'Indeed 提案スタジオ' },
+  { path: '/', label: 'Instagram をつくる', note: 'Insta Studio' },
+];
+
+function renderToolNav() {
+  const base = appBase();
+  $('studio-link-row').innerHTML = TOOLS.map((t) =>
+    '<a class="btn" href="' + esc(base + t.path) + '" target="_blank" rel="noopener">' +
+    '<b>' + esc(t.label) + ' →</b><span>' + esc(t.note) + '</span></a>'
+  ).join('');
 }
 
 loadSender();
+renderToolNav();
 renderList();
 </script>
 </body>
