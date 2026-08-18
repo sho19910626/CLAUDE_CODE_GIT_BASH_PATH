@@ -24,10 +24,11 @@ function lanAddresses() {
 
 const addresses = lanAddresses();
 
-/** 共有できるツール。どちらも同じサーバーから配信される */
+/** 共有できるツール。すべて同じサーバーから配信される */
 const TOOLS = [
   { label: "営業コンソール      ", path: "/console.html" },
   { label: "Indeed 提案スタジオ ", path: "/indeed" },
+  { label: "動画編集スタジオ    ", path: "/video" },
 ];
 
 function show(host) {
@@ -48,7 +49,7 @@ if (addresses.length === 0) {
   show(primary.address);
   console.log("");
   console.log(" 画面の上部にお互いへのリンクがあるので、");
-  console.log(" どちらか一方を伝えれば行き来できます。");
+  console.log(" どれか1つを伝えれば行き来できます。");
   if (others.length > 0) {
     console.log("");
     console.log(" 上のアドレスで繋がらない場合は、こちらもお試しください:");

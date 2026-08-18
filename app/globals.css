@@ -1004,3 +1004,379 @@ body {
 .ip-caution .ip-list li::before {
   background: var(--err);
 }
+
+/* ===================================================================
+   動画編集スタジオ (/video)
+   =================================================================== */
+
+.vs-step {
+  margin-bottom: 24px;
+}
+.vs-step-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.vs-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+.vs-section-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 28px 0 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.vs-note {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+.vs-note-inline {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-left: 6px;
+}
+.vs-note-warn {
+  color: #ffc46b;
+}
+.vs-ok {
+  color: var(--ok);
+}
+.vs-warn {
+  color: #ffc46b;
+}
+
+/* --- アップロード --- */
+.vs-drop {
+  display: block;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.vs-drop:hover {
+  border-color: var(--brand);
+  background: var(--bg-panel-2);
+}
+.vs-drop input {
+  display: none;
+}
+.vs-drop-label {
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vs-progress {
+  margin: 14px 0;
+}
+.vs-progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-panel-2);
+  overflow: hidden;
+}
+.vs-progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  transition: width 0.2s;
+}
+.vs-progress-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.vs-sources {
+  margin-top: 16px;
+  display: grid;
+  gap: 6px;
+}
+.vs-source {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-panel-2);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.vs-source-no {
+  color: var(--brand);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.vs-source-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vs-source-meta {
+  color: var(--text-dim);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.vs-source-total {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.vs-extra {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.vs-extra-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.vs-extra-item em {
+  color: var(--ok);
+  font-style: normal;
+  font-size: 12px;
+}
+
+/* --- ヒアリング --- */
+.vs-brief {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 20px;
+}
+@media (max-width: 760px) {
+  .vs-brief {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 分析結果 --- */
+.vs-analysis {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.vs-analysis p {
+  margin-bottom: 6px;
+}
+.vs-analysis .vs-note {
+  margin-bottom: 6px;
+}
+
+.vs-tabs {
+  margin-bottom: 16px;
+}
+
+.vs-summary {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+.vs-summary-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+.vs-preview-player,
+.vs-output-player {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 10px;
+  background: #000;
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* --- タイトルカード --- */
+.vs-card-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  background: var(--bg-panel-2);
+}
+.vs-card-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--brand);
+  width: 100%;
+}
+.vs-card-editor textarea {
+  flex: 1 1 240px;
+  min-height: 58px;
+}
+.vs-card-editor input[type="text"] {
+  flex: 1 1 240px;
+}
+.vs-card-dur {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.vs-card-dur input {
+  width: 72px;
+}
+
+/* --- カット一覧 --- */
+.vs-cuts {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.vs-cut {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--bg-panel-2);
+}
+.vs-cut.off {
+  opacity: 0.42;
+}
+.vs-cut-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.vs-cut-use {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.vs-cut-no {
+  font-weight: 900;
+  font-size: 13px;
+}
+.vs-cut-src {
+  font-size: 11px;
+  color: var(--brand);
+  font-weight: 700;
+}
+.vs-cut-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.vs-cut-time input {
+  width: 84px;
+}
+.vs-cut-len {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.vs-cut-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 5px;
+}
+.vs-cut-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .vs-cut-body {
+    grid-template-columns: 1fr;
+  }
+}
+.vs-cut-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vs-cut-field span {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.vs-cut-meta {
+  margin-top: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.vs-cut-reason {
+  color: var(--brand);
+}
+.vs-cut-quote {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* --- 書き出し設定 --- */
+.vs-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px 20px;
+  margin-bottom: 18px;
+}
+.vs-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.vs-setting-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.vs-setting-check input {
+  width: auto;
+}
+
+.vs-output {
+  margin-top: 18px;
+}
+.vs-output-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-dim);
+}

@@ -7,50 +7,17 @@
 // 毎回パスワードを聞かれないよう、あえてこの挙動にしている。
 
 import { NextRequest, NextResponse } from "next/server";
+import { isAuthorized, UNAUTHORIZED_HEADERS } from "@/lib/basic-auth";
 
 export const config = {
-  // 静的ファイル以外のすべて(ページ・APIルート)を保護する
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // 静的ファイル以外のすべて(ページ・APIルート)を保護する。
+  // ただし動画アップロードだけは除外する。middleware の対象にすると
+  // Next.js がリクエスト本文を10MBまでしか通さず、動画が途中で切れるため。
+  // 除外した分の認証は、ルート側 (app/api/video/source) で同じ関数を呼んで行う。
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/video/source).*)"],
 };
 
-/** 文字列比較。長さの違いや先頭一致で処理時間が変わらないようにする */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-function unauthorized() {
-  return new NextResponse("認証が必要です", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Recruit Studio", charset="UTF-8"',
-    },
-  });
-}
-
 export function middleware(req: NextRequest) {
-  const password = process.env.BASIC_AUTH_PASSWORD;
-  if (!password) return NextResponse.next();
-
-  const expectedUser = process.env.BASIC_AUTH_USER || "team";
-
-  const header = req.headers.get("authorization");
-  if (!header?.startsWith("Basic ")) return unauthorized();
-
-  let decoded: string;
-  try {
-    decoded = atob(header.slice(6));
-  } catch {
-    return unauthorized();
-  }
-
-  const sep = decoded.indexOf(":");
-  if (sep < 0) return unauthorized();
-
-  const okUser = safeEqual(decoded.slice(0, sep), expectedUser);
-  const okPass = safeEqual(decoded.slice(sep + 1), password);
-  // 片方だけ先に判定して抜けないよう、両方を評価してから返す
-  return okUser && okPass ? NextResponse.next() : unauthorized();
+  if (isAuthorized(req.headers.get("authorization"))) return NextResponse.next();
+  return new NextResponse("認証が必要です", { status: 401, headers: UNAUTHORIZED_HEADERS });
 }

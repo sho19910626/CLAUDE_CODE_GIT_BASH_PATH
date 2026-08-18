@@ -2,7 +2,7 @@
   "name": "insta-studio",
   "version": "0.1.0",
   "private": true,
-  "description": "企業向けInstagram運用支援アプリ — フィード画像・ストーリー・リール動画をAIで自動生成",
+  "description": "企業向けコンテンツ生成スタジオ — Instagram投稿・Indeed求人提案・PR動画をAIで自動生成",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "mp4-muxer": "^5.2.2",
     "next": "^15.3.0",
     "react": "^19.1.0",
