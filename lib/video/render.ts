@@ -7,8 +7,9 @@
 // ffmpeg の作業ディレクトリを書き出し用フォルダに固定し、フィルタから参照する
 // ファイル(フォント・テロップ本文)はすべてベース名だけで指定する。
 
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
+import { bgmNormalizeGainDb, bgmTrackPath } from "./bgm";
 import { runFfmpeg } from "./ffmpeg";
 import { resolveTelopFonts } from "./fonts";
 import { probeMedia } from "./probe";
@@ -209,22 +210,20 @@ export async function renderVideo(input: RenderInput): Promise<RenderResult> {
   // ── 5. BGM を重ねて完成 ─────────────────────────────────────
   const outFileName = `out-${variant}.mp4`;
   const outPath = projectFile(projectId, outFileName);
-  const bgm = settings.useBgm && input.bgmName ? input.bgmName : null;
+  const bgmPath = resolveBgmPath(projectId, settings, input.bgmName ?? null);
 
-  if (bgm) {
+  if (bgmPath) {
     onProgress?.({ label: "BGMを合成しています", ratio: PHASE.finish[0] });
-    await fs.copyFile(projectFile(projectId, bgm), path.join(renderDir, "bgm-src"));
+    await fs.copyFile(bgmPath, path.join(renderDir, "bgm-src"));
+    // 曲ごとのマスタリング音量の差を先に吸収してから、音量スライダーを掛ける
+    const normalizeDb = await bgmNormalizeGainDb(bgmPath);
     const volume = Math.min(0.6, Math.max(0.02, settings.bgmVolume));
     const fadeOutStart = Math.max(0, totalDuration - 2.5);
     await runFfmpeg(
       [
         "-i", bodyName,
         "-stream_loop", "-1", "-i", "bgm-src",
-        "-filter_complex",
-        `[1:a]volume=${volume.toFixed(3)},afade=t=in:st=0:d=1.5,` +
-          `afade=t=out:st=${fadeOutStart.toFixed(2)}:d=2.5[bg];` +
-          // amix は入力数で割るため、合成後に 2 倍して元の声量に戻す
-          `[0:a][bg]amix=inputs=2:duration=first:dropout_transition=0,volume=2.0[a]`,
+        "-filter_complex", buildBgmFilter(volume, normalizeDb, fadeOutStart, settings.bgmDucking),
         "-map", "0:v", "-c:v", "copy",
         "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
         "-movflags", "+faststart",
@@ -251,6 +250,63 @@ export async function renderVideo(input: RenderInput): Promise<RenderResult> {
     durationSec: Number(totalDuration.toFixed(1)),
     cutCount: enabledCuts.length,
   };
+}
+
+/**
+ * 使う BGM の実パスを決める。
+ * ライブラリの曲が選ばれていればそれを、無ければ案件にアップロードされた音源を使う。
+ */
+function resolveBgmPath(
+  projectId: string,
+  settings: RenderSettings,
+  uploadedName: string | null
+): string | null {
+  if (!settings.useBgm) return null;
+
+  if (settings.bgmTrack) {
+    // 画面から来た値なので、ライブラリの外を指せないよう必ず検証を通す
+    const fromLibrary = bgmTrackPath(settings.bgmTrack);
+    if (!existsSync(fromLibrary)) {
+      throw new Error(
+        `BGMライブラリに「${settings.bgmTrack}」が見つかりません。public/bgm/ を確認してください。`
+      );
+    }
+    return fromLibrary;
+  }
+
+  if (!uploadedName) return null;
+  const uploaded = projectFile(projectId, uploadedName);
+  return existsSync(uploaded) ? uploaded : null;
+}
+
+/**
+ * BGM を本編に重ねるフィルタ。
+ * ducking を有効にすると、話し声が鳴っている間だけ BGM が自動で下がる
+ * (sidechaincompress)。声とBGMがぶつかって聞き取りにくくなるのを防ぐ。
+ */
+function buildBgmFilter(
+  volume: number,
+  normalizeDb: number,
+  fadeOutStart: number,
+  ducking: boolean
+): string {
+  const shaped =
+    // 基準ラウドネスへ揃える固定ゲイン → 音量設定 → フェード の順に掛ける
+    `volume=${normalizeDb.toFixed(2)}dB,volume=${volume.toFixed(3)},afade=t=in:st=0:d=1.5,` +
+    `afade=t=out:st=${fadeOutStart.toFixed(2)}:d=2.5`;
+  // amix は入力数で割るため、合成後に 2 倍して元の声量に戻す
+  const mixTail = "amix=inputs=2:duration=first:dropout_transition=0,volume=2.0[a]";
+
+  if (!ducking) {
+    return `[1:a]${shaped}[bg];[0:a][bg]${mixTail}`;
+  }
+  return (
+    // 本編の音声を2つに分け、片方を「どれだけ喋っているか」の検出用に使う
+    `[0:a]asplit=2[voice][key];` +
+    `[1:a]${shaped}[bgraw];` +
+    `[bgraw][key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=400:makeup=1[bgduck];` +
+    `[voice][bgduck]${mixTail}`
+  );
 }
 
 /** ナレーションとして読み上げる文を決める */

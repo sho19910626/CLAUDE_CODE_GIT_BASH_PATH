@@ -1,0 +1,4 @@
+{
+  "_comment": "public/bgm/ に置いた音源の情報。ファイルを置くだけでも一覧には出ますが、ここに書くと曲名・トーン・想定業種で絞り込めるようになります。mood は trust / bright / tech / warm / drive のいずれか。書き方は README.md を参照してください。",
+  "tracks": []
+}

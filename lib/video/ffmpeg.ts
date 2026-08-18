@@ -135,6 +135,30 @@ export function runFfmpeg(args: string[], opts: RunOptions = {}): Promise<void> 
   });
 }
 
+/**
+ * ffmpeg を実行し、stderr も含めて受け取る。
+ * loudnorm の測定結果のように、ログに出る情報を読みたいときに使う。
+ */
+export function runFfmpegCapture(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath(), ["-hide_banner", "-nostdin", "-y", ...args], {
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (c: string) => (stdout += c));
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (c: string) => (stderr += c));
+    child.on("error", (e) => reject(new Error(`ffmpeg を起動できませんでした: ${e.message}`)));
+    child.on("close", (code) =>
+      code === 0
+        ? resolve({ stdout, stderr })
+        : reject(new Error(`ffmpeg が失敗しました (exit ${code})\n${stderr.trim().slice(-2000)}`))
+    );
+  });
+}
+
 /** 標準出力を文字列で受け取る汎用実行(ffprobe 用) */
 export function execCapture(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {

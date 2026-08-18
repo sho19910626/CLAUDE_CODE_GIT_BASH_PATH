@@ -109,7 +109,11 @@ export interface RenderSettings {
   fit: FitMode;
   ttsVoice: string;
   useBgm: boolean;
+  /** ライブラリの曲ファイル名。空ならこの案件にアップロードしたBGMを使う */
+  bgmTrack: string;
   bgmVolume: number;
+  /** 話し声に合わせてBGMを自動で下げる(サイドチェイン) */
+  bgmDucking: boolean;
   showSubtitles: boolean;
   showHeadlines: boolean;
   accentColor: string;
@@ -121,7 +125,9 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   fit: "crop",
   ttsVoice: "alloy",
   useBgm: false,
-  bgmVolume: 0.12,
+  bgmTrack: "",
+  bgmVolume: 0.14,
+  bgmDucking: true,
   showSubtitles: true,
   showHeadlines: true,
   accentColor: "#7c6cf6",

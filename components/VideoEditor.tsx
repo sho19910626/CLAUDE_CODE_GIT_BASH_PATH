@@ -6,7 +6,7 @@
 // 手直しの結果はそのまま編集台本(EDL)としてサーバーに戻り、ffmpeg が書き出す。
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_RENDER_SETTINGS,
   VARIANT_SIZE,
@@ -22,6 +22,7 @@ import {
   type VideoVariant,
 } from "@/lib/video/edl-types";
 import { TTS_VOICES } from "@/lib/video/voices";
+import { BGM_MOODS, type BgmMood, type BgmTrack } from "@/lib/video/bgm-types";
 
 interface RenderedOutput {
   fileName: string;
@@ -87,10 +88,31 @@ export default function VideoEditor() {
   const [bgmName, setBgmName] = useState("");
   const [logoName, setLogoName] = useState("");
   const [preview, setPreview] = useState<{ src: string; start: number; end: number } | null>(null);
+  const [bgmTracks, setBgmTracks] = useState<BgmTrack[]>([]);
+  const [moodFilter, setMoodFilter] = useState<BgmMood | "all">("all");
 
   const previewRef = useRef<HTMLVideoElement | null>(null);
   const plan = plans[tab];
   const current = settings[tab];
+
+  // BGMライブラリは public/bgm/ を見るだけなので、案件に関係なく最初に読む
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/video/bgm")
+      .then((r) => (r.ok ? r.json() : { tracks: [] }))
+      .then((d: { tracks?: BgmTrack[] }) => {
+        if (alive) setBgmTracks(d.tracks ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const visibleTracks = useMemo(
+    () => (moodFilter === "all" ? bgmTracks : bgmTracks.filter((t) => t.mood === moodFilter)),
+    [bgmTracks, moodFilter]
+  );
 
   const totalSourceSec = useMemo(
     () => sources.reduce((sum, s) => sum + s.durationSec, 0),
@@ -685,10 +707,10 @@ export default function VideoEditor() {
               <input
                 type="checkbox"
                 checked={current.useBgm}
-                disabled={!bgmName}
+                disabled={!bgmName && bgmTracks.length === 0}
                 onChange={(e) => setSetting(tab, { useBgm: e.target.checked })}
               />
-              <span>BGMを重ねる{bgmName ? "" : "（未アップロード）"}</span>
+              <span>BGMを重ねる{!bgmName && bgmTracks.length === 0 ? "（音源がありません）" : ""}</span>
             </label>
             <label className="vs-setting vs-setting-check">
               <input
@@ -700,18 +722,40 @@ export default function VideoEditor() {
               <span>ロゴを表示{logoName ? "" : "（未アップロード）"}</span>
             </label>
             {current.useBgm ? (
-              <label className="vs-setting">
-                <span>BGMの音量 {Math.round(current.bgmVolume * 100)}%</span>
-                <input
-                  type="range"
-                  min={2}
-                  max={40}
-                  value={Math.round(current.bgmVolume * 100)}
-                  onChange={(e) => setSetting(tab, { bgmVolume: Number(e.target.value) / 100 })}
-                />
-              </label>
+              <>
+                <label className="vs-setting">
+                  <span>BGMの音量 {Math.round(current.bgmVolume * 100)}%</span>
+                  <input
+                    type="range"
+                    min={2}
+                    max={40}
+                    value={Math.round(current.bgmVolume * 100)}
+                    onChange={(e) => setSetting(tab, { bgmVolume: Number(e.target.value) / 100 })}
+                  />
+                </label>
+                <label className="vs-setting vs-setting-check">
+                  <input
+                    type="checkbox"
+                    checked={current.bgmDucking}
+                    onChange={(e) => setSetting(tab, { bgmDucking: e.target.checked })}
+                  />
+                  <span>話し声に合わせてBGMを自動で下げる</span>
+                </label>
+              </>
             ) : null}
           </div>
+
+          {current.useBgm ? (
+            <BgmPicker
+              tracks={visibleTracks}
+              total={bgmTracks.length}
+              selected={current.bgmTrack}
+              uploadedName={bgmName}
+              moodFilter={moodFilter}
+              onMoodFilter={setMoodFilter}
+              onSelect={(file) => setSetting(tab, { bgmTrack: file })}
+            />
+          ) : null}
 
           <button className="btn btn-primary" disabled={busy} onClick={() => void render(tab)}>
             {rendering === tab ? "書き出し中…" : `${tab === "short" ? "ショート動画" : "本編"}を書き出す`}
@@ -758,6 +802,97 @@ export default function VideoEditor() {
 }
 
 /* ===== 小さな部品 ===== */
+
+/** BGMライブラリの選択。トーンで絞り込み、その場で試聴できるようにする */
+function BgmPicker(props: {
+  tracks: BgmTrack[];
+  /** 絞り込み前の総数。0 なら「音源がまだ無い」案内を出す */
+  total: number;
+  selected: string;
+  uploadedName: string;
+  moodFilter: BgmMood | "all";
+  onMoodFilter: (m: BgmMood | "all") => void;
+  onSelect: (file: string) => void;
+}) {
+  const { tracks, total, selected, uploadedName } = props;
+  const activeMood = BGM_MOODS.find((m) => m.id === props.moodFilter);
+
+  if (total === 0 && !uploadedName) {
+    return (
+      <div className="vs-bgm">
+        <p className="vs-note vs-note-warn">
+          BGMの音源がまだありません。<code>public/bgm/</code> に mp3 を置くと、ここに一覧が出ます。
+          置き方と、Sunoで曲を作るときのプロンプトは <code>public/bgm/README.md</code> にまとめてあります。
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="vs-bgm">
+      <div className="vs-bgm-head">
+        <span className="vs-bgm-title">BGMを選ぶ</span>
+        <div className="vs-bgm-moods">
+          <button
+            className={`template-pill ${props.moodFilter === "all" ? "active" : ""}`}
+            onClick={() => props.onMoodFilter("all")}
+          >
+            すべて
+          </button>
+          {BGM_MOODS.map((m) => (
+            <button
+              key={m.id}
+              className={`template-pill ${props.moodFilter === m.id ? "active" : ""}`}
+              onClick={() => props.onMoodFilter(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {activeMood ? <p className="vs-note">{activeMood.hint}</p> : null}
+
+      <div className="vs-bgm-list">
+        {uploadedName ? (
+          <label className={`vs-bgm-item ${selected === "" ? "on" : ""}`}>
+            <input
+              type="radio"
+              name="bgm-track"
+              checked={selected === ""}
+              onChange={() => props.onSelect("")}
+            />
+            <span className="vs-bgm-name">この案件にアップロードした音源</span>
+            <span className="vs-bgm-meta">{uploadedName}</span>
+          </label>
+        ) : null}
+
+        {tracks.map((t) => (
+          <label key={t.file} className={`vs-bgm-item ${selected === t.file ? "on" : ""}`}>
+            <input
+              type="radio"
+              name="bgm-track"
+              checked={selected === t.file}
+              onChange={() => props.onSelect(t.file)}
+            />
+            <span className="vs-bgm-name">{t.title}</span>
+            <span className="vs-bgm-meta">
+              {fmt(t.durationSec)}
+              {t.bpm ? ` / ${t.bpm}BPM` : ""}
+              {t.industries.length > 0 ? ` / ${t.industries.join("・")}` : ""}
+            </span>
+            {/* 試聴は public/ の静的配信をそのまま鳴らす */}
+            <audio className="vs-bgm-audio" controls preload="none" src={`/bgm/${t.file}`} />
+          </label>
+        ))}
+
+        {tracks.length === 0 && total > 0 ? (
+          <p className="vs-note">このトーンの曲はまだありません。</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 
 function BriefField(props: {
   label: string;

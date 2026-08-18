@@ -1380,3 +1380,72 @@ body {
   font-size: 13px;
   color: var(--text-dim);
 }
+
+/* --- BGMライブラリ --- */
+.vs-bgm {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  background: var(--bg-panel-2);
+}
+.vs-bgm-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.vs-bgm-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+.vs-bgm-moods {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.vs-bgm-list {
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.vs-bgm-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  cursor: pointer;
+}
+.vs-bgm-item:hover {
+  border-color: var(--border);
+}
+.vs-bgm-item.on {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--bg-panel));
+}
+.vs-bgm-item input[type="radio"] {
+  width: auto;
+}
+.vs-bgm-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vs-bgm-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.vs-bgm-audio {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 32px;
+}
