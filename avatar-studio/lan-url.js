@@ -1,9 +1,9 @@
 // このPCを社内で共有するときに、他の人へ伝えるURLを表示する。
-// start-shared.bat から呼ばれる。単体でも `node lan-url.js` で使える。
+// start-avatar-shared.bat から呼ばれる。単体でも `node lan-url.js` で使える。
 
 const os = require("os");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 /** 同じネットワークの人から見えるIPv4アドレスを集める */
 function lanAddresses() {
@@ -24,18 +24,6 @@ function lanAddresses() {
 
 const addresses = lanAddresses();
 
-/** 共有できるツール。どちらも同じサーバーから配信される */
-const TOOLS = [
-  { label: "営業コンソール      ", path: "/console.html" },
-  { label: "Indeed 提案スタジオ ", path: "/indeed" },
-];
-
-function show(host) {
-  for (const { label, path } of TOOLS) {
-    console.log(`   ${label} http://${host}:${PORT}${path}`);
-  }
-}
-
 console.log("");
 console.log("============================================================");
 if (addresses.length === 0) {
@@ -45,21 +33,18 @@ if (addresses.length === 0) {
   const [primary, ...others] = addresses;
   console.log(` 他の人には、このURLを伝えてください:  (${primary.name})`);
   console.log("");
-  show(primary.address);
-  console.log("");
-  console.log(" 画面の上部にお互いへのリンクがあるので、");
-  console.log(" どちらか一方を伝えれば行き来できます。");
+  console.log(`   アバタースタジオ  http://${primary.address}:${PORT}`);
   if (others.length > 0) {
     console.log("");
     console.log(" 上のアドレスで繋がらない場合は、こちらもお試しください:");
     for (const { name, address } of others) {
-      console.log(`   http://${address}:${PORT}/indeed   (${name})`);
+      console.log(`   http://${address}:${PORT}   (${name})`);
     }
   }
 }
 console.log("");
 console.log(" このPCでは:");
-show("localhost");
+console.log(`   アバタースタジオ  http://localhost:${PORT}`);
 console.log("");
 console.log(" この画面を閉じるとアプリが止まり、全員が使えなくなります。");
 console.log("============================================================");
