@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Insta Studio — 企業向けInstagramコンテンツ自動生成",
+  title: "Indeed 運用代行ツール",
   description:
-    "企業HPとブランドイメージを入力するだけで、フィード画像・ストーリー・リール動画をAIが自動生成します。",
+    "営業リストから掲載原稿、掲載後の数字の分析まで。Indeed 運用代行の仕事を1つのサイトにまとめています。",
 };
 
 export default function RootLayout({

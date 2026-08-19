@@ -27,7 +27,7 @@ export async function fetchSiteInfo(rawUrl: string): Promise<SiteInfo> {
     const res = await fetch(url.toString(), {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; InstaStudioBot/1.0; +https://example.com)",
+          "Mozilla/5.0 (compatible; RecruitStudioBot/1.0; +https://example.com)",
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",

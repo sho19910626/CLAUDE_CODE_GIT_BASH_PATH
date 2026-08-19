@@ -104,8 +104,8 @@ export default function IndeedApp() {
         求人ごとの実績を登録すると、同じ業種・職種・雇用形態の求人と比べて
         「表示 → クリック → 応募」のどこが詰まっているかを判定し、改善提案を優先度順に出します。
         登録した実績と、実施した施策の結果はすべて学習に使われ、比較基準も提案の並び順も自動で更新されます。
-        <Link href="/" className="inline-link">
-          Insta Studio(投稿生成)はこちら →
+        <Link href="/indeed" className="inline-link">
+          貼り付けて診断する版はこちら →
         </Link>
       </p>
 
