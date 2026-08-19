@@ -412,10 +412,7 @@ export default function Generator() {
       <p className="lede">
         企業HPのURL・ブランドイメージ・伝えたい文言を入力するだけで、フィード画像 / ストーリー / リール動画をAIが設計・生成します。
         <Link href="/indeed" className="ip-navlink">
-          Indeed 提案スタジオ →
-        </Link>
-        <Link href="/avatar" className="ip-navlink">
-          アバタースタジオ →
+          Indeed 提案スタジオはこちら →
         </Link>
       </p>
 

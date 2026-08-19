@@ -1,3 +1,5 @@
+/* アバタースタジオの全スタイル。このアプリ単体で完結している。 */
+
 :root {
   --bg: #0d1017;
   --bg-panel: #151a24;
@@ -202,36 +204,6 @@ body {
   margin-bottom: 12px;
 }
 
-.brand-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
-  font-size: 13px;
-}
-.brand-summary .chip {
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px 14px;
-  color: var(--text-dim);
-}
-.brand-summary .chip strong {
-  color: var(--text);
-  font-weight: 700;
-}
-.swatches {
-  display: flex;
-  gap: 5px;
-}
-.swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
 .tabs {
   display: flex;
   gap: 8px;
@@ -253,43 +225,6 @@ body {
   background: linear-gradient(90deg, var(--brand), var(--brand-2));
   border-color: transparent;
   color: #fff;
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 440px) 1fr;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .result-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.preview-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
-}
-.preview-card canvas {
-  width: 100%;
-  height: auto;
-  border-radius: 10px;
-  display: block;
-  background: #000;
-}
-.preview-card.vertical canvas {
-  max-width: 320px;
-  margin: 0 auto;
-}
-.preview-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-  justify-content: center;
 }
 
 .template-row {
@@ -355,13 +290,6 @@ body {
   font-size: 12.5px;
   padding: 4px 12px;
 }
-.music-hint {
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.music-hint strong {
-  color: var(--text);
-}
 
 /* ===== Uploads ===== */
 .upload-row {
@@ -406,134 +334,21 @@ body {
   line-height: 1;
   cursor: pointer;
 }
-.thumb-badge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(124, 108, 246, 0.85);
-  color: #fff;
-  font-size: 10px;
-  text-align: center;
-  padding: 2px 0;
-}
-.thumb-logo {
-  background:
-    repeating-conic-gradient(#2a3245 0% 25%, #1b2130 0% 50%) 50% / 16px 16px;
-}
-.thumb-logo img {
-  object-fit: contain;
-  padding: 6px;
-}
-
-.upload-hint {
-  font-size: 11.5px;
-  color: var(--text-dim);
-  margin-top: 10px;
-}
-
-.slide-nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-/* 採用モードの追加入力欄 */
-.recruit-box {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--brand);
-  border-radius: 10px;
-  padding: 16px 16px 4px;
-  margin-bottom: 18px;
-  background: var(--bg-panel-2);
-}
-.recruit-box .field:last-of-type {
-  margin-bottom: 8px;
-}
-.recruit-box .template-row {
-  gap: 6px;
-}
-.recruit-box .template-pill {
-  font-size: 12px;
-  padding: 5px 11px;
-}
-
-.field-row {
-  display: flex;
-  gap: 12px;
-}
-.field-row .field {
-  flex: 1;
-  min-width: 0;
-}
-
-.brand-summary .chip-theme {
-  border-color: var(--brand);
-  color: var(--text);
-}
-
-.broll-box {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 14px;
-  text-align: center;
-}
-.broll-box .note {
-  margin-top: 10px;
-}
-
-.record-progress {
-  height: 8px;
-  background: var(--bg-panel-2);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-top: 12px;
-}
-.record-progress > div {
-  height: 100%;
-  background: linear-gradient(90deg, var(--brand), var(--brand-2));
-  transition: width 0.1s linear;
-}
-
-.note {
-  font-size: 12px;
-  color: var(--text-dim);
-  margin-top: 10px;
-  text-align: center;
-}
-
-/* ===================================================================
-   Indeed 提案スタジオ (/indeed)
-   =================================================================== */
-
-.ip-navlink {
-  color: var(--brand);
-  text-decoration: none;
-  font-weight: 700;
-  margin-left: 10px;
-}
-.ip-navlink:hover {
-  text-decoration: underline;
-}
 
 /* --- 生成中の進捗 --- */
-.ip-steps {
+.av-progress {
   display: grid;
   gap: 6px;
   margin-bottom: 12px;
 }
-.ip-step {
+.av-progress-step {
   display: flex;
   align-items: center;
   gap: 9px;
   font-size: 13px;
   color: var(--text-dim);
 }
-.ip-step-mark {
+.av-progress-mark {
   flex: none;
   width: 20px;
   height: 20px;
@@ -545,98 +360,37 @@ body {
   font-size: 11px;
   font-weight: 700;
 }
-.ip-step.now {
+.av-progress-step.now {
   color: var(--text);
   font-weight: 700;
 }
-.ip-step.now .ip-step-mark {
+.av-progress-step.now .av-progress-mark {
   border-color: var(--brand);
   background: rgba(124, 108, 246, 0.16);
   color: #b8aefc;
 }
-.ip-step.done .ip-step-mark {
+.av-progress-step.done .av-progress-mark {
   border-color: var(--ok);
   color: var(--ok);
 }
-.ip-step-message {
+.av-progress-message {
   font-size: 13px;
   line-height: 1.7;
   color: var(--text);
 }
-.ip-step-note {
+.av-progress-note {
   font-size: 11.5px;
   color: var(--text-dim);
   margin-top: 8px;
 }
 
-/* --- 営業コンソールからの引き継ぎ --- */
-.ip-handoff-open {
-  width: 100%;
-  margin-bottom: 18px;
-}
-.ip-handoff {
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--brand-2);
-  border-radius: 10px;
-  background: var(--bg-panel-2);
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
-.ip-handoff.done {
-  border-left-color: var(--ok);
-}
-.ip-handoff-title {
-  font-size: 13px;
-  font-weight: 800;
-  margin-bottom: 10px;
-}
-.ip-handoff textarea {
-  width: 100%;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12.5px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-.ip-handoff-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-.ip-handoff-line {
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-dim);
-  margin-bottom: 6px;
-}
-.ip-handoff-line span {
-  display: inline-block;
-  min-width: 78px;
-  font-weight: 700;
-  color: var(--ok);
-}
-.ip-handoff-line.ask span {
-  color: var(--brand-2);
-}
-.ip-handoff-note {
-  font-size: 11.5px;
-  line-height: 1.7;
-  color: var(--text-dim);
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-
 /* --- 入力フォーム --- */
-.ip-section {
+.av-section {
   border-top: 1px solid var(--border);
   padding-top: 18px;
   margin-top: 4px;
 }
-.ip-section.accent {
+.av-section.accent {
   border: 1px solid var(--border);
   border-left: 3px solid var(--brand);
   border-radius: 10px;
@@ -644,36 +398,36 @@ body {
   padding: 16px 16px 2px;
   margin: 18px 0;
 }
-.ip-section-title {
+.av-section-title {
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: var(--text-dim);
   margin-bottom: 14px;
 }
-.ip-section.accent .ip-section-title {
+.av-section.accent .av-section-title {
   color: var(--text);
 }
-.ip-section-title .hint {
+.av-section-title .hint {
   font-weight: 400;
   letter-spacing: 0;
   color: var(--text-dim);
   margin-left: 8px;
 }
-.ip-section .field textarea {
+.av-section .field textarea {
   min-height: 64px;
 }
-.ip-section .field input::placeholder,
-.ip-section .field textarea::placeholder {
+.av-section .field input::placeholder,
+.av-section .field textarea::placeholder {
   color: #5c6780;
 }
-.ip-sample {
+.av-sample {
   width: 100%;
   margin-top: 10px;
 }
 
 /* --- 提案サマリー --- */
-.ip-summary {
+.av-summary {
   background: linear-gradient(
     135deg,
     rgba(124, 108, 246, 0.14),
@@ -684,50 +438,50 @@ body {
   padding: 20px;
   margin-bottom: 18px;
 }
-.ip-summary-head {
+.av-summary-head {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   font-size: 13px;
 }
-.ip-summary-head .chip {
+.av-summary-head .chip {
   background: rgba(13, 16, 23, 0.5);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 14px;
   color: var(--text-dim);
 }
-.ip-summary-head .chip strong {
+.av-summary-head .chip strong {
   color: var(--text);
 }
-.ip-oneline {
+.av-oneline {
   font-size: 19px;
   font-weight: 900;
   line-height: 1.5;
   margin: 14px 0 16px;
 }
-.ip-summary-actions {
+.av-summary-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.ip-tabs {
+.av-tabs {
   flex-wrap: wrap;
 }
-.ip-tabs .tab {
+.av-tabs .tab {
   padding: 10px 16px;
   font-size: 13px;
 }
 
 /* --- 共通の行レイアウト --- */
-.ip-row {
+.av-row {
   margin-bottom: 14px;
 }
-.ip-row:last-child {
+.av-row:last-child {
   margin-bottom: 0;
 }
-.ip-row-label {
+.av-row-label {
   display: block;
   font-size: 11.5px;
   font-weight: 700;
@@ -735,35 +489,30 @@ body {
   color: var(--text-dim);
   margin-bottom: 5px;
 }
-.ip-body-text {
+.av-text {
   font-size: 14px;
   line-height: 1.75;
   white-space: pre-wrap;
 }
-.ip-danger {
+.av-danger {
   color: #ffb0b8;
 }
-.ip-note {
+.av-note {
   font-size: 12px;
   color: var(--text-dim);
   margin-top: 6px;
 }
-.ip-note-inline {
-  color: var(--text-dim);
-  font-size: 12px;
-  font-style: normal;
-}
-.ip-list {
+.av-list {
   list-style: none;
   font-size: 14px;
   line-height: 1.75;
 }
-.ip-list li {
+.av-list li {
   padding-left: 18px;
   position: relative;
   margin-bottom: 4px;
 }
-.ip-list li::before {
+.av-list li::before {
   content: "";
   position: absolute;
   left: 4px;
@@ -773,39 +522,15 @@ body {
   border-radius: 50%;
   background: var(--brand);
 }
-.ip-list-ng li::before {
+.av-list-ng li::before {
   background: var(--err);
 }
 
 /* --- 棲み分けのヒーロー --- */
-.ip-hero {
+.av-hero {
   border-color: var(--brand);
 }
-.ip-reframe {
-  text-align: center;
-  padding: 18px 12px 22px;
-}
-.ip-reframe-from {
-  font-size: 15px;
-  color: var(--text-dim);
-  text-decoration: line-through;
-  text-decoration-color: var(--err);
-}
-.ip-reframe-arrow {
-  color: var(--brand);
-  font-size: 13px;
-  margin: 8px 0;
-}
-.ip-reframe-to {
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1.45;
-  background: linear-gradient(90deg, var(--brand), var(--brand-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.ip-persona-label {
+.av-persona {
   font-size: 17px;
   font-weight: 800;
   line-height: 1.6;
@@ -816,191 +541,409 @@ body {
   margin-bottom: 16px;
 }
 
-/* --- 職種名・キャッチコピー --- */
-.ip-jobtitle {
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.55;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--brand);
-}
-.ip-catch-grid {
-  display: grid;
-  gap: 12px;
-}
-.ip-catch {
-  background: var(--bg-panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
-}
-.ip-catch-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.ip-catch-type {
-  background: rgba(124, 108, 246, 0.16);
-  border: 1px solid rgba(124, 108, 246, 0.4);
-  color: #b8aefc;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-}
-.ip-catch-chars {
-  font-size: 11.5px;
-  color: var(--text-dim);
-  margin-right: auto;
-}
-.ip-catch-copy {
-  font-size: 20px;
-  font-weight: 900;
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
-.ip-catch-why,
-.ip-catch-use {
-  font-size: 12.5px;
-  color: var(--text-dim);
-  line-height: 1.7;
-}
-
-/* --- ビジュアル --- */
-.ip-shots {
-  display: grid;
-  gap: 14px;
-}
-.ip-shot {
-  display: flex;
-  gap: 12px;
-}
-.ip-shot-no {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--bg-panel-2);
-  border: 1px solid var(--brand);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ip-shot-title {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 3px;
-}
-.ip-keyvisual {
-  margin-top: 14px;
-}
-.ip-keyvisual img {
-  width: 100%;
-  height: auto;
-  border-radius: 10px;
-  display: block;
-}
-
 /* --- 原稿 --- */
-.ip-head-actions {
+.av-head-actions {
   display: flex;
   gap: 8px;
-}
-.copy-card pre.ip-pre-tall {
-  max-height: 720px;
-}
-.ip-timeline {
-  display: grid;
-  gap: 8px;
-}
-.ip-tl-item {
-  display: flex;
-  gap: 12px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-.ip-tl-time {
-  flex: none;
-  min-width: 86px;
-  font-weight: 700;
-  color: var(--brand);
-  font-variant-numeric: tabular-nums;
-}
-.ip-req {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-@media (max-width: 720px) {
-  .ip-req {
-    grid-template-columns: 1fr;
-  }
-}
-.ip-faq {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.ip-faq:last-of-type {
-  border-bottom: none;
-}
-.ip-faq-q {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-.ip-closing {
-  margin-top: 14px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: var(--bg-panel-2);
-  font-size: 14px;
-  line-height: 1.75;
 }
 
 /* --- 運用 --- */
-.ip-table {
+.av-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13.5px;
 }
-.ip-table th,
-.ip-table td {
+.av-table th,
+.av-table td {
   text-align: left;
   padding: 9px 10px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
-.ip-table th {
+.av-table th {
   color: var(--text-dim);
   font-size: 11.5px;
   letter-spacing: 0.06em;
 }
-.ip-ab {
+.av-caution {
+  border-color: rgba(255, 107, 122, 0.45);
+}
+.av-caution .av-list li::before {
+  background: var(--err);
+}
+/* ===================================================================
+   アバター設計・台本・料金プラン固有のパーツ
+   =================================================================== */
+
+/* --- アバターの設定 --- */
+.av-avatar-name {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.av-avatar-name span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(124, 108, 246, 0.14);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.av-spec {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.av-spec-item {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.av-spec-item span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+.av-tool {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.av-steps {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.85;
+}
+.av-steps li {
+  margin-bottom: 6px;
+}
+.av-keyvisual {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+.av-keyvisual img {
+  max-width: 280px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* --- コンテンツの柱とフック --- */
+.av-pillar {
   background: var(--bg-panel-2);
   border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 12px;
 }
-.ip-ab:last-child {
+.av-pillar:last-child {
   margin-bottom: 0;
 }
-.ip-ab-name {
-  font-size: 14px;
+.av-pillar-head {
+  font-size: 15px;
   font-weight: 800;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.av-ratio {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.av-hooks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.av-hook {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.av-hook-type {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--brand-2);
+}
+.av-hook-line {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.6;
+  margin: 4px 0 6px;
+}
+.av-hook-why {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* --- 台本 --- */
+.av-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-script h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.av-script-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  flex: none;
+}
+.av-script-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.av-script-meta .chip {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.av-script-meta .chip-theme {
+  color: var(--brand);
+  border-color: rgba(124, 108, 246, 0.5);
+}
+.av-beat {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-beat:last-of-type {
+  border-bottom: none;
+}
+.av-beat-hook {
+  background: rgba(227, 93, 143, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  border-bottom: none;
+  margin-bottom: 4px;
+}
+.av-beat-cta {
+  background: rgba(62, 207, 142, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  border-bottom: none;
+  margin-top: 4px;
+}
+.av-beat-body {
+  /* グリッドの子は既定で縮まないため、長い原稿がはみ出さないようにする */
+  min-width: 0;
+}
+.av-beat-time {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding-top: 2px;
+}
+.av-narration {
+  font-size: 14.5px;
+  line-height: 1.8;
+  font-weight: 600;
+}
+.av-onscreen,
+.av-visual {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-top: 3px;
+}
+.av-onscreen {
+  color: var(--brand);
+}
+
+/* --- 量産オペレーション --- */
+.av-flow {
+  margin-bottom: 14px;
+}
+.av-flow-step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-flow-step:last-child {
+  border-bottom: none;
+}
+.av-flow-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+.av-flow-title {
+  font-size: 14.5px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-flow-who {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(124, 108, 246, 0.14);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.av-flow-time {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.av-flow-tool {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.av-note-inline {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.av-funnel {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 12px 14px;
   margin-bottom: 10px;
 }
-.ip-caution {
-  border-color: rgba(255, 107, 122, 0.45);
+.av-funnel:last-child {
+  margin-bottom: 0;
 }
-.ip-caution .ip-list li::before {
-  background: var(--err);
+.av-funnel-stage {
+  font-size: 14.5px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.av-funnel-stage span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+/* --- 収益設計 --- */
+.av-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.av-plan {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.av-plan.main {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px rgba(124, 108, 246, 0.35);
+}
+.av-plan-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+.av-plan-price {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--brand);
+  margin: 4px 0 6px;
+}
+.av-plan-target {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  margin-bottom: 10px;
+}
+.av-plan-deliver {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 10px 0 4px;
+}
+.av-objection {
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.av-objection:last-child {
+  margin-bottom: 0;
+}
+.av-objection-q {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--brand-2);
+  margin-bottom: 8px;
+}
+.av-check {
+  list-style: none;
+  font-size: 13.5px;
+  line-height: 1.9;
+}
+.av-check li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.av-check li:last-child {
+  border-bottom: none;
+}
+.av-check li::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 5px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
 }

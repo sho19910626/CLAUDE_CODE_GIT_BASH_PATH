@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import {
   FACE_LEVEL_LABELS,
   GOAL_LABELS,
@@ -316,12 +315,11 @@ export default function AvatarStudio() {
     setImgLoading(true);
     setImgError("");
     try {
-      const res = await fetch("/api/background", {
+      const res = await fetch("/api/avatar-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: plan.avatar.generationPrompt,
-          aspect: "vertical",
           reference: images[0],
         }),
       });
@@ -353,12 +351,6 @@ export default function AvatarStudio() {
       <p className="lede">
         本人のAIアバターを一度作れば、あとは台本を書くだけで動画が量産できます。
         このツールは、そのアバターの設定・台本・投稿カレンダー・料金プランまでを一括で設計します。
-        <Link href="/indeed" className="ip-navlink">
-          Indeed 提案スタジオ →
-        </Link>
-        <Link href="/" className="ip-navlink">
-          Insta Studio →
-        </Link>
       </p>
 
       <div className="grid">
@@ -506,7 +498,7 @@ export default function AvatarStudio() {
 
           <button
             type="button"
-            className="btn btn-ghost btn-small ip-sample"
+            className="btn btn-ghost btn-small av-sample"
             onClick={() => {
               setB(SAMPLE);
               setError("");
@@ -518,24 +510,24 @@ export default function AvatarStudio() {
           {error && <div className="error-box">{error}</div>}
           {loading && (
             <div className="loading-box">
-              <div className="ip-steps">
+              <div className="av-progress">
                 {["アバターと発信の型を決める", "台本・運用・料金を書く"].map((label, i) => {
                   const step = i + 1;
                   const current = progress?.step ?? 1;
                   const state = step < current ? "done" : step === current ? "now" : "";
                   return (
-                    <div className={`ip-step ${state}`} key={label}>
-                      <span className="ip-step-mark">{step < current ? "✓" : step}</span>
+                    <div className={`av-progress-step ${state}`} key={label}>
+                      <span className="av-progress-mark">{step < current ? "✓" : step}</span>
                       {label}
                     </div>
                   );
                 })}
               </div>
-              <p className="ip-step-message">
+              <p className="av-progress-message">
                 <span className="spinner" />
                 {progress?.message ?? "準備しています"}
               </p>
-              <p className="ip-step-note">
+              <p className="av-progress-note">
                 全体で3〜5分ほどかかります。この画面を閉じずにお待ちください。
               </p>
             </div>
@@ -553,16 +545,16 @@ export default function AvatarStudio() {
             </div>
           ) : (
             <>
-              <div className="ip-summary">
-                <div className="ip-summary-head">
+              <div className="av-summary">
+                <div className="av-summary-head">
                   <span className="chip">
                     <strong>{plan.summary.accountName}</strong>
                   </span>
                   <span className="chip chip-theme">{GOAL_LABELS[b.goal]}</span>
                   <span className="chip">{PLATFORM_LABELS[b.platform]}</span>
                 </div>
-                <p className="ip-oneline">{plan.summary.oneLine}</p>
-                <div className="ip-summary-actions">
+                <p className="av-oneline">{plan.summary.oneLine}</p>
+                <div className="av-summary-actions">
                   <button
                     className="btn btn-ghost btn-small"
                     onClick={() => copy(markdown, "md")}
@@ -584,7 +576,7 @@ export default function AvatarStudio() {
                 </div>
               </div>
 
-              <div className="tabs ip-tabs">
+              <div className="tabs av-tabs">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
@@ -669,8 +661,8 @@ function DesignTab({
         <Row label="動画化だけでは足りない理由" value={d.whyNotJustVideo} />
       </div>
 
-      <div className="copy-card ip-hero">
-        <div className="ip-head-actions">
+      <div className="copy-card av-hero">
+        <div className="av-head-actions">
           <h3>アバターの設定</h3>
           <button
             className="btn btn-ghost btn-small"
@@ -708,9 +700,9 @@ function DesignTab({
         <Row label="一人称" value={a.speech.firstPerson} />
         <TagRow label="語尾" items={a.speech.endings} />
         <TagRow label="決め台詞" items={a.speech.signaturePhrases} />
-        <div className="ip-row">
-          <span className="ip-row-label">言わない言葉</span>
-          <ul className="ip-list ip-list-ng">
+        <div className="av-row">
+          <span className="av-row-label">言わない言葉</span>
+          <ul className="av-list av-list-ng">
             {a.speech.forbidden.map((f, i) => (
               <li key={i}>{f}</li>
             ))}
@@ -720,10 +712,10 @@ function DesignTab({
 
       <div className="copy-card">
         <h3>毎回固定すること</h3>
-        <p className="ip-note">
+        <p className="av-note">
           ここがぶれると、毎回違う人物に見えてアカウントが人として認識されません。
         </p>
-        <ul className="ip-list">
+        <ul className="av-list">
           {a.consistency.map((c, i) => (
             <li key={i}>{c}</li>
           ))}
@@ -733,7 +725,7 @@ function DesignTab({
       <div className="copy-card">
         <h3>使うツールと初回セットアップ</h3>
         <p className="av-tool">{a.toolSetup.tool}</p>
-        <p className="ip-body-text">{a.toolSetup.why}</p>
+        <p className="av-text">{a.toolSetup.why}</p>
         <ol className="av-steps">
           {a.toolSetup.steps.map((s, i) => (
             <li key={i}>{s}</li>
@@ -742,7 +734,7 @@ function DesignTab({
       </div>
 
       <div className="copy-card">
-        <div className="ip-head-actions">
+        <div className="av-head-actions">
           <h3>アバターの見た目案</h3>
           <button
             className="btn btn-ghost btn-small"
@@ -767,7 +759,7 @@ function DesignTab({
           </button>
         )}
         {imgError && <div className="error-box">{imgError}</div>}
-        <p className="ip-note">
+        <p className="av-note">
           ここで作るのは「見た目の方向性を確認する静止画」です。動画にするときは、上のツールに
           この画像か本人素材を読み込ませてアバターを作成してください。
         </p>
@@ -775,7 +767,7 @@ function DesignTab({
 
       <div className="copy-card">
         <h3>届ける相手</h3>
-        <p className="ip-persona-label">{plan.viewer.label}</p>
+        <p className="av-persona">{plan.viewer.label}</p>
         <Row label="その人の状況" value={plan.viewer.profile} />
         <Row label="見ている場面" value={plan.viewer.scrollContext} />
         <Row label="抱えている不満" value={plan.viewer.pain} />
@@ -790,8 +782,8 @@ function DesignTab({
               {p.name}
               <span className="av-ratio">{p.ratio}</span>
             </p>
-            <p className="ip-body-text">{p.purpose}</p>
-            <ul className="ip-list">
+            <p className="av-text">{p.purpose}</p>
+            <ul className="av-list">
               {p.themes.map((t, j) => (
                 <li key={j}>{t}</li>
               ))}
@@ -802,7 +794,7 @@ function DesignTab({
 
       <div className="copy-card">
         <h3>フック集(冒頭2秒)</h3>
-        <p className="ip-note">
+        <p className="av-note">
           そのまま台本の1行目に使えます。追加の台本を作るときの起点にもなります。
         </p>
         <div className="av-hooks">
@@ -843,7 +835,7 @@ function ScriptsTab({
   return (
     <>
       <div className="copy-card">
-        <div className="ip-head-actions">
+        <div className="av-head-actions">
           <h3>完成台本({scripts.length}本)</h3>
           <div className="av-actions">
             <button className="btn btn-ghost btn-small" onClick={() => onCopy(text, "all")}>
@@ -854,7 +846,7 @@ function ScriptsTab({
             </button>
           </div>
         </div>
-        <p className="ip-note">
+        <p className="av-note">
           「読み上げ原稿」をアバターツールの入力欄に貼れば、そのまま動画になります。
           テロップと映像の指示は編集担当への指示書です。
         </p>
@@ -866,7 +858,7 @@ function ScriptsTab({
 
       <div className="copy-card">
         <h3>台本を追加する</h3>
-        <p className="ip-note">
+        <p className="av-note">
           同じアバター・同じ柱のまま、これまでと違うテーマで5本追加します。
           ここを繰り返すだけで1か月ぶんの台本が溜まります。
         </p>
@@ -893,7 +885,7 @@ function ScriptCard({
   const fullTag = `scr${s.no}`;
   return (
     <div className="copy-card av-script">
-      <div className="ip-head-actions">
+      <div className="av-head-actions">
         <h3>
           <span className="av-script-no">{s.no}</span>
           {s.theme}
@@ -950,17 +942,17 @@ function ScriptCard({
       </div>
 
       <Row label="アバターの演出" value={s.avatarDirection} />
-      <div className="ip-row">
-        <span className="ip-row-label">離脱対策</span>
-        <ul className="ip-list">
+      <div className="av-row">
+        <span className="av-row-label">離脱対策</span>
+        <ul className="av-list">
           {s.retention.map((r, i) => (
             <li key={i}>{r}</li>
           ))}
         </ul>
       </div>
-      <div className="ip-row">
-        <span className="ip-row-label">キャプション</span>
-        <p className="ip-body-text">{s.caption}</p>
+      <div className="av-row">
+        <span className="av-row-label">キャプション</span>
+        <p className="av-text">{s.caption}</p>
         <div className="hashtag-cloud">
           {s.hashtags.map((h, i) => (
             <span className="hashtag" key={i}>
@@ -991,7 +983,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
                   <span className="av-flow-who">{w.who}</span>
                   <span className="av-flow-time">{w.time}</span>
                 </p>
-                <p className="ip-body-text">{w.detail}</p>
+                <p className="av-text">{w.detail}</p>
                 <p className="av-flow-tool">使用: {w.tool}</p>
               </div>
             </div>
@@ -1003,7 +995,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>使うツール</h3>
-        <table className="ip-table">
+        <table className="av-table">
           <thead>
             <tr>
               <th>ツール</th>
@@ -1025,12 +1017,12 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
             ))}
           </tbody>
         </table>
-        <p className="ip-note">料金は変動します。契約前に各サービスの最新プランをご確認ください。</p>
+        <p className="av-note">料金は変動します。契約前に各サービスの最新プランをご確認ください。</p>
       </div>
 
       <div className="copy-card">
         <h3>まとめて量産するコツ</h3>
-        <ul className="ip-list">
+        <ul className="av-list">
           {pr.batchTips.map((t, i) => (
             <li key={i}>{t}</li>
           ))}
@@ -1039,7 +1031,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>最初の30日の投稿カレンダー</h3>
-        <table className="ip-table">
+        <table className="av-table">
           <thead>
             <tr>
               <th>日</th>
@@ -1071,7 +1063,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
               {f.stage}
               <span>{f.where}</span>
             </p>
-            <p className="ip-body-text">{f.what}</p>
+            <p className="av-text">{f.what}</p>
             <p className="av-note-inline">見る数字: {f.kpi}</p>
           </div>
         ))}
@@ -1079,7 +1071,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>KPI</h3>
-        <table className="ip-table">
+        <table className="av-table">
           <thead>
             <tr>
               <th>指標</th>
@@ -1101,7 +1093,7 @@ function OpsTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>横展開</h3>
-        <table className="ip-table">
+        <table className="av-table">
           <thead>
             <tr>
               <th>媒体</th>
@@ -1130,9 +1122,9 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
   const o = plan.offer;
   return (
     <>
-      <div className="copy-card ip-hero">
+      <div className="copy-card av-hero">
         <h3>何を売っているのか</h3>
-        <p className="ip-oneline">{o.positioning}</p>
+        <p className="av-oneline">{o.positioning}</p>
       </div>
 
       <div className="copy-card">
@@ -1143,7 +1135,7 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
               <p className="av-plan-name">{p.name}</p>
               <p className="av-plan-price">{p.price}</p>
               <p className="av-plan-target">{p.target}</p>
-              <ul className="ip-list">
+              <ul className="av-list">
                 {p.includes.map((x, j) => (
                   <li key={j}>{x}</li>
                 ))}
@@ -1153,7 +1145,7 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
             </div>
           ))}
         </div>
-        <p className="ip-note">
+        <p className="av-note">
           金額は日本の相場からの目安です。ツール料金と工数を確認したうえで確定してください。
         </p>
       </div>
@@ -1169,7 +1161,7 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>継続してもらう仕組み</h3>
-        <ul className="ip-list">
+        <ul className="av-list">
           {o.retention.map((r, i) => (
             <li key={i}>{r}</li>
           ))}
@@ -1178,7 +1170,7 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
 
       <div className="copy-card">
         <h3>追加提案(アップセル)</h3>
-        <ul className="ip-list">
+        <ul className="av-list">
           {o.upsell.map((u, i) => (
             <li key={i}>{u}</li>
           ))}
@@ -1190,14 +1182,14 @@ function BizTab({ plan }: { plan: AvatarPlan }) {
         {plan.objections.map((ob, i) => (
           <div className="av-objection" key={i}>
             <p className="av-objection-q">「{ob.objection}」</p>
-            <p className="ip-body-text">{ob.answer}</p>
+            <p className="av-text">{ob.answer}</p>
           </div>
         ))}
       </div>
 
-      <div className="copy-card ip-caution">
+      <div className="copy-card av-caution">
         <h3>運用前に必ず押さえること</h3>
-        <ul className="ip-list">
+        <ul className="av-list">
           {plan.compliance.map((c, i) => (
             <li key={i}>{c}</li>
           ))}
@@ -1228,9 +1220,9 @@ function Row({
   danger?: boolean;
 }) {
   return (
-    <div className="ip-row">
-      <span className="ip-row-label">{label}</span>
-      <p className={`ip-body-text${danger ? " ip-danger" : ""}`}>{value}</p>
+    <div className="av-row">
+      <span className="av-row-label">{label}</span>
+      <p className={`av-text${danger ? " av-danger" : ""}`}>{value}</p>
     </div>
   );
 }
@@ -1246,8 +1238,8 @@ function SpecItem({ label, value }: { label: string; value: string }) {
 
 function TagRow({ label, items }: { label: string; items: string[] }) {
   return (
-    <div className="ip-row">
-      <span className="ip-row-label">{label}</span>
+    <div className="av-row">
+      <span className="av-row-label">{label}</span>
       <div className="hashtag-cloud">
         {items.map((x, i) => (
           <span className="hashtag" key={i}>
@@ -1271,8 +1263,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`ip-section${accent ? " accent" : ""}`}>
-      <p className="ip-section-title">
+    <div className={`av-section${accent ? " accent" : ""}`}>
+      <p className="av-section-title">
         {title}
         {hint && <span className="hint">{hint}</span>}
       </p>
