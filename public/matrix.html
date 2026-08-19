@@ -482,6 +482,21 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
   </div>
 </div>
 
+<div class="overlay" id="dlOverlay" hidden>
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3 id="dlTitle">書き出し</h3><button class="iconbtn" id="dlClose">✕</button></div>
+    <div class="modal-body">
+      <p class="muted" style="font-size:12.5px;margin-bottom:12px" id="dlHint"></p>
+      <textarea id="dlText" readonly style="min-height:280px;font-size:12px;line-height:1.6;font-family:ui-monospace,SFMono-Regular,Menlo,monospace"></textarea>
+    </div>
+    <div class="modal-foot">
+      <span class="muted" style="font-size:12px" id="dlName"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-primary btn-sm" id="dlCopy">全文をコピー</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="edOverlay" hidden>
   <div class="modal" style="max-width:520px">
     <div class="modal-head"><h3 id="edTitle">タスク</h3><button class="iconbtn" id="edClose">✕</button></div>
@@ -1120,10 +1135,41 @@ function toICS(){
     foldLine('X-WR-CALNAME:時間管理マトリックス '+week), ...ev, 'END:VCALENDAR'].join('\r\n');
   download('time-matrix-'+week+'.ics', ics, 'text/calendar');
 }
-function download(name, text, mime){
-  const url = URL.createObjectURL(new Blob([text], {type:(mime||'text/plain')+';charset=utf-8'}));
-  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+// ファイルとして開いたときはそのまま保存する。
+// 埋め込み表示ではブラウザが直接の保存をブロックするため、
+// .txt / .json は閲覧側の保存機能を使い、それ以外は全文コピー画面を出す。
+const embedded = (()=>{ try{ return window.self !== window.top; }catch(e){ return true; } })();
+const SAVEABLE = /\.(txt|json|md)$/i;
+async function download(name, text, mime){
+  if(!embedded){
+    try{
+      const url = URL.createObjectURL(new Blob([text], {type:(mime||'text/plain')+';charset=utf-8'}));
+      const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      return;
+    }catch(e){ /* 保存できないときは下の経路にまわす */ }
+  }
+  if(SAVEABLE.test(name)){
+    try{
+      const api = (typeof claude !== 'undefined' && claude && typeof claude.use === 'function') ? claude : null;
+      const dl = api ? await api.use('downloads') : null;
+      if(dl){ await dl.save({filename:name, data:text}); return; }
+    }catch(err){
+      if(err && err.code === 'declined') return;
+      if(err && err.code === 'rate_limited'){ alert('保存の確認画面が開いています。そちらを閉じてからもう一度押してください。'); return; }
+    }
+  }
+  showDownloadFallback(name, text);
+}
+function showDownloadFallback(name, text){
+  const ics = name.endsWith('.ics');
+  document.getElementById('dlTitle').textContent = ics ? 'カレンダー用ファイルの中身' : '書き出したデータ';
+  document.getElementById('dlHint').textContent = ics
+    ? 'この画面からカレンダー形式のファイルを直接は保存できません。下の全文をコピーし、テキストエディタに貼って「' + name + '」という名前で保存してから、Outlook や Google カレンダーで開いてください。'
+    : '下の全文をコピーし、テキストエディタに貼って「' + name + '」という名前で保存してください。読み込みのときはそのファイルを選びます。';
+  document.getElementById('dlName').textContent = name;
+  document.getElementById('dlText').value = text;
+  document.getElementById('dlOverlay').hidden = false;
 }
 
 /* =========================================================================
@@ -1290,6 +1336,14 @@ $('toggleTable').onclick = ()=>{ showTable = !showTable; render(); };
 $('wzClose').onclick = closeWizard;
 $('wzBack').onclick = ()=>{ if(wz.step>0){ wz.step--; drawWizard(); } };
 $('wzNext').onclick = ()=> nextStep(false);
+$('dlClose').onclick = ()=>{ $('dlOverlay').hidden = true; };
+$('dlCopy').onclick = async ()=>{
+  const ta = $('dlText');
+  try{ await navigator.clipboard.writeText(ta.value); }
+  catch(err){ ta.select(); document.execCommand('copy'); }
+  $('dlCopy').textContent = 'コピーしました';
+  setTimeout(()=>$('dlCopy').textContent='全文をコピー', 1800);
+};
 $('edClose').onclick = closeEdit;
 $('edSave').onclick = saveEdit;
 $('edDelete').onclick = ()=>{
@@ -1366,7 +1420,20 @@ $('autoTargets').onclick = ()=>{
 };
 $('replayOb').onclick = openOb;
 $('expBtn').onclick = ()=> download('time-matrix-'+curWeek()+'.json', JSON.stringify(S, null, 2), 'application/json');
-$('impBtn').onclick = ()=> $('impFile').click();
+$('impBtn').onclick = ()=>{
+  if(embedded){
+    const txt = prompt('書き出したJSONの全文を貼り付けてください。現在のデータは置き換わります。');
+    if(!txt) return;
+    try{
+      const d = JSON.parse(txt);
+      if(!d || !Array.isArray(d.tasks)) throw new Error('形式が違います');
+      S = {...structuredClone(DEF), ...d, settings:{...DEF.settings, ...(d.settings||{})}};
+      save(); render();
+    }catch(err){ alert('読み込めませんでした：'+err.message); }
+    return;
+  }
+  $('impFile').click();
+};
 $('impFile').onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
@@ -1389,7 +1456,8 @@ $('clearBtn').onclick = ()=>{
 
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
-    if(!$('wzOverlay').hidden) closeWizard();
+    if(!$('dlOverlay').hidden) $('dlOverlay').hidden = true;
+    else if(!$('wzOverlay').hidden) closeWizard();
     else if(!$('edOverlay').hidden) closeEdit();
   }
   if(e.key === 'Enter' && !$('wzOverlay').hidden && !e.isComposing){
@@ -1401,6 +1469,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('mousedown',
   if(e.target !== o) return;
   if(o.id === 'wzOverlay') closeWizard();
   if(o.id === 'edOverlay') closeEdit();
+  if(o.id === 'dlOverlay') o.hidden = true;
 }));
 
 /* ---- 起動 ---- */
