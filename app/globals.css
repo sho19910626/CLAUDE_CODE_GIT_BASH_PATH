@@ -1055,3 +1055,208 @@ body {
 .ip-caution .ip-list li::before {
   background: var(--err);
 }
+
+/* ===== 採用アカウント構築スタジオ ===== */
+
+/* 段階ごとの進行表示 */
+.stage-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stage-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.stage-item.stage-done { color: var(--ok); }
+.stage-item.stage-running { color: var(--text); }
+.stage-item.stage-error { color: var(--err); }
+.stage-icon { width: 16px; text-align: center; flex: 0 0 auto; }
+.stage-name { font-weight: 700; flex: 0 0 auto; }
+.stage-msg { font-size: 12px; opacity: 0.8; }
+.stage-item.stage-running .stage-icon { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+
+/* 企画編集(9枠・ハイライト・リール) */
+.slot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.slot-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  line-height: 26px;
+  text-align: center;
+  border-radius: 6px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.slot-num.pinned {
+  border-color: var(--brand);
+  color: var(--text);
+}
+.slot-row input,
+.slot-row select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+/* プロフィール完成イメージ */
+.ig-profile {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.ig-head { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+.ig-avatar {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 20px;
+  color: #fff;
+}
+.ig-stats { display: flex; gap: 20px; flex: 1; }
+.ig-stats div { text-align: center; font-size: 12px; color: var(--text-dim); }
+.ig-stats strong { display: block; font-size: 15px; color: var(--text); }
+.ig-name { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+.ig-bio-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.ig-link { font-size: 12.5px; color: #7aa7ff; margin-bottom: 14px; word-break: break-all; }
+.ig-highlights { display: flex; gap: 14px; margin-bottom: 16px; }
+.ig-hl { text-align: center; width: 64px; }
+.ig-hl canvas {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: block;
+  object-fit: cover;
+}
+.ig-hl span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ig-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.ig-tile { position: relative; aspect-ratio: 4 / 5; overflow: hidden; background: #000; }
+.ig-tile canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-pin {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 12px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.ig-tile-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.75));
+  color: #fff;
+  font-size: 9.5px;
+  padding: 10px 4px 3px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ig-tile-wip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 10px;
+}
+
+/* リールの構成表示 */
+.scene-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.scene-list li { display: flex; gap: 12px; align-items: flex-start; }
+.scene-type {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.scene-type.scene-hook { border-color: var(--brand); color: #b8aefc; }
+.scene-type.scene-cta { border-color: var(--ok); color: var(--ok); }
+.scene-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+.scene-bg { font-size: 11.5px; color: var(--text-dim); opacity: 0.7; margin-top: 4px; }
+
+/* ハイライトのカバー */
+.hl-cover-row { display: flex; gap: 16px; align-items: center; margin-top: 16px; }
+.hl-cover {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: block;
+}
+
+/* 投稿カレンダー */
+.cal-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cal-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+.cal-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cal-day { white-space: nowrap; color: var(--text-dim); }
+.cal-note { color: var(--text-dim); font-size: 11.5px; }
+.cal-kind {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.cal-kind.cal-reel { border-color: var(--brand); color: #b8aefc; }
+.cal-kind.cal-highlight { border-color: var(--ok); color: var(--ok); }
