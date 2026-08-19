@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   AccountPurpose,
   ContentPlan,
@@ -514,6 +515,9 @@ export default function Generator() {
       </div>
       <p className="lede">
         企業HPのURL・ブランドイメージ・伝えたい文言を入力するだけで、フィード画像 / ストーリー / リール動画をAIが設計・生成します。
+        <Link href="/indeed" className="ip-navlink">
+          Indeed 提案スタジオはこちら →
+        </Link>
       </p>
 
       <div className="grid">

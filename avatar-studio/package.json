@@ -1,0 +1,24 @@
+{
+  "name": "avatar-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "顔出し不要のAIアバターSNS運用スタジオ — アバター設計・台本・投稿カレンダー・料金プランを一括生成",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.8.0"
+  }
+}
