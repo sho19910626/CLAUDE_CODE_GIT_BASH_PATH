@@ -83,7 +83,9 @@ npm run dev
 
 **`start-avatar-shared.bat` をダブルクリック**すると、同じ社内ネットワークにいる人が自分のブラウザから使えるようになります。起動時に、伝えるべきURL(`http://192.168.x.x:3001`)が黒い画面に表示されます。
 
-社外に公開する場合は、`.env` に `BASIC_AUTH_USER` と `BASIC_AUTH_PASSWORD` を必ず設定してください。未設定だとURLを知った人が誰でもアクセスでき、APIの利用料が発生します。
+社外に公開する場合は、`.env` に `APP_PASSWORD` を必ず設定してください。設定すると、お名前とパスワードを入れるログイン画面が出ます。未設定だとURLを知った人が誰でもアクセスでき、APIの利用料が発生します。
+
+使う人は、自分の名前(自由に決められます)と、みんなで共有する 1 つのパスワードを入れて入ります。名前は画面右上に「◯◯ さん」と出るだけの目印です。
 
 ## Vercel に公開する
 
@@ -97,7 +99,7 @@ npm run dev
 | 変数 | 要否 |
 |---|---|
 | `ANTHROPIC_API_KEY` | 必須 |
-| `BASIC_AUTH_PASSWORD`(と任意で `BASIC_AUTH_USER`) | 公開URLで使うなら実質必須。未設定だと誰でもアクセスでき、API利用料が発生します |
+| `APP_PASSWORD` | 公開URLで使うなら必須。ログイン画面の合言葉。未設定だと本番では誰もログインできません |
 | `ANTHROPIC_MODEL` | 任意(既定は `claude-opus-5`) |
 | `OPENAI_API_KEY` / `OPENAI_IMAGE_MODEL` | 任意(アバターの見た目案を画像で出す場合のみ) |
 
@@ -161,4 +163,4 @@ npm run dev
 | `lib/avatar-prompt.ts` | システムプロンプトと、目的・媒体・顔出し方針ごとの指針 |
 | `lib/avatar-export.ts` | 読み上げ原稿 / 台本テキスト / 設計書 Markdown の整形 |
 | `lib/scrape.ts` | サイトURLから本文を取得する簡易スクレイパー |
-| `middleware.ts` | Basic認証(`.env` で有効化) |
+| `middleware.ts` | ログイン必須の判定(`APP_PASSWORD` で有効化)。Cookie の署名まで検証する |

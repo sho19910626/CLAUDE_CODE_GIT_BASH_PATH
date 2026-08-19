@@ -947,3 +947,71 @@ body {
   border: 1.5px solid var(--border);
   border-radius: 4px;
 }
+
+/* =====================================================================
+   ログイン画面と、右上のログイン表示
+   ===================================================================== */
+
+.login-wrap {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+}
+.login-card .header {
+  margin-bottom: 18px;
+}
+.login-card form {
+  margin-top: 4px;
+}
+.login-card .btn {
+  width: 100%;
+  margin-top: 6px;
+}
+.login-note {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-dim);
+  margin: 12px 0;
+}
+.login-error {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--err);
+  border: 1px solid var(--err);
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+}
+
+.session-bar {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+.session-logout {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brand);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.session-logout:hover {
+  color: var(--text);
+}

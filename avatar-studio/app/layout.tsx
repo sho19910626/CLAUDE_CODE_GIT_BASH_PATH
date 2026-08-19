@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SessionBar from "@/components/SessionBar";
 
 export const metadata: Metadata = {
   title: "アバタースタジオ — 顔出し不要のSNS動画を台本だけで量産する",
@@ -24,7 +25,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <SessionBar />
+        {children}
+      </body>
     </html>
   );
 }
