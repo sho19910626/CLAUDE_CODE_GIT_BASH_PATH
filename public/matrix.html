@@ -312,6 +312,13 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 
 <main class="shell">
 
+  <div class="alerts" id="storeWarn" hidden style="margin-top:20px">
+    <div class="alert sev-high">
+      <div class="ic">⚠</div>
+      <div class="tx"><b>このブラウザでは入力した内容を保存できません。</b>シークレットウィンドウ（プライベートモード）で開いているか、ブラウザの設定でデータの保存が止められています。<em>このタブを閉じると、登録したタスクも記録した時間もすべて消えます。通常のウィンドウで開き直してください。</em></div>
+    </div>
+  </div>
+
   <!-- ========== マトリックス ========== -->
   <section id="view-matrix">
     <div class="page-head">
@@ -669,7 +676,12 @@ function load(){
     return {...structuredClone(DEF), ...d, settings:{...DEF.settings, ...(d.settings||{})}};
   }catch(e){ return structuredClone(DEF); }
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ console.warn('保存できませんでした', e); } }
+let storageOK = (()=>{ try{ localStorage.setItem('__probe__','1'); localStorage.removeItem('__probe__'); return true; }catch(e){ return false; } })();
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); if(!storageOK){ storageOK = true; renderStoreWarn(); } }
+  catch(e){ if(storageOK){ storageOK = false; renderStoreWarn(); } console.warn('保存できませんでした', e); }
+}
+function renderStoreWarn(){ const el = document.getElementById('storeWarn'); if(el) el.hidden = storageOK; }
 const uid = ()=> Math.random().toString(36).slice(2,10);
 
 /* ---- 週の計算（月曜はじまり） ---- */
@@ -1474,6 +1486,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('mousedown',
 
 /* ---- 起動 ---- */
 applyTheme();
+renderStoreWarn();
 render();
 if(!S.settings.onboarded) openOb();
 </script>
