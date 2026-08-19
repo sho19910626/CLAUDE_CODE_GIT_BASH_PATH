@@ -344,6 +344,7 @@ const SCRIPT = `
 ${templateSrc}
 
 const TARGETS = ${JSON.stringify(targets)};
+// 送信済み記録は端末に置かない(サーバー保存)。以前の保存ぶんは開いたときに消す
 const SENT_KEY = 'indeed-outreach-sent';
 const SENDER_KEY = 'indeed-outreach-sender';
 
@@ -360,7 +361,15 @@ const store = (() => {
   }
 })();
 
-let sent = JSON.parse(store.get(SENT_KEY) || '{}');
+// 送信済み記録はサーバー(共有データベース)に置く。
+// どの企業にいつ営業したかは顧客に関わる情報なので、各自のPCには残さない。
+// チーム全員で同じ状態が見えるため、二重営業も防げる。
+// アプリから配信されていないとき(console.html を直接開いたとき)は、
+// 保存できないことを画面に出したうえで、その場かぎりの記憶で動かす。
+let sent = {};
+const onServer = location.protocol.startsWith('http');
+// 移行前にこのPCへ残っていた送信記録を消す
+try { localStorage.removeItem(SENT_KEY); } catch {}
 let current = null;
 
 // 提案スタジオ（棲み分け提案を作るアプリ）の場所。
@@ -387,7 +396,26 @@ const safeUrl = (u) => {
   const v = String(u ?? '').trim();
   return /^https?:\/\//i.test(v) ? esc(v) : '';
 };
-const saveSent = () => store.set(SENT_KEY, JSON.stringify(sent));
+async function loadSent() {
+  if (!onServer) return;
+  try {
+    const res = await fetch('/api/outreach', { cache: 'no-store' });
+    if (!res.ok) return;
+    sent = (await res.json()).sent ?? {};
+  } catch {}
+}
+
+async function saveSent(targetId, sentOn) {
+  if (!onServer) return;
+  try {
+    const res = await fetch('/api/outreach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetId, sentOn }),
+    });
+    if (res.ok) sent = (await res.json()).sent ?? sent;
+  } catch {}
+}
 
 // クリップボードAPIは file:// では拒否されることがある。3段階で確実に届ける。
 async function copyFrom(btn, textarea) {
@@ -594,9 +622,12 @@ function renderDetail() {
     try { opened = window.open(url, '_blank', 'noopener'); } catch {}
     if (!opened) copyText($('handoff'), url);
   };
-  $('mark').onclick = () => {
-    if (sent[t.ID]) delete sent[t.ID]; else sent[t.ID] = new Date().toISOString().slice(0, 10);
-    saveSent(); renderList(); renderDetail();
+  $('mark').onclick = async () => {
+    const next = sent[t.ID] ? null : new Date().toISOString().slice(0, 10);
+    if (next === null) delete sent[t.ID]; else sent[t.ID] = next;
+    renderList(); renderDetail();
+    await saveSent(t.ID, next);
+    renderList(); renderDetail();
   };
 }
 
@@ -669,6 +700,7 @@ function renderToolNav() {
 loadSender();
 renderToolNav();
 renderList();
+loadSent().then(() => { renderList(); if (current) renderDetail(); });
 `;
 
 const standalone = `<!doctype html>

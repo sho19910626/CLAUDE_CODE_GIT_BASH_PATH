@@ -17,6 +17,7 @@ import type {
   JobRecord,
   MetricSnapshot,
 } from "../types";
+import type { Role, User } from "./users";
 
 export interface AuditEntry {
   at: string;
@@ -37,6 +38,57 @@ export interface StorageDriver {
   addIntervention(intervention: Intervention, actor: string): Promise<void>;
   deleteIntervention(id: string, actor: string): Promise<void>;
   recentAudit(limit: number): Promise<AuditEntry[]>;
+
+  // ===== 利用者アカウント =====
+  /** アカウントが 1 件も無いか。最初の管理者を作る画面を出すために使う */
+  userCount(): Promise<number>;
+  listUsers(): Promise<User[]>;
+  /** ログイン照合用。パスワードの保管値まで含めて返す */
+  findUser(name: string): Promise<(User & { passwordHash: string }) | null>;
+  findUserById(id: string): Promise<User | null>;
+  createUser(
+    user: Omit<User, "lastLoginAt">,
+    passwordHash: string,
+    actor: string
+  ): Promise<void>;
+  setUserRole(id: string, role: Role, actor: string): Promise<void>;
+  setUserActive(id: string, active: boolean, actor: string): Promise<void>;
+  setUserPassword(id: string, passwordHash: string, actor: string): Promise<void>;
+  touchLogin(id: string): Promise<void>;
+  /** 監査記録に 1 行足す(ログインなど、データ変更以外も残す) */
+  log(actor: string, action: string, detail: string): Promise<void>;
+
+  // ===== 営業リストの送信済み記録 =====
+  /** { 企業ID: 送信日 } の形。誰が営業したかはチーム全体で共有する */
+  loadOutreach(): Promise<Record<string, string>>;
+  setOutreach(targetId: string, sentOn: string | null, actor: string): Promise<void>;
+}
+
+
+interface UserRow {
+  id: string;
+  name: string;
+  role: string;
+  active: boolean;
+  created_at: string;
+  created_by: string;
+  last_login_at: string | null;
+}
+
+function toUser(r: UserRow): User {
+  return {
+    id: r.id,
+    name: r.name,
+    role: r.role === "admin" ? "admin" : "member",
+    active: r.active,
+    createdAt: new Date(r.created_at).toISOString(),
+    createdBy: r.created_by,
+    lastLoginAt: r.last_login_at ? new Date(r.last_login_at).toISOString() : null,
+  };
+}
+
+export function roleLabel(role: Role): string {
+  return role === "admin" ? "管理者" : "一般";
 }
 
 // ===== Postgres =====
@@ -65,6 +117,23 @@ create table if not exists idd_interventions (
   data jsonb not null,
   created_at timestamptz not null default now(),
   created_by text
+);
+create table if not exists idd_users (
+  id text primary key,
+  name text not null,
+  password_hash text not null,
+  role text not null default 'member',
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  created_by text not null default '',
+  last_login_at timestamptz
+);
+create unique index if not exists idd_users_name on idd_users (lower(name));
+create table if not exists idd_outreach (
+  target_id text primary key,
+  sent_on text not null,
+  actor text not null default '',
+  updated_at timestamptz not null default now()
 );
 create table if not exists idd_audit (
   id bigserial primary key,
@@ -181,6 +250,106 @@ function createPostgresDriver(url: string): StorageDriver {
       await audit(actor, "施策の記録を削除", id);
     },
 
+
+    // ===== 利用者アカウント =====
+
+    async userCount() {
+      const s = await sql();
+      const rows = (await s`select count(*)::int as n from idd_users`) as { n: number }[];
+      return rows[0]?.n ?? 0;
+    },
+
+    async listUsers() {
+      const s = await sql();
+      const rows = (await s`
+        select id, name, role, active, created_at, created_by, last_login_at
+        from idd_users order by lower(name)
+      `) as UserRow[];
+      return rows.map(toUser);
+    },
+
+    async findUser(name) {
+      const s = await sql();
+      const rows = (await s`
+        select id, name, password_hash, role, active, created_at, created_by, last_login_at
+        from idd_users where lower(name) = lower(${name})
+      `) as (UserRow & { password_hash: string })[];
+      const r = rows[0];
+      return r ? { ...toUser(r), passwordHash: r.password_hash } : null;
+    },
+
+    async findUserById(id) {
+      const s = await sql();
+      const rows = (await s`
+        select id, name, role, active, created_at, created_by, last_login_at
+        from idd_users where id = ${id}
+      `) as UserRow[];
+      return rows[0] ? toUser(rows[0]) : null;
+    },
+
+    async createUser(user, passwordHash, actor) {
+      const s = await sql();
+      await s`
+        insert into idd_users (id, name, password_hash, role, active, created_by)
+        values (${user.id}, ${user.name}, ${passwordHash}, ${user.role}, ${user.active}, ${actor})
+      `;
+      await audit(actor, "アカウントを作成", `${user.name}(${roleLabel(user.role)})`);
+    },
+
+    async setUserRole(id, role, actor) {
+      const s = await sql();
+      await s`update idd_users set role = ${role} where id = ${id}`;
+      const u = await this.findUserById(id);
+      await audit(actor, "権限を変更", `${u?.name ?? id} → ${roleLabel(role)}`);
+    },
+
+    async setUserActive(id, active, actor) {
+      const s = await sql();
+      await s`update idd_users set active = ${active} where id = ${id}`;
+      const u = await this.findUserById(id);
+      await audit(actor, active ? "アカウントを再開" : "アカウントを停止", u?.name ?? id);
+    },
+
+    async setUserPassword(id, passwordHash, actor) {
+      const s = await sql();
+      await s`update idd_users set password_hash = ${passwordHash} where id = ${id}`;
+      const u = await this.findUserById(id);
+      await audit(actor, "パスワードを変更", u?.name ?? id);
+    },
+
+    async touchLogin(id) {
+      const s = await sql();
+      await s`update idd_users set last_login_at = now() where id = ${id}`;
+    },
+
+    log: (actor, action, detail) => audit(actor, action, detail),
+
+    // ===== 営業リストの送信済み記録 =====
+
+    async loadOutreach() {
+      const s = await sql();
+      const rows = (await s`select target_id, sent_on from idd_outreach`) as {
+        target_id: string;
+        sent_on: string;
+      }[];
+      return Object.fromEntries(rows.map((r) => [r.target_id, r.sent_on]));
+    },
+
+    async setOutreach(targetId, sentOn, actor) {
+      const s = await sql();
+      if (sentOn === null) {
+        await s`delete from idd_outreach where target_id = ${targetId}`;
+        return;
+      }
+      await s`
+        insert into idd_outreach (target_id, sent_on, actor, updated_at)
+        values (${targetId}, ${sentOn}, ${actor}, now())
+        on conflict (target_id) do update
+          set sent_on = excluded.sent_on, actor = excluded.actor, updated_at = now()
+      `;
+    },
+
+
     async recentAudit(limit) {
       const s = await sql();
       const rows = (await s`
@@ -200,6 +369,8 @@ function createPostgresDriver(url: string): StorageDriver {
 
 interface FileShape extends IndeedStore {
   audit: AuditEntry[];
+  users: (User & { passwordHash: string })[];
+  outreach: Record<string, string>;
 }
 
 function createFileDriver(): StorageDriver {
@@ -218,9 +389,19 @@ function createFileDriver(): StorageDriver {
         snapshots: parsed.snapshots ?? [],
         interventions: parsed.interventions ?? [],
         audit: parsed.audit ?? [],
+        users: parsed.users ?? [],
+        outreach: parsed.outreach ?? {},
       };
     } catch {
-      return { version: 1, jobs: [], snapshots: [], interventions: [], audit: [] };
+      return {
+        version: 1,
+        jobs: [],
+        snapshots: [],
+        interventions: [],
+        audit: [],
+        users: [],
+        outreach: {},
+      };
     }
   };
 
@@ -307,6 +488,82 @@ function createFileDriver(): StorageDriver {
         log(data, actor, "施策の記録を削除", id);
       }),
 
+
+    // ===== 利用者アカウント(ローカル開発用) =====
+
+    async userCount() {
+      return (await read()).users.length;
+    },
+
+    async listUsers() {
+      const { users } = await read();
+      return users
+        .map(({ passwordHash: _ignored, ...u }) => u)
+        .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    },
+
+    async findUser(name) {
+      const { users } = await read();
+      return users.find((u) => u.name.toLowerCase() === name.toLowerCase()) ?? null;
+    },
+
+    async findUserById(id) {
+      const { users } = await read();
+      const u = users.find((x) => x.id === id);
+      if (!u) return null;
+      const { passwordHash: _ignored, ...rest } = u;
+      return rest;
+    },
+
+    createUser: (user, passwordHash, actor) =>
+      update((data) => {
+        data.users.push({ ...user, lastLoginAt: null, passwordHash });
+        log(data, actor, "アカウントを作成", `${user.name}(${roleLabel(user.role)})`);
+      }),
+
+    setUserRole: (id, role, actor) =>
+      update((data) => {
+        const u = data.users.find((x) => x.id === id);
+        if (u) u.role = role;
+        log(data, actor, "権限を変更", `${u?.name ?? id} → ${roleLabel(role)}`);
+      }),
+
+    setUserActive: (id, active, actor) =>
+      update((data) => {
+        const u = data.users.find((x) => x.id === id);
+        if (u) u.active = active;
+        log(data, actor, active ? "アカウントを再開" : "アカウントを停止", u?.name ?? id);
+      }),
+
+    setUserPassword: (id, passwordHash, actor) =>
+      update((data) => {
+        const u = data.users.find((x) => x.id === id);
+        if (u) u.passwordHash = passwordHash;
+        log(data, actor, "パスワードを変更", u?.name ?? id);
+      }),
+
+    touchLogin: (id) =>
+      update((data) => {
+        const u = data.users.find((x) => x.id === id);
+        if (u) u.lastLoginAt = new Date().toISOString();
+      }),
+
+    log: (actor, action, detail) =>
+      update((data) => {
+        log(data, actor, action, detail);
+      }),
+
+    async loadOutreach() {
+      return (await read()).outreach;
+    },
+
+    setOutreach: (targetId, sentOn) =>
+      update((data) => {
+        if (sentOn === null) delete data.outreach[targetId];
+        else data.outreach[targetId] = sentOn;
+      }),
+
+
     async recentAudit(limit) {
       const { audit } = await read();
       return audit.slice(0, limit);
@@ -316,10 +573,27 @@ function createFileDriver(): StorageDriver {
 
 let cached: StorageDriver | null = null;
 
-/** 環境に応じた保存先を返す(1 度だけ作って使い回す) */
+export class StorageNotConfiguredError extends Error {}
+
+/**
+ * 環境に応じた保存先を返す(1 度だけ作って使い回す)。
+ *
+ * 顧客企業名と実績数値を扱うため、本番では必ずクラウド(共有データベース)に置く。
+ * ファイル保存は、動かしているマシンのディスクに顧客データが残るということなので、
+ * 本番では使わせない。ローカル開発のときだけ許す。
+ */
 export function getStorage(): StorageDriver {
   if (cached) return cached;
   const url = process.env.DATABASE_URL;
-  cached = url ? createPostgresDriver(url) : createFileDriver();
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new StorageNotConfiguredError(
+        "DATABASE_URL が設定されていません。顧客データは共有データベースにだけ置く決まりのため、設定するまで動きません。"
+      );
+    }
+    cached = createFileDriver();
+    return cached;
+  }
+  cached = createPostgresDriver(url);
   return cached;
 }

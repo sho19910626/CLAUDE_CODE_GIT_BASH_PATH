@@ -6,7 +6,7 @@ import { buildInsight } from "@/lib/indeed/insight";
 import { SAMPLE_PASTE, parseMetricsTable, type ParsedRow } from "@/lib/indeed/parse";
 import { analyzeStore, type JobAnalysis } from "@/lib/indeed/recommend";
 import { employmentLabel, industryLabel } from "@/lib/indeed/seed";
-import { exportJson, newId, today } from "@/lib/indeed/store";
+import { newId, today } from "@/lib/indeed/store";
 import { useSharedStore } from "@/lib/indeed/shared-store";
 import type {
   IndeedStore,
@@ -149,8 +149,18 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
   const selected = analysis.jobs.find((j) => j.job.id === selectedJobId) ?? null;
   const l = analysis.benchmarks.learning;
 
-  const handleExport = () => {
-    const blob = new Blob([exportJson(store)], { type: "application/json" });
+  // 書き出しは管理者だけ。手元に顧客データのファイルが残る操作なので、
+  // 画面で隠すだけでなくサーバー側でも権限を確かめ、誰が書き出したかを記録する。
+  const handleExport = async () => {
+    const res = await fetch("/api/admin/export", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      window.alert(data.error ?? "書き出せませんでした");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -188,6 +198,14 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
           <span className="pa-who">
             {shared.storage === "postgres" ? "🌐 チーム共有" : "💻 このPCのみ"} ・{" "}
             {shared.user} さん
+            {shared.isAdmin && (
+              <>
+                （管理者）
+                <Link href="/indeed/admin" className="linklike">
+                  アカウント管理
+                </Link>
+              </>
+            )}
             <button
               type="button"
               className="linklike"
@@ -214,9 +232,10 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
 
       {shared.error && <div className="idd-alert error">⚠ {shared.error}</div>}
       {shared.storage === "file" && (
-        <div className="idd-alert hint">
-          💻 いまは <strong>このパソコンだけ</strong>にデータを保存しています。
-          チームで共有するには、公開先に <code>DATABASE_URL</code> を設定してください(README 参照)。
+        <div className="idd-alert error">
+          ⚠ いまは <strong>このパソコンの中</strong>にデータを保存しています。
+          顧客データは共有データベースにだけ置く決まりです。ローカル開発以外でこの表示が出ている場合は、
+          すぐに <code>DATABASE_URL</code> を設定してください。
         </div>
       )}
 
@@ -471,9 +490,16 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
           )}
 
           <div className="qa-actions">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={handleExport}>
-              💾 データを書き出す
-            </button>
+            {shared.isAdmin && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => void handleExport()}
+                title="手元にファイルが残ります。管理者だけが実行でき、記録が残ります"
+              >
+                💾 データを書き出す(管理者)
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-ghost btn-sm"

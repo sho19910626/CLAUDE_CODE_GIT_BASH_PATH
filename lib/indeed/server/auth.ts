@@ -1,93 +1,87 @@
 // ログインの仕組み。
 //
-// 6〜20人の社内チームで使う前提なので、共有パスワード + 表示名 という
-// 軽い方式にしている。ひとりずつアカウントを発行する仕組みは運用の手間が大きく、
-// この規模では続かないため。
+// 1 人 1 アカウント。管理者がアカウントを発行し、本人がパスワードを持つ。
+// 顧客企業名と実績数値を扱うため、誰が見たか・誰が消したかを人単位で辿れるようにする。
+// 退職・異動のときは、その人のアカウントだけ止めれば済む(全員のパスワード変更が不要)。
 //
-// ⚠ 割り切っている点(README にも明記):
-//   - 全員が同じパスワードを使うので、パスワードを知っている人は誰でも入れる
-//   - 表示名は自己申告なので、編集記録は「なりすませない証明」ではなく
-//     「誰がやったか後から辿るための記録」として扱う
-//   - 退職者が出たらパスワードを変える運用が必要
+// セッションは HMAC-SHA256 で署名した Cookie。署名の鍵は APP_PASSWORD を使う。
+// この値を変えると、その瞬間に全員のログインが切れる(強制ログアウトの手段でもある)。
 //
-// クライアント企業名と成果数値が入るため、本番ではパスワード未設定だと誰も入れない。
-// ローカル開発(NODE_ENV !== "production")のときだけ、合言葉なしで素通しにする。
+// アカウントもデータもクラウド(共有データベース)に置く。各自のPCには何も残さない。
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { getStorage } from "./storage";
+import type { Role, User } from "./users";
 
 const COOKIE = "idd_session";
-const MAX_AGE = 60 * 60 * 24 * 30; // 30日
+// 12 時間。停止したアカウントが最長でもこれ以上は生き残らないようにする
+const MAX_AGE = 60 * 60 * 12;
 
+/** 署名の鍵。ログインの合言葉ではなく、サーバー側だけが知っている値 */
 function secret(): string {
   return process.env.APP_PASSWORD ?? "";
 }
 
-/** パスワードが設定されているか。未設定なら共有機能は使わせない */
 export function isConfigured(): boolean {
   return secret().length > 0;
 }
 
-function sign(name: string, issuedAt: number): string {
+function sign(userId: string, issuedAt: number): string {
   return createHmac("sha256", secret())
-    .update(`${name}:${issuedAt}`)
+    .update(`${userId}:${issuedAt}`)
     .digest("base64url");
 }
 
-/**
- * トークンは「名前.発行時刻.署名」を "." で区切る。
- * encodeURIComponent は "." をそのまま残すため、名前に "." が入ると
- * 区切りが 4 つになって検証に失敗する(ログイン画面に戻され続ける)。
- * ここで "." だけ追加で伏せておく。
- */
-function encodeName(name: string): string {
-  return encodeURIComponent(name).replace(/\./g, "%2E");
-}
-
-export function createToken(name: string): string {
+export function createToken(userId: string): string {
   const issuedAt = Date.now();
-  return `${encodeName(name)}.${issuedAt}.${sign(name, issuedAt)}`;
+  return `${userId}.${issuedAt}.${sign(userId, issuedAt)}`;
 }
 
-/** トークンから表示名を取り出す。壊れていたら null */
+/** トークンが正しければ利用者IDを返す。壊れていたり期限切れなら null */
 export function verifyToken(token: string | undefined): string | null {
   if (!token || !isConfigured()) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  const [encoded, issuedAtRaw, mac] = parts;
-  const name = decodeURIComponent(encoded);
+  const [userId, issuedAtRaw, mac] = parts;
   const issuedAt = Number(issuedAtRaw);
   if (!Number.isFinite(issuedAt)) return null;
   if (Date.now() - issuedAt > MAX_AGE * 1000) return null;
 
-  const expected = sign(name, issuedAt);
+  const expected = sign(userId, issuedAt);
   // 文字列比較のタイミング差から署名を推測されないようにする
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  return name;
-}
-
-/** パスワードの照合 */
-export function checkPassword(input: string): boolean {
-  const s = secret();
-  if (!s) return false;
-  const a = Buffer.from(input);
-  const b = Buffer.from(s);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return userId;
 }
 
 export const SESSION_COOKIE = COOKIE;
 export const SESSION_MAX_AGE = MAX_AGE;
 
-/** APP_PASSWORD 未設定のローカル開発だけ、ログイン無しで使えるようにする */
-function devBypass(): boolean {
-  return !isConfigured() && process.env.NODE_ENV !== "production";
+/**
+ * 今ログインしている人。未ログイン・停止済みなら null。
+ *
+ * 署名が正しくても、そのアカウントが止められていれば通さない。
+ * 退職者のセッションをその場で無効にするため、毎回アカウントを確認する。
+ */
+export async function currentUser(): Promise<User | null> {
+  const jar = await cookies();
+  const userId = verifyToken(jar.get(COOKIE)?.value);
+  if (!userId) return null;
+  const user = await getStorage().findUserById(userId);
+  if (!user || !user.active) return null;
+  return user;
 }
 
-/** サーバー側で今のログイン者を取る。未ログインなら null */
-export async function currentUser(): Promise<string | null> {
-  if (devBypass()) return "ローカル";
-  const jar = await cookies();
-  return verifyToken(jar.get(COOKIE)?.value);
+/** 管理者だけに許す操作の入口。管理者でなければ null */
+export async function currentAdmin(): Promise<User | null> {
+  const user = await currentUser();
+  return user && user.role === "admin" ? user : null;
 }
+
+export function isAdmin(user: User | null): boolean {
+  return user?.role === "admin";
+}
+
+export type { Role, User };

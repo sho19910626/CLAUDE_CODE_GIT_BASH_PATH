@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-// 共有パスワード + 表示名でログインする。
-// 表示名は「誰が取り込んだか」を記録に残すために使う。
+// 1 人 1 アカウントでログインする。
+//
+// アカウントがまだ 1 件も無いときだけ、「最初の管理者を作る」画面に変わる。
+// そのときだけ APP_PASSWORD を合言葉として使い、以降は管理者が発行する。
+
 /**
  * ログイン後の飛び先。自サイト内のパスだけを許す。
  *
@@ -24,10 +27,24 @@ export default function LoginForm() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
 
+  const [firstAdmin, setFirstAdmin] = useState<boolean | null>(null);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/login", { cache: "no-store" });
+        const data = await res.json();
+        setFirstAdmin(Boolean(data.needsFirstAdmin));
+      } catch {
+        setFirstAdmin(false);
+      }
+    })();
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +54,9 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify(
+          firstAdmin ? { name, password, setupSecret } : { name, password }
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "ログインできませんでした");
@@ -54,12 +73,20 @@ export default function LoginForm() {
     <div className="container idd login-wrap">
       <div className="panel login-card">
         <div className="header">
-          <h1>Indeed 求人診断</h1>
+          <h1>{firstAdmin ? "最初の管理者を作る" : "Indeed 運用代行ツール"}</h1>
         </div>
-        <p className="idd-note">
-          チームで共有しているツールです。お名前とパスワードを入れてください。
-          お名前は「誰がデータを取り込んだか」の記録に使います。
-        </p>
+
+        {firstAdmin ? (
+          <p className="idd-note">
+            まだアカウントがありません。最初の管理者を 1 人つくります。
+            以降のアカウントは、この管理者が画面から発行します。
+          </p>
+        ) : (
+          <p className="idd-note">
+            管理者から受け取ったお名前とパスワードでログインしてください。
+            パスワードは自分だけのものです。他の人と共有しないでください。
+          </p>
+        )}
 
         <form onSubmit={submit}>
           <div className="field">
@@ -68,8 +95,8 @@ export default function LoginForm() {
               id="login-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="山田"
-              autoComplete="nickname"
+              placeholder="山田太郎"
+              autoComplete="username"
               required
             />
           </div>
@@ -80,19 +107,41 @@ export default function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={firstAdmin ? "new-password" : "current-password"}
               required
             />
+            {firstAdmin && (
+              <span className="hint">12文字以上で決めてください。</span>
+            )}
           </div>
+
+          {firstAdmin && (
+            <div className="field">
+              <label htmlFor="login-secret">初期設定の合言葉</label>
+              <input
+                id="login-secret"
+                type="password"
+                value={setupSecret}
+                onChange={(e) => setSetupSecret(e.target.value)}
+                autoComplete="off"
+                required
+              />
+              <span className="hint">
+                公開設定に入れた <code>APP_PASSWORD</code> の値です。ここでだけ使います。
+              </span>
+            </div>
+          )}
+
           {error && <div className="idd-alert error">⚠ {error}</div>}
+
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? "確認中…" : "ログイン"}
+            {busy ? "確認中…" : firstAdmin ? "管理者を作ってはじめる" : "ログイン"}
           </button>
         </form>
 
         <p className="idd-note">
-          パスワードが分からない場合は管理者に確認してください。
-          退職や異動があったときは、パスワードを変更する運用にしてください。
+          このツールは顧客企業名と実績数値を扱います。誰がいつ何をしたかは記録に残ります。
+          パスワードを忘れた場合や、退職・異動があった場合は管理者に連絡してください。
         </p>
       </div>
     </div>

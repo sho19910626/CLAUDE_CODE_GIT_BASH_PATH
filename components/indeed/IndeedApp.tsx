@@ -3,16 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { analyzeStore } from "@/lib/indeed/recommend";
-import {
-  emptyStore,
-  exportJson,
-  importJson,
-  mergeStores,
-  readStore,
-  upsertJob,
-  writeStore,
-} from "@/lib/indeed/store";
-import type { IndeedStore, JobRecord } from "@/lib/indeed/types";
+import { importJson, mergeStores, upsertJob } from "@/lib/indeed/store";
+import { useServerBackedStore } from "@/lib/indeed/shared-store";
+import type { JobRecord } from "@/lib/indeed/types";
 import Dashboard from "./Dashboard";
 import ImportPanel from "./ImportPanel";
 import JobDetail from "./JobDetail";
@@ -28,23 +21,14 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
 ];
 
 export default function IndeedApp() {
-  const [store, setStore] = useState<IndeedStore>(emptyStore);
-  const [loaded, setLoaded] = useState(false);
+  // 保存先は共有データベース。各自のPCには顧客データを残さない
+  const { store, setStore, shared } = useServerBackedStore();
+  const loaded = !shared.loading;
   const [tab, setTab] = useState<Tab>("dashboard");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   // 診断画面から直接「原稿を登録する」に飛べるようにするための編集状態
   const [editingJob, setEditingJob] = useState<JobRecord | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
-  // 初回だけ localStorage から復元する。以降は state が正で、変更のたびに書き戻す
-  useEffect(() => {
-    setStore(readStore());
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (loaded) writeStore(store);
-  }, [store, loaded]);
 
   useEffect(() => {
     if (!toast) return;
@@ -63,15 +47,25 @@ export default function IndeedApp() {
     [analysis, selectedJobId]
   );
 
-  const handleExport = () => {
-    const blob = new Blob([exportJson(store)], { type: "application/json" });
+  // 書き出しは管理者だけ。手元にファイルが残る操作なので、
+  // サーバー側でも権限を確かめ、誰が書き出したかを記録する。
+  const handleExport = async () => {
+    const res = await fetch("/api/admin/export", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      notify(data.error ?? "書き出せませんでした。");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `indeed-analytics-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    notify("データを書き出しました。");
+    notify("データを書き出しました。記録に残ります。");
   };
 
   const handleImportFile = async (file: File) => {
@@ -123,9 +117,16 @@ export default function IndeedApp() {
         ))}
         <div className="idd-tab-spacer" />
         <div className="idd-io">
-          <button type="button" className="btn btn-ghost" onClick={handleExport}>
-            💾 書き出し
-          </button>
+          {shared.isAdmin && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void handleExport()}
+              title="手元にファイルが残ります。管理者だけが実行でき、記録が残ります"
+            >
+              💾 書き出し(管理者)
+            </button>
+          )}
           <label className="btn btn-ghost">
             📂 読み込み
             <input

@@ -41,7 +41,13 @@ export async function GET() {
       storage.load(),
       storage.recentAudit(30),
     ]);
-    return NextResponse.json({ store, audit, storage: storage.kind, user });
+    return NextResponse.json({
+      store,
+      audit,
+      storage: storage.kind,
+      user: user.name,
+      role: user.role,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: `データの読み込みに失敗しました: ${safeMessage(e)}` },
@@ -65,22 +71,22 @@ export async function POST(request: NextRequest) {
   try {
     switch (action.type) {
       case "upsertJobs":
-        await storage.upsertJobs(action.jobs ?? [], user);
+        await storage.upsertJobs(action.jobs ?? [], user.name);
         break;
       case "deleteJob":
-        await storage.deleteJob(action.jobId, user);
+        await storage.deleteJob(action.jobId, user.name);
         break;
       case "upsertSnapshots":
-        await storage.upsertSnapshots(action.snapshots ?? [], user);
+        await storage.upsertSnapshots(action.snapshots ?? [], user.name);
         break;
       case "deleteSnapshot":
-        await storage.deleteSnapshot(action.id, user);
+        await storage.deleteSnapshot(action.id, user.name);
         break;
       case "addIntervention":
-        await storage.addIntervention(action.intervention, user);
+        await storage.addIntervention(action.intervention, user.name);
         break;
       case "deleteIntervention":
-        await storage.deleteIntervention(action.id, user);
+        await storage.deleteIntervention(action.id, user.name);
         break;
       default:
         return NextResponse.json({ error: "不明な操作です。" }, { status: 400 });
@@ -91,7 +97,13 @@ export async function POST(request: NextRequest) {
       storage.load(),
       storage.recentAudit(30),
     ]);
-    return NextResponse.json({ store, audit, storage: storage.kind, user });
+    return NextResponse.json({
+      store,
+      audit,
+      storage: storage.kind,
+      user: user.name,
+      role: user.role,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: `保存に失敗しました: ${safeMessage(e)}` },

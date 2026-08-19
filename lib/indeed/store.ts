@@ -1,11 +1,11 @@
-// データの永続化。
+// データの形を扱う小道具。
 //
-// このツールは「入れるほど賢くなる」設計なので、蓄積したデータが消えると価値も消える。
-// そのため保存はブラウザの localStorage に置きつつ、JSON での書き出し・読み込みを必ず用意し、
-// 端末を変えても引き継げるようにしている(バックアップも兼ねる)。
+// ⚠ 保存はここではしない。顧客企業名と実績数値は共有データベースにだけ置く決まりで、
+//    各自のPC(ブラウザの localStorage)には残さない。
+//    保存は lib/indeed/shared-store.ts → /api/indeed/data → サーバー が担当する。
 //
-// 複数人で共有したくなったら、readStore / writeStore の中身をサーバー API に差し替えるだけで済むよう、
-// 画面側はこのファイル経由でしかデータに触らない。
+// 以前はここで localStorage に読み書きしていた。その名残の readStore / writeStore は
+// 顧客データを端末に残してしまうため削除した。
 
 import type {
   IndeedStore,
@@ -33,22 +33,19 @@ export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** 保存されたデータを読む。壊れていたら空のストアに落とす(画面を止めない) */
-export function readStore(): IndeedStore {
-  if (typeof window === "undefined") return emptyStore();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return emptyStore();
-    const parsed = JSON.parse(raw) as Partial<IndeedStore>;
-    return normalizeStore(parsed);
-  } catch {
-    return emptyStore();
-  }
-}
-
-export function writeStore(store: IndeedStore): void {
+/**
+ * 昔このブラウザに保存されていた顧客データを消す。
+ *
+ * 保存先を共有データベースに移す前は localStorage に置いていた。
+ * 移行後も各自のPCに古いコピーが残り続けるため、画面を開いたときに消す。
+ */
+export function purgeLocalStore(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // プライベートウィンドウなどで触れないときは何もしない
+  }
 }
 
 /** 読み込んだ JSON を、欠けたフィールドを補いながら正規化する */

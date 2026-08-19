@@ -2469,3 +2469,51 @@ body {
   line-height: 1.7;
   color: var(--text-dim);
 }
+
+/* =====================================================================
+   アカウント管理 (/indeed/admin)
+   ===================================================================== */
+
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+.admin-form .btn {
+  height: 40px;
+}
+.admin-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.idd-table-wrap {
+  overflow-x: auto;
+}
+.idd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.idd-table th,
+.idd-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.idd-table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 12px;
+}
+.idd-table tr.is-off td {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+.idd-h2 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
