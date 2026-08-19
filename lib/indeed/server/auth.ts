@@ -34,9 +34,19 @@ function sign(name: string, issuedAt: number): string {
     .digest("base64url");
 }
 
+/**
+ * トークンは「名前.発行時刻.署名」を "." で区切る。
+ * encodeURIComponent は "." をそのまま残すため、名前に "." が入ると
+ * 区切りが 4 つになって検証に失敗する(ログイン画面に戻され続ける)。
+ * ここで "." だけ追加で伏せておく。
+ */
+function encodeName(name: string): string {
+  return encodeURIComponent(name).replace(/\./g, "%2E");
+}
+
 export function createToken(name: string): string {
   const issuedAt = Date.now();
-  return `${encodeURIComponent(name)}.${issuedAt}.${sign(name, issuedAt)}`;
+  return `${encodeName(name)}.${issuedAt}.${sign(name, issuedAt)}`;
 }
 
 /** トークンから表示名を取り出す。壊れていたら null */

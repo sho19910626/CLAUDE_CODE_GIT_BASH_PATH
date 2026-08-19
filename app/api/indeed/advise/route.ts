@@ -4,6 +4,7 @@ import { ADVICE_SCHEMA } from "@/lib/indeed/advice-schema";
 import { BENCHMARK_LEVEL_LABEL } from "@/lib/indeed/benchmark";
 import { employmentLabel, industryDef } from "@/lib/indeed/seed";
 import type { AdviceRequest, AdviceResult } from "@/lib/indeed/types";
+import { currentUser } from "@/lib/indeed/server/auth";
 
 export const maxDuration = 300;
 
@@ -153,6 +154,12 @@ function buildPrompt(req: AdviceRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  // middleware でもログインを見ているが、ここでも確かめる。
+  // 除外設定を 1 行いじっただけで課金に直結するAPIが開くのを避けるため。
+  if (!(await currentUser())) {
+    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  }
+
   let body: AdviceRequest;
   try {
     body = (await request.json()) as AdviceRequest;

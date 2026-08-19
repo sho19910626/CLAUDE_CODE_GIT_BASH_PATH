@@ -11,6 +11,18 @@ import type { Intervention, JobRecord, MetricSnapshot } from "@/lib/indeed/types
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 例外の文言を画面に出せる形にする。
+ *
+ * データベースの接続エラーは、接続文字列(パスワード込み)をそのまま
+ * 本文に載せてくることがある。ログイン済みの人しか見ないとはいえ、
+ * 画面や問い合わせのスクショに残ると困るので伏せる。
+ */
+function safeMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return raw.replace(/[a-z+]+:\/\/[^\s"']+/gi, "(接続先は伏せています)").slice(0, 300);
+}
+
 type Action =
   | { type: "upsertJobs"; jobs: JobRecord[] }
   | { type: "deleteJob"; jobId: string }
@@ -31,9 +43,8 @@ export async function GET() {
     ]);
     return NextResponse.json({ store, audit, storage: storage.kind, user });
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { error: `データの読み込みに失敗しました: ${message}` },
+      { error: `データの読み込みに失敗しました: ${safeMessage(e)}` },
       { status: 500 }
     );
   }
@@ -82,9 +93,8 @@ export async function POST(request: NextRequest) {
     ]);
     return NextResponse.json({ store, audit, storage: storage.kind, user });
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { error: `保存に失敗しました: ${message}` },
+      { error: `保存に失敗しました: ${safeMessage(e)}` },
       { status: 500 }
     );
   }

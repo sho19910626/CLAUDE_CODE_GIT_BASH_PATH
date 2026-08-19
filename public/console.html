@@ -6,7 +6,7 @@
 <title>Indeed運用代行 フォーム営業コンソール</title>
 <style>
 :root {
-  /* 寒色寄りのニュートラル。求人媒体の世界observationに合わせて青に振っている */
+  /* 寒色寄りのニュートラル。求人媒体の世界観に合わせて青に振っている */
   --ground: #f7f8fa;
   --surface: #ffffff;
   --surface-2: #f1f3f7;
@@ -746,6 +746,13 @@ function studioUrl() {
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// href に入れてよいURLだけを通す。esc() は記号を潰すだけで
+// javascript: を弾かないため、リンク先は別に確かめる。
+// (問い合わせ先・HP・フォームの各列は後から手で埋める運用があるため)
+const safeUrl = (u) => {
+  const v = String(u ?? '').trim();
+  return /^https?:///i.test(v) ? esc(v) : '';
+};
 const saveSent = () => store.set(SENT_KEY, JSON.stringify(sent));
 
 // クリップボードAPIは file:// では拒否されることがある。3段階で確実に届ける。
@@ -871,7 +878,7 @@ function filtered() {
 function renderList() {
   const items = filtered();
   $('list').innerHTML = items.map((t) => `
-    <button class="row ${sent[t.ID] ? 'done' : ''}" data-id="${t.ID}" aria-current="${current === t.ID}">
+    <button class="row ${sent[t.ID] ? 'done' : ''}" data-id="${esc(t.ID)}" aria-current="${current === t.ID}">
       <span class="stripe ${t.優先度}"></span>
       <span class="row-body">
         <span class="row-name">${esc(t.企業名)}</span><br>
@@ -916,12 +923,12 @@ function renderDetail() {
       <span class="chip">推定 ${esc(t.推定月額出稿)}</span>
       <span class="chip">${esc(t.アプローチ)}</span>
     </div>
-    ${notes.map((n) => '<div class="note">' + n + '</div>').join('')}
+    ${notes.map((n) => '<div class="note">' + esc(n) + '</div>').join('')}
     <div class="links">
-      <a class="btn" href="${esc(t.問い合わせ先検索)}" target="_blank" rel="noopener">問い合わせ先を検索</a>
-      <a class="btn" href="${esc(t.求人サンプル)}" target="_blank" rel="noopener">Indeedの求人を確認</a>
-      ${t.HP_URL ? '<a class="btn" href="' + esc(t.HP_URL) + '" target="_blank" rel="noopener">HP</a>' : ''}
-      ${t.フォームURL ? '<a class="btn" href="' + esc(t.フォームURL) + '" target="_blank" rel="noopener">問い合わせフォーム</a>' : ''}
+      ${safeUrl(t.問い合わせ先検索) ? '<a class="btn" href="' + safeUrl(t.問い合わせ先検索) + '" target="_blank" rel="noopener">問い合わせ先を検索</a>' : ''}
+      ${safeUrl(t.求人サンプル) ? '<a class="btn" href="' + safeUrl(t.求人サンプル) + '" target="_blank" rel="noopener">Indeedの求人を確認</a>' : ''}
+      ${safeUrl(t.HP_URL) ? '<a class="btn" href="' + safeUrl(t.HP_URL) + '" target="_blank" rel="noopener">HP</a>' : ''}
+      ${safeUrl(t.フォームURL) ? '<a class="btn" href="' + safeUrl(t.フォームURL) + '" target="_blank" rel="noopener">問い合わせフォーム</a>' : ''}
       <button id="handoff" title="この企業の情報を引き継いで提案スタジオを開きます（開けない場合はURLをコピーします）">提案スタジオへ引き継ぐ</button>
       <button class="primary" id="mark">${isSent ? '送信済みを取り消す' : '送信済みにする'}</button>
     </div>

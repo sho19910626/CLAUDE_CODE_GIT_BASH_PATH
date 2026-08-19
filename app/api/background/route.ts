@@ -2,6 +2,7 @@
 // 日本語テキストはCanvas側で重ねるため、画像には文字を入れない指示を付加する。
 
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@/lib/indeed/server/auth";
 
 export const maxDuration = 300;
 
@@ -31,6 +32,12 @@ function sizeFor(model: string, aspect: string | undefined): string {
 }
 
 export async function POST(req: NextRequest) {
+  // middleware でもログインを見ているが、ここでも確かめる。
+  // 除外設定を 1 行いじっただけで課金に直結するAPIが開くのを避けるため。
+  if (!(await currentUser())) {
+    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
