@@ -335,9 +335,6 @@ export default function IndeedProposalTool() {
         <a href="/console.html" className="ip-navlink">
           営業コンソール →
         </a>
-        <Link href="/" className="ip-navlink">
-          Insta Studio →
-        </Link>
       </p>
 
       <div className="grid">
