@@ -3,7 +3,7 @@
 
 const os = require("os");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 
 /** 同じネットワークの人から見えるIPv4アドレスを集める */
 function lanAddresses() {
@@ -24,11 +24,8 @@ function lanAddresses() {
 
 const addresses = lanAddresses();
 
-/** 共有できるツール。どちらも同じサーバーから配信される */
-const TOOLS = [
-  { label: "営業コンソール      ", path: "/console.html" },
-  { label: "Indeed 提案スタジオ ", path: "/indeed" },
-];
+/** 共有できるツール */
+const TOOLS = [{ label: "Insta Studio ", path: "/" }];
 
 function show(host) {
   for (const { label, path } of TOOLS) {
@@ -47,13 +44,13 @@ if (addresses.length === 0) {
   console.log("");
   show(primary.address);
   console.log("");
-  console.log(" 画面の上部にお互いへのリンクがあるので、");
-  console.log(" どちらか一方を伝えれば行き来できます。");
+  console.log(" パスワードを設定している場合は、");
+  console.log(" ユーザー名とパスワードも一緒に伝えてください。");
   if (others.length > 0) {
     console.log("");
     console.log(" 上のアドレスで繋がらない場合は、こちらもお試しください:");
     for (const { name, address } of others) {
-      console.log(`   http://${address}:${PORT}/indeed   (${name})`);
+      console.log(`   http://${address}:${PORT}/   (${name})`);
     }
   }
 }
