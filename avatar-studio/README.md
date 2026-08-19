@@ -85,6 +85,28 @@ npm run dev
 
 社外に公開する場合は、`.env` に `BASIC_AUTH_USER` と `BASIC_AUTH_PASSWORD` を必ず設定してください。未設定だとURLを知った人が誰でもアクセスでき、APIの利用料が発生します。
 
+## Vercel に公開する
+
+このフォルダを **別プロジェクト**としてデプロイします(リポジトリ直下のアプリとは別のURLになります)。
+
+1. Vercel(https://vercel.com/dashboard)で **Add New… → Project**
+2. このリポジトリを **Import**
+3. **Root Directory** に **`avatar-studio`** を指定
+4. **Environment Variables** を設定
+
+| 変数 | 要否 |
+|---|---|
+| `ANTHROPIC_API_KEY` | 必須 |
+| `BASIC_AUTH_PASSWORD`(と任意で `BASIC_AUTH_USER`) | 公開URLで使うなら実質必須。未設定だと誰でもアクセスでき、API利用料が発生します |
+| `ANTHROPIC_MODEL` | 任意(既定は `claude-opus-5`) |
+| `OPENAI_API_KEY` / `OPENAI_IMAGE_MODEL` | 任意(アバターの見た目案を画像で出す場合のみ) |
+
+5. **Deploy**
+
+`vercel.json` に `"framework": "nextjs"` を入れてあるため、Framework Preset が `Other` のままプロジェクトが作られても Next.js アプリとしてビルドされます(この指定が無いと `No Output Directory named "public" found` で失敗します)。
+
+生成は1段階あたり最大5分かかることがあります。実行時間の上限が60秒のプランでは途中で切れるため、上限を延ばせるプランが必要です。
+
 ## うまく動かないとき
 
 | 症状 | 対処 |
@@ -92,6 +114,7 @@ npm run dev
 | `[ERROR] .env not found` | `.env.example` を `.env` にコピーし、`ANTHROPIC_API_KEY` を設定 |
 | `[ERROR] Port 3001 is already in use` | すでにアバタースタジオの黒い画面が開いています。閉じてから起動し直す |
 | ブラウザが404を出す | URLが `http://localhost:3001` になっているか確認(3000は別のアプリです) |
+| Vercelで `No Output Directory named "public" found` | Vercelがこのアプリを Next.js と認識していません。`vercel.json` がある状態で Redeploy するか、Vercelの Settings → Build and Deployment → Framework Preset を `Next.js` に変更 |
 | 「APIキーが無効です」 | `.env` の `ANTHROPIC_API_KEY` を確認。行末の空白や引用符に注意 |
 | 生成が途中で止まる | 段階ごとに再試行できます。ヒアリング内容を少し減らすと通ることがあります |
 
