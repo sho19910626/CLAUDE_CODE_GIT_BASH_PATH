@@ -33,6 +33,8 @@
 ```
 lib/auth.ts                  署名・検証・パスワード照合(Node 側)
 lib/auth-edge.ts             middleware 用の署名検証(Web Crypto)
+lib/rate-limit.ts            ログインの総当たり対策
+lib/safe-fetch.ts            外部URL取得の安全確認(SSRF 対策)
 middleware.ts                全ページ・全API をログイン必須にする
 app/api/auth/login/route.ts  ログイン(POST) / ログアウト(DELETE)
 app/login/page.tsx           ログイン画面
@@ -42,6 +44,21 @@ components/LogoutButton.tsx  その中のボタン
 ```
 
 `app/layout.tsx` の `<body>` の先頭に `<SessionBar />` を置く。
+
+### 一緒に必ず入れるもの
+
+点検で見つかった穴はどれも「うっかり抜けやすい」ものなので、ひな形に含めてある。
+
+| 何を | どこに | 抜けると何が起きるか |
+|---|---|---|
+| ログインの回数制限 | `app/api/auth/login/route.ts` | 1秒に80回以上試せてしまい、短いパスワードが破られる |
+| 飛び先の制限 `safeNext()` | `components/LoginForm.tsx` | `/login?next=https://…` で外部の偽サイトへ送り込める |
+| 各APIでのログイン確認 | 生成系の `route.ts` すべて | middleware の除外設定を1行いじると課金APIが開く |
+| `safeFetch()` | 利用者のURLを取りに行く箇所すべて | 社内LANの別機器の画面を取ってこられる(SSRF) |
+| 防御ヘッダー | `next.config.mjs` の `headers()` | 他サイトの iframe に埋め込まれる |
+
+利用者の入力を `innerHTML` に混ぜるときは必ずエスケープし、`href` に入れる値は
+`http://` `https://` で始まるものだけ通すこと(`javascript:` を弾くため)。
 
 ### 落とし穴 — middleware で署名まで検証すること
 

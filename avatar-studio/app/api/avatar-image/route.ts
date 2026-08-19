@@ -5,6 +5,7 @@
 // そのためツール側が扱いやすいよう、縦型・上半身・無地に近い背景を指定する。
 
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
 
 export const maxDuration = 300;
 
@@ -23,6 +24,12 @@ const PROMPT_SUFFIX =
   "Avoid stock-photo clichés, avoid over-saturated HDR looks, avoid plastic-looking CGI renders.";
 
 export async function POST(req: NextRequest) {
+  // middleware でもログインを見ているが、ここでも確かめる。
+  // 除外設定を 1 行いじっただけで課金に直結するAPIが開くのを避けるため。
+  if (!(await currentUser())) {
+    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

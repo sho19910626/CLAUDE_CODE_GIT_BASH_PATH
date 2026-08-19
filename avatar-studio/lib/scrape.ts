@@ -1,6 +1,8 @@
 // 企業HPを取得してブランド分析用のテキストを抽出する。
 // 依存を増やさないため正規表現ベースの簡易抽出とする。
 
+import { UnsafeUrlError, safeFetch } from "./safe-fetch";
+
 export interface SiteInfo {
   ok: boolean;
   url: string;
@@ -24,13 +26,14 @@ export async function fetchSiteInfo(rawUrl: string): Promise<SiteInfo> {
   }
 
   try {
-    const res = await fetch(url.toString(), {
+    // 利用者が自由に書ける欄なので、社内・手元のアドレスを取りに行かせない。
+    // 転送先も 1 段ずつ確かめる(safe-fetch.ts 参照)
+    const res = await safeFetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; InstaStudioBot/1.0; +https://example.com)",
+          "Mozilla/5.0 (compatible; RecruitStudioBot/1.0; +https://example.com)",
         Accept: "text/html,application/xhtml+xml",
       },
-      redirect: "follow",
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) {
@@ -56,6 +59,9 @@ export async function fetchSiteInfo(rawUrl: string): Promise<SiteInfo> {
 
     return { ok: true, url: url.toString(), title, description, bodyText };
   } catch (e) {
+    if (e instanceof UnsafeUrlError) {
+      return { ...empty, url: url.toString(), error: e.message };
+    }
     const message = e instanceof Error ? e.message : String(e);
     return { ...empty, url: url.toString(), error: `取得に失敗しました: ${message}` };
   }

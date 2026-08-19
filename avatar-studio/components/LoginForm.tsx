@@ -5,10 +5,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 // 共有パスワード + 表示名でログインする。
 // 表示名は「今このツールを誰が使っているか」の目印として画面右上に出る。
+/**
+ * ログイン後の飛び先。自サイト内のパスだけを許す。
+ *
+ * そのまま使うと /login?next=https://... で外部サイトへ送り込めてしまう。
+ * 本物のURLのログイン画面を踏ませて偽サイトへ渡す、という使い方ができるため、
+ * 「/ で始まり、// や /\\ ではないもの」だけを通す。
+ */
+function safeNext(raw: string | null): string {
+  if (!raw) return "/";
+  if (!raw.startsWith("/")) return "/";
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/";
+  return raw;
+}
+
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/";
+  const next = safeNext(params.get("next"));
 
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");

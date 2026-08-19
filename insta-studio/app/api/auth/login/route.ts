@@ -6,12 +6,32 @@ import {
   createToken,
   isConfigured,
 } from "@/lib/auth";
+import {
+  clientKey,
+  recordFailure,
+  recordSuccess,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   if (!isConfigured()) {
     return NextResponse.json(
       { error: "APP_PASSWORD が設定されていません。管理者に連絡してください。" },
       { status: 503 }
+    );
+  }
+
+  // 総当たり対策。パスワードを見る前に締め出す
+  const key = clientKey(request);
+  const wait = retryAfterSeconds(key);
+  if (wait > 0) {
+    return NextResponse.json(
+      {
+        error: `パスワードの間違いが続いたため、この回線からの試行を一時的に止めています。${Math.ceil(
+          wait / 60
+        )}分ほど待ってからやり直してください。急ぐ場合は、スマホの回線などから開くと入れます。`,
+      },
+      { status: 429, headers: { "Retry-After": String(wait) } }
     );
   }
 
@@ -30,8 +50,10 @@ export async function POST(request: Request) {
     );
   }
   if (!checkPassword(body.password ?? "")) {
+    recordFailure(key);
     return NextResponse.json({ error: "パスワードが違います。" }, { status: 401 });
   }
+  recordSuccess(key);
 
   const res = NextResponse.json({ name });
   res.cookies.set(SESSION_COOKIE, createToken(name), {

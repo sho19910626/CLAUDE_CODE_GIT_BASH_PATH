@@ -46,6 +46,7 @@ import {
   type Platform,
   type ScriptsStage,
 } from "@/lib/avatar-types";
+import { currentUser } from "@/lib/auth";
 
 // 1段階ぶんの上限。無料のホスティングでも収まる範囲にしている
 export const maxDuration = 300;
@@ -131,6 +132,12 @@ const STAGE_MAX_TOKENS: Record<AvatarStageName, number> = {
 };
 
 export async function POST(req: NextRequest) {
+  // middleware でもログインを見ているが、ここでも確かめる。
+  // 除外設定を 1 行いじっただけで課金に直結するAPIが開くのを避けるため。
+  if (!(await currentUser())) {
+    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       {

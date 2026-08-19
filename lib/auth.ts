@@ -14,7 +14,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 
-const COOKIE = "insta_session";
+const COOKIE = "account_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30日
 
 /** APP_PASSWORD が正。以前の BASIC_AUTH_PASSWORD も当面は受け付ける */

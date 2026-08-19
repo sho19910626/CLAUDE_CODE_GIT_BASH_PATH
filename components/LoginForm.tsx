@@ -54,8 +54,8 @@ export default function LoginForm() {
     <div className="container login-wrap">
       <div className="panel login-card">
         <div className="header">
-          <h1>Insta Studio</h1>
-          <span className="sub">企業HP・ブランドイメージを入れると、フィード画像・ストーリー・リール動画を作ります。</span>
+          <h1>採用アカウント構築スタジオ</h1>
+          <span className="sub">アカウント設計から投稿計画・Indeed提案までを 1 か所で。</span>
         </div>
         <p className="login-note">
           チームで共有しているツールです。お名前とパスワードを入れてください。
