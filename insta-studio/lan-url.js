@@ -26,7 +26,6 @@ const addresses = lanAddresses();
 
 /** 共有できるツール。どちらも同じサーバーから配信される */
 const TOOLS = [
-  { label: "採用アカウント構築  ", path: "/" },
   { label: "営業コンソール      ", path: "/console.html" },
   { label: "Indeed 提案スタジオ ", path: "/indeed" },
 ];

@@ -1,5 +1,5 @@
-import Generator from "@/components/Generator";
+import AccountStudio from "@/components/AccountStudio";
 
 export default function Home() {
-  return <Generator />;
+  return <AccountStudio />;
 }

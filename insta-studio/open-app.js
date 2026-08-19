@@ -1,9 +1,9 @@
 // 開発サーバーの起動を待ってから、既定のブラウザでアプリを開く。
-// start-app.bat から裏で呼ばれる。単体でも `node open-app.js` で使える。
+// start-insta.bat から裏で呼ばれる。単体でも `node open-app.js` で使える。
 
 const { exec } = require("child_process");
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 const ROOT = `http://localhost:${PORT}`;
 const TARGET = process.argv[2] || ROOT;
 const GIVE_UP_MS = 180_000;

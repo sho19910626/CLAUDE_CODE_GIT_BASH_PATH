@@ -192,8 +192,8 @@ export default function AccountStudio() {
       <p className="lede">
         ヒアリング内容を入力すると、<strong>プロフィール / フィード9投稿(3×3グリッド) / ハイライト3種×4枚 / リール3本</strong>
         を一括で設計します。9投稿はプロフィール画面でメニューとして機能するよう、グリッド全体を先に設計してから中身を書きます。
-        <Link href="/" className="ip-navlink">
-          単発の投稿を作る (Insta Studio) →
+        <Link href="/indeed" className="ip-navlink">
+          Indeed 提案スタジオはこちら →
         </Link>
       </p>
 

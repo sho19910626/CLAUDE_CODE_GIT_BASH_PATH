@@ -24,7 +24,6 @@
     "node_modules",
     "CLAUDE_CODE_GIT_BASH_PATH",
     "avatar-studio",
-    "insta-studio",
     "**/node_modules",
     "_backup",
     "_stray-backup"

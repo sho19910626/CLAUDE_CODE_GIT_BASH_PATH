@@ -7,6 +7,7 @@ export const metadata: Metadata = {
     "ヒアリング内容から、プロフィール・フィード9投稿(3×3グリッド)・ハイライト3種・リール3本を一括で設計します。",
 };
 
+// トップページ (/) と同じ画面。以前のURLで開いた人のために残している。
 export default function AccountPage() {
   return <AccountStudio />;
 }
