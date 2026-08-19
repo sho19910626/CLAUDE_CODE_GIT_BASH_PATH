@@ -284,6 +284,75 @@ async function fileToDataUrl(
 
 const BRAND_KIT_KEY = "insta-studio-brandkit";
 
+/** アップロードされた素材1つ。画像はdataURL(Claudeの視覚分析にも使う)、動画はobjectURL */
+export interface UploadedAsset {
+  id: string;
+  kind: "image" | "video";
+  url: string;
+  name: string;
+}
+
+const MAX_IMAGES = 20;
+const MAX_VIDEOS = 12;
+/** Claude に視覚分析用として送る画像の枚数上限(リクエストサイズを抑えるため) */
+const VISION_IMAGE_LIMIT = 3;
+
+let assetSeq = 0;
+const nextAssetId = () => `a${++assetSeq}`;
+
+/**
+ * スライド/シーンに素材を割り当てる。
+ * 明示的な割り当て(assign)があればそれを、なければ素材を順番に循環させる。
+ * 素材が足りない場合も必ず何かが割り当たるので、空白のスライドが出ない。
+ */
+function assetFor(
+  assets: UploadedAsset[],
+  assign: Record<number, string>,
+  index: number
+): UploadedAsset | null {
+  if (assets.length === 0) return null;
+  const chosen = assign[index] && assets.find((a) => a.id === assign[index]);
+  return chosen || assets[index % assets.length];
+}
+
+/** 素材を選ぶサムネイル列。選択中のものに枠が付く */
+function AssetPicker({
+  assets,
+  selectedId,
+  onSelect,
+  label,
+}: {
+  assets: UploadedAsset[];
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+  label?: string;
+}) {
+  if (assets.length === 0) return null;
+  return (
+    <div className="asset-picker">
+      {label && <span className="asset-picker-label">{label}</span>}
+      <div className="asset-strip">
+        {assets.map((a, i) => (
+          <button
+            key={a.id}
+            className={`asset-thumb ${selectedId === a.id ? "active" : ""}`}
+            onClick={() => onSelect(a.id)}
+            title={a.name}
+          >
+            {a.kind === "image" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={a.url} alt={a.name} />
+            ) : (
+              <video src={a.url} muted playsInline preload="metadata" />
+            )}
+            <span className="asset-num">{i + 1}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface BrandKit {
   logo?: string;
   url?: string;
@@ -308,10 +377,15 @@ export default function Generator() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<ContentPlan | null>(null);
   const [tab, setTab] = useState<Tab>("feed");
-  const [refImages, setRefImages] = useState<string[]>([]);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [assets, setAssets] = useState<UploadedAsset[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
   const [kitSaved, setKitSaved] = useState(false);
+
+  const photoAssets = assets.filter((a) => a.kind === "image");
+  const videoAssets = assets.filter((a) => a.kind === "video");
+  // AI背景の参考写真・生成APIに送る画像は先頭から数枚のみ
+  const refImages = photoAssets.slice(0, VISION_IMAGE_LIMIT).map((a) => a.url);
+
   const backgrounds = useBackgrounds(plan, refImages[0] ?? null);
   const broll = useBroll(plan);
 
@@ -351,27 +425,57 @@ export default function Generator() {
   const addImages = useCallback(
     async (files: FileList | null) => {
       if (!files) return;
-      const remaining = 3 - refImages.length;
+      const remaining = MAX_IMAGES - photoAssets.length;
+      if (remaining <= 0) {
+        setError(`写真は最大${MAX_IMAGES}枚までです`);
+        return;
+      }
       const targets = Array.from(files).slice(0, remaining);
       try {
-        const dataUrls = await Promise.all(targets.map((f) => fileToDataUrl(f)));
-        setRefImages((prev) => [...prev, ...dataUrls].slice(0, 3));
+        const added = await Promise.all(
+          targets.map(async (f) => ({
+            id: nextAssetId(),
+            kind: "image" as const,
+            url: await fileToDataUrl(f),
+            name: f.name,
+          }))
+        );
+        setAssets((prev) => [...prev, ...added]);
       } catch {
         setError("写真の読み込みに失敗しました。JPEGまたはPNGをお試しください。");
       }
     },
-    [refImages.length]
+    [photoAssets.length]
   );
 
-  const addVideo = useCallback(
+  const addVideos = useCallback(
     (files: FileList | null) => {
-      const file = files?.[0];
-      if (!file) return;
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
-      setVideoUrl(URL.createObjectURL(file));
+      if (!files) return;
+      const remaining = MAX_VIDEOS - videoAssets.length;
+      if (remaining <= 0) {
+        setError(`動画は最大${MAX_VIDEOS}本までです`);
+        return;
+      }
+      const added = Array.from(files)
+        .slice(0, remaining)
+        .map((f) => ({
+          id: nextAssetId(),
+          kind: "video" as const,
+          url: URL.createObjectURL(f),
+          name: f.name,
+        }));
+      setAssets((prev) => [...prev, ...added]);
     },
-    [videoUrl]
+    [videoAssets.length]
   );
+
+  const removeAsset = useCallback((id: string) => {
+    setAssets((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.kind === "video") URL.revokeObjectURL(target.url);
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
 
   const generate = useCallback(async () => {
     setLoading(true);
@@ -509,13 +613,13 @@ export default function Generator() {
             </label>
             <div className="upload-row">
               <label className="btn btn-ghost btn-small">
-                📷 写真を追加 ({refImages.length}/3)
+                📷 写真を追加 ({photoAssets.length}/{MAX_IMAGES})
                 <input
                   type="file"
                   accept="image/*"
                   multiple
                   hidden
-                  disabled={loading || refImages.length >= 3}
+                  disabled={loading || photoAssets.length >= MAX_IMAGES}
                   onChange={(e) => {
                     addImages(e.target.files);
                     e.target.value = "";
@@ -523,55 +627,44 @@ export default function Generator() {
                 />
               </label>
               <label className="btn btn-ghost btn-small">
-                🎥 動画を追加
+                🎥 動画を追加 ({videoAssets.length}/{MAX_VIDEOS})
                 <input
                   type="file"
                   accept="video/*"
+                  multiple
                   hidden
-                  disabled={loading}
+                  disabled={loading || videoAssets.length >= MAX_VIDEOS}
                   onChange={(e) => {
-                    addVideo(e.target.files);
+                    addVideos(e.target.files);
                     e.target.value = "";
                   }}
                 />
               </label>
             </div>
-            {(refImages.length > 0 || videoUrl) && (
+            {assets.length > 0 && (
               <div className="thumbs">
-                {refImages.map((src, i) => (
-                  <div key={i} className="thumb">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`参考写真${i + 1}`} />
-                    <button
-                      type="button"
-                      onClick={() => setRefImages((prev) => prev.filter((_, j) => j !== i))}
-                    >
+                {assets.map((a) => (
+                  <div key={a.id} className="thumb">
+                    {a.kind === "image" ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.url} alt={a.name} />
+                    ) : (
+                      <video src={a.url} muted playsInline preload="metadata" />
+                    )}
+                    <button type="button" onClick={() => removeAsset(a.id)}>
                       ×
                     </button>
-                    {i === 0 && <span className="thumb-badge">背景に使用</span>}
+                    {a.kind === "video" && <span className="thumb-badge">動画</span>}
                   </div>
                 ))}
-                {videoUrl && (
-                  <div className="thumb">
-                    <video src={videoUrl} muted playsInline />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        URL.revokeObjectURL(videoUrl);
-                        setVideoUrl(null);
-                      }}
-                    >
-                      ×
-                    </button>
-                    <span className="thumb-badge">リール背景</span>
-                  </div>
-                )}
               </div>
             )}
             <p className="upload-hint">
+              写真はフィードのスライドごと、動画はリールのシーンごとに自動で配分され、生成後に1枚ずつ差し替えられます。
               {purpose === "recruit"
-                ? "実際の職場写真があるほど、AIが生成する背景も本物の職場に近づきます。動画はリールの背景に使えます(サーバーには送信されません)。"
-                : "写真はAIが分析してコピー・配色・背景に反映します。動画はリールの背景に使えます(サーバーには送信されません)。"}
+                ? "実際の職場写真があるほど本物の空気感になります。"
+                : ""}
+              先頭{VISION_IMAGE_LIMIT}枚の写真はAIが分析してコピー・配色にも反映します(動画はサーバーに送信されません)。
             </p>
           </div>
           <div className="field">
@@ -659,7 +752,7 @@ export default function Generator() {
                 <FeedPanel
                   plan={plan}
                   backgrounds={backgrounds}
-                  uploadRef={refImages[0] ?? null}
+                  photos={photoAssets}
                   logoSrc={logo}
                 />
               )}
@@ -675,8 +768,8 @@ export default function Generator() {
                 <ReelPanel
                   plan={plan}
                   backgrounds={backgrounds}
-                  uploadRef={refImages[0] ?? null}
-                  videoUrl={videoUrl}
+                  photos={photoAssets}
+                  videos={videoAssets}
                   logoSrc={logo}
                   broll={broll}
                 />
@@ -1079,19 +1172,22 @@ function PhotoSourcePills({
 function FeedPanel({
   plan,
   backgrounds,
-  uploadRef,
+  photos,
   logoSrc,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
-  uploadRef: string | null;
+  photos: UploadedAsset[];
   logoSrc: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [template, setTemplate] = useState<FeedTemplate>(plan.feed.template);
   const [slideIndex, setSlideIndex] = useState(0);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  /** スライド番号 → 使うアップロード写真のID(未指定のスライドは順番に自動配分) */
+  const [assign, setAssign] = useState<Record<number, string>>({});
   const total = plan.feed.slides.length;
+  const uploadRef = photos[0]?.url ?? null;
   // 表示中スライド専用の背景プロンプト(なければ全体プロンプトにフォールバック)
   const slidePrompt = plan.feed.slides[slideIndex]?.bgPrompt || plan.imagePrompt;
   const photo = usePhotoSource(
@@ -1101,21 +1197,28 @@ function FeedPanel({
     uploadRef,
     template === "photo"
   );
-  const bgSrc = photo.src;
+  /** そのスライドに使うアップロード写真 */
+  const uploadFor = useCallback(
+    (i: number) => assetFor(photos, assign, i),
+    [photos, assign]
+  );
+  const usingUpload = photo.choice === "upload" && photos.length > 0;
+  const bgSrc = usingUpload ? uploadFor(slideIndex)?.url ?? null : photo.src;
   const bgLoading = photo.loading;
 
   // AI写真モードでは他スライドの背景も先読みして切替を滑らかに
   useEffect(() => {
-    if (template !== "photo" || (photo.choice === "upload" && uploadRef)) return;
+    if (template !== "photo" || usingUpload) return;
     for (const s of plan.feed.slides) {
       const p = s.bgPrompt || plan.imagePrompt;
       if (p) backgrounds.fetchBackground(p, "square");
     }
-  }, [template, photo.choice, uploadRef, plan, backgrounds]);
+  }, [template, usingUpload, plan, backgrounds]);
 
   useEffect(() => {
     setTemplate(plan.feed.template);
     setSlideIndex(0);
+    setAssign({});
   }, [plan]);
 
   useEffect(() => {
@@ -1151,10 +1254,9 @@ function FeedPanel({
         let img: HTMLImageElement | null = null;
         if (template === "photo") {
           const p = plan.feed.slides[i]?.bgPrompt || plan.imagePrompt;
-          const src =
-            photo.choice === "upload" && uploadRef
-              ? uploadRef
-              : backgrounds.getImage(p, "square") ?? uploadRef;
+          const src = usingUpload
+            ? uploadFor(i)?.url ?? null
+            : backgrounds.getImage(p, "square") ?? uploadFor(i)?.url ?? null;
           img = src ? await loadImage(src) : null;
         }
         renderFeedSlide(tmp, plan.brand, { ...plan.feed, template }, i, img, logoImg);
@@ -1176,7 +1278,7 @@ function FeedPanel({
     } finally {
       setDownloadingAll(false);
     }
-  }, [downloadingAll, template, plan, total, photo.choice, uploadRef, backgrounds, logoSrc]);
+  }, [downloadingAll, template, plan, total, usingUpload, uploadFor, backgrounds, logoSrc]);
 
   return (
     <div className="result-grid">
@@ -1196,6 +1298,23 @@ function FeedPanel({
           <PhotoSourcePills uploadRef={uploadRef} choice={photo.choice} setChoice={photo.setChoice} />
         )}
         <canvas ref={canvasRef} />
+        {template === "photo" && usingUpload && (
+          <>
+            <AssetPicker
+              assets={photos}
+              selectedId={uploadFor(slideIndex)?.id}
+              onSelect={(id) => setAssign((s) => ({ ...s, [slideIndex]: id }))}
+              label={`${slideIndex + 1}枚目に使う写真`}
+            />
+            {Object.keys(assign).length > 0 && (
+              <div className="preview-actions">
+                <button className="btn btn-ghost btn-small" onClick={() => setAssign({})}>
+                  ↩ 自動配分に戻す
+                </button>
+              </div>
+            )}
+          </>
+        )}
         <div className="slide-nav">
           <button
             className="btn btn-ghost btn-small"
@@ -1468,30 +1587,81 @@ function StoryPanel({
 
 type ReelBgMode = "gradient" | "ai" | "photo" | "video" | "broll";
 
+const SCENE_LABEL: Record<string, string> = {
+  hook: "フック",
+  point: "ポイント",
+  cta: "CTA",
+};
+
+/** シーンごとに、どのアップロード素材を使うかを割り当てるパネル */
+function SceneAssignBox({
+  scenes,
+  assets,
+  assign,
+  setAssign,
+}: {
+  scenes: ReelScene[];
+  assets: UploadedAsset[];
+  assign: Record<number, string>;
+  setAssign: (fn: (s: Record<number, string>) => Record<number, string>) => void;
+}) {
+  if (assets.length === 0) return null;
+  return (
+    <div className="broll-box" style={{ textAlign: "left" }}>
+      <p className="note" style={{ marginTop: 0, textAlign: "center" }}>
+        素材はシーンごとに自動で配分されています。差し替えたいシーンのサムネイルを選んでください。
+      </p>
+      {scenes.map((s, i) => (
+        <AssetPicker
+          key={i}
+          assets={assets}
+          selectedId={assetFor(assets, assign, i)?.id}
+          onSelect={(id) => setAssign((prev) => ({ ...prev, [i]: id }))}
+          label={`シーン${i + 1}(${SCENE_LABEL[s.type] ?? s.type})`}
+        />
+      ))}
+      {Object.keys(assign).length > 0 && (
+        <div className="preview-actions">
+          <button className="btn btn-ghost btn-small" onClick={() => setAssign(() => ({}))}>
+            ↩ 自動配分に戻す
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReelPanel({
   plan,
   backgrounds,
-  uploadRef,
-  videoUrl,
+  photos,
+  videos: videoAssets,
   logoSrc,
   broll,
 }: {
   plan: ContentPlan;
   backgrounds: Backgrounds;
-  uploadRef: string | null;
-  videoUrl: string | null;
+  photos: UploadedAsset[];
+  videos: UploadedAsset[];
   logoSrc: string | null;
   broll: Broll;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  /** アップロード動画の <video> 要素(素材IDごと) */
+  const uploadVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const brollVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const playerRef = useRef<ReelPlayer | null>(null);
   const exporter = useVideoExport(playerRef, "reel_1080x1920");
+  const uploadRef = photos[0]?.url ?? null;
   // リールは映像が主役。アップ動画があればそれを、無ければAI動画(Sora)を初期選択にする
-  const [bgMode, setBgMode] = useState<ReelBgMode>(videoUrl ? "video" : "broll");
+  const [bgMode, setBgMode] = useState<ReelBgMode>(
+    videoAssets.length > 0 ? "video" : "broll"
+  );
   /** Bロールの構成: 1本の映像 or シーンごとのカット割り */
   const [brollMode, setBrollMode] = useState<"single" | "scenes">("scenes");
+  /** シーン番号 → 使うアップロード素材のID(未指定は順番に自動配分) */
+  const [videoAssign, setVideoAssign] = useState<Record<number, string>>({});
+  const [photoAssign, setPhotoAssign] = useState<Record<number, string>>({});
   // 各シーンの背景プロンプト(なければ全体プロンプトにフォールバック)
   const scenePrompts = plan.reel.scenes.map(
     (s) => s.bgPrompt || plan.imagePrompt
@@ -1533,13 +1703,26 @@ function ReelPanel({
           })
         );
       }
-      if (bgMode === "photo" && uploadRef) img = await loadImage(uploadRef);
+      // アップ写真モード: シーンごとに別の写真を割り当ててカット割りにする
+      if (bgMode === "photo" && photos.length > 0) {
+        images = await Promise.all(
+          plan.reel.scenes.map(async (_, i) => {
+            const a = assetFor(photos, photoAssign, i);
+            return a ? loadImage(a.url) : null;
+          })
+        );
+      }
 
       // 背景動画の決定(アップ動画 / Bロール1本 / Bロールのシーン別カット)
       let video: HTMLVideoElement | null = null;
       let videos: (HTMLVideoElement | null)[] | null = null;
-      if (bgMode === "video" && videoUrl) {
-        video = videoRef.current;
+      if (bgMode === "video" && videoAssets.length > 0) {
+        // シーンごとにアップロード動画を割り当てて、実素材でカット編集する
+        videos = plan.reel.scenes.map((_, i) => {
+          const a = assetFor(videoAssets, videoAssign, i);
+          return a ? uploadVideoRefs.current.get(a.id) ?? null : null;
+        });
+        if (videos.every((v) => v === null)) videos = null;
       } else if (bgMode === "broll") {
         if (brollMode === "single") {
           video = brollVideoRefs.current.get("single") ?? null;
@@ -1590,9 +1773,11 @@ function ReelPanel({
     bgMode,
     brollMode,
     aiSceneImages,
-    uploadRef,
-    videoUrl,
     logoSrc,
+    photos.map((a) => a.id).join(","),
+    videoAssets.map((a) => a.id).join(","),
+    JSON.stringify(videoAssign),
+    JSON.stringify(photoAssign),
     Object.entries(broll.clips)
       .map(([k, u]) => k + u)
       .join(","),
@@ -1614,20 +1799,20 @@ function ReelPanel({
           >
             🎞 AI動画 (Sora)
           </button>
-          {videoUrl && (
+          {videoAssets.length > 0 && (
             <button
               className={`template-pill ${bgMode === "video" ? "active" : ""}`}
               onClick={() => setBgMode("video")}
             >
-              🎥 アップ動画
+              🎥 アップ動画 ({videoAssets.length}本)
             </button>
           )}
-          {uploadRef && (
+          {photos.length > 0 && (
             <button
               className={`template-pill ${bgMode === "photo" ? "active" : ""}`}
               onClick={() => setBgMode("photo")}
             >
-              📷 アップ写真
+              📷 アップ写真 ({photos.length}枚)
             </button>
           )}
           <button
@@ -1643,8 +1828,27 @@ function ReelPanel({
             グラデーション
           </button>
         </div>
-        {videoUrl && (
-          <video ref={videoRef} src={videoUrl} muted playsInline loop hidden />
+        {videoAssets.map((a) => (
+          <video
+            key={a.id}
+            src={a.url}
+            muted
+            playsInline
+            loop
+            hidden
+            ref={(el) => {
+              if (el) uploadVideoRefs.current.set(a.id, el);
+              else uploadVideoRefs.current.delete(a.id);
+            }}
+          />
+        ))}
+        {(bgMode === "video" || bgMode === "photo") && (
+          <SceneAssignBox
+            scenes={plan.reel.scenes}
+            assets={bgMode === "video" ? videoAssets : photos}
+            assign={bgMode === "video" ? videoAssign : photoAssign}
+            setAssign={bgMode === "video" ? setVideoAssign : setPhotoAssign}
+          />
         )}
         {Object.entries(broll.clips).map(([key, url]) => (
           <video
