@@ -1,0 +1,1412 @@
+<!doctype html>
+<html lang="ja" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>営業のための時間管理マトリックス</title>
+<style>
+/* ============================================================
+   トークン（reference palette 準拠 / 検証済み象限カラー）
+   ============================================================ */
+:root{
+  color-scheme: light;
+  --plane:#f9f9f7; --surface:#fcfcfb; --surface-2:#ffffff;
+  --ink:#0b0b0b; --ink-2:#52514e; --ink-muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --shadow:0 1px 2px rgba(11,11,11,.05),0 8px 24px rgba(11,11,11,.06);
+  --q1:#d03b3b; --q2:#2a78d6; --q3:#eda100; --q4:#7d7b75;
+  --q1i:#b52f2f; --q2i:#1c5cab; --q3i:#8a6100; --q4i:#5f5e59;
+  --good:#006300; --bad:#d03b3b;
+  --radius:12px; --radius-sm:8px;
+  --font:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --surface-2:#222220;
+    --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.5);
+    --q1:#c4494b; --q2:#3987e5; --q3:#c98500; --q4:#b8b6ad;
+    --q1i:#e08183; --q2i:#6da7ec; --q3i:#eda100; --q4i:#b8b6ad;
+    --good:#0ca30c; --bad:#e66767;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0d0d0d; --surface:#1a1a19; --surface-2:#222220;
+  --ink:#ffffff; --ink-2:#c3c2b7; --ink-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.5);
+  --q1:#c4494b; --q2:#3987e5; --q3:#c98500; --q4:#b8b6ad;
+  --q1i:#e08183; --q2i:#6da7ec; --q3i:#eda100; --q4i:#b8b6ad;
+  --good:#0ca30c; --bad:#e66767;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--plane); color:var(--ink); font-family:var(--font);
+  font-size:15px; line-height:1.7; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+h1,h2,h3,h4{margin:0; line-height:1.4; font-weight:650; letter-spacing:.01em}
+p{margin:0}
+button{font:inherit; color:inherit; cursor:pointer}
+input,select,textarea{font:inherit; color:inherit}
+[hidden]{display:none !important}
+
+/* ---------- 共通パーツ ---------- */
+.btn{
+  border:1px solid var(--border); background:var(--surface); color:var(--ink);
+  border-radius:var(--radius-sm); padding:8px 14px; font-size:14px; font-weight:600;
+  transition:background .12s, border-color .12s, transform .06s;
+}
+.btn:hover{background:var(--surface-2); border-color:var(--axis)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.btn-primary:hover{background:var(--ink-2); border-color:var(--ink-2)}
+.btn-ghost{background:transparent; border-color:transparent; color:var(--ink-2)}
+.btn-ghost:hover{background:var(--surface-2); border-color:var(--border)}
+.btn-sm{padding:4px 10px; font-size:12.5px; border-radius:6px}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow)}
+.muted{color:var(--ink-muted)}
+.dim{color:var(--ink-2)}
+.tnum{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+input[type=text],input[type=number],textarea,select{
+  width:100%; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:9px 12px; outline:none;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--q2); box-shadow:0 0 0 3px color-mix(in oklab,var(--q2) 18%,transparent)}
+textarea{resize:vertical; min-height:72px; line-height:1.6}
+label.field{display:block; margin-bottom:14px}
+label.field > span{display:block; font-size:13px; font-weight:650; color:var(--ink-2); margin-bottom:6px}
+
+/* ---------- レイアウト ---------- */
+.shell{max-width:1180px; margin:0 auto; padding:0 20px 80px}
+header.top{
+  position:sticky; top:0; z-index:40; background:color-mix(in oklab,var(--plane) 88%,transparent);
+  backdrop-filter:blur(12px); border-bottom:1px solid var(--border);
+}
+.top-in{max-width:1180px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+.brand b{font-size:16px; font-weight:700; letter-spacing:.02em}
+.brand span{font-size:12px; color:var(--ink-muted)}
+.tabs{display:flex; gap:2px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:3px}
+.tab{border:0; background:transparent; padding:6px 14px; border-radius:7px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
+.tab[aria-selected=true]{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.weeknav{display:flex; align-items:center; gap:6px; font-size:13px}
+.weeknav b{font-variant-numeric:tabular-nums; min-width:132px; text-align:center}
+.iconbtn{border:1px solid var(--border); background:var(--surface); border-radius:7px; width:28px; height:28px; display:grid; place-items:center; font-size:13px}
+
+.page-head{padding:28px 0 18px}
+.page-head h2{font-size:22px}
+.page-head p{color:var(--ink-2); font-size:14px; margin-top:6px; max-width:70ch}
+
+/* ---------- 配分チャート（バレット型） ---------- */
+.viz{padding:20px}
+.viz-head{display:flex; align-items:flex-start; gap:12px; margin-bottom:4px; flex-wrap:wrap}
+.viz-head h3{font-size:15px}
+.viz-head p{font-size:12.5px; color:var(--ink-muted); margin-top:2px}
+.viz-head .spacer{margin-left:auto}
+.hero{display:flex; gap:28px; flex-wrap:wrap; margin:14px 0 20px; padding-bottom:18px; border-bottom:1px solid var(--grid)}
+.stat .k{font-size:12px; color:var(--ink-muted); font-weight:600}
+.stat .v{font-size:28px; font-weight:700; line-height:1.2; letter-spacing:-.01em}
+.stat .s{font-size:12px; color:var(--ink-2)}
+.bars{display:grid; gap:14px}
+.bar-row{display:grid; grid-template-columns:132px 1fr 92px; align-items:center; gap:12px}
+.bar-lab{display:flex; align-items:center; gap:7px; font-size:13px; font-weight:650}
+.bar-lab i{width:10px; height:10px; border-radius:3px; flex:none; font-style:normal}
+.bar-track{position:relative; height:22px; background:color-mix(in oklab,var(--grid) 55%,transparent); border-radius:5px}
+.bar-fill{position:absolute; left:0; top:0; bottom:0; border-radius:0 4px 4px 0; min-width:2px; transition:width .35s cubic-bezier(.4,0,.2,1)}
+.bar-fill.tex{background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.35) 4px 6px)}
+.bar-target{position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--ink-2); border-radius:1px}
+.bar-target::after{content:''; position:absolute; left:-3px; top:-1px; width:8px; height:2px; background:var(--ink-2); border-radius:1px}
+.bar-val{font-size:13px; text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2)}
+.bar-val b{color:var(--ink)}
+.viz-foot{display:flex; align-items:center; gap:16px; margin-top:16px; padding-top:12px; border-top:1px solid var(--grid); font-size:12px; color:var(--ink-muted); flex-wrap:wrap}
+.legend-target{display:inline-flex; align-items:center; gap:6px}
+.legend-target::before{content:''; width:2px; height:13px; background:var(--ink-2); border-radius:1px}
+table.viz-table{width:100%; border-collapse:collapse; font-size:13px; margin-top:14px}
+table.viz-table th,table.viz-table td{text-align:right; padding:7px 10px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums}
+table.viz-table th:first-child,table.viz-table td:first-child{text-align:left; font-variant-numeric:normal}
+table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650}
+
+#tip{
+  position:fixed; z-index:100; pointer-events:none; opacity:0; transition:opacity .1s;
+  background:var(--surface); border:1px solid var(--axis); border-radius:8px; box-shadow:var(--shadow);
+  padding:9px 12px; font-size:12.5px; line-height:1.6; max-width:260px;
+}
+#tip b{display:block; margin-bottom:2px}
+
+/* ---------- アラート ---------- */
+.alerts{display:grid; gap:10px; margin-bottom:18px}
+.alert{
+  display:flex; gap:12px; padding:13px 16px; border-radius:var(--radius);
+  border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow);
+  border-left:3px solid var(--ink-muted);
+}
+.alert.sev-high{border-left-color:var(--q1)}
+.alert.sev-mid{border-left-color:var(--q3)}
+.alert.sev-ok{border-left-color:var(--good)}
+.alert .ic{font-size:16px; line-height:1.5; flex:none}
+.alert .tx{font-size:13.5px; line-height:1.65}
+.alert .tx b{font-variant-numeric:tabular-nums}
+.alert .tx em{font-style:normal; color:var(--ink-muted); display:block; font-size:12.5px; margin-top:3px}
+
+/* ---------- 4象限グリッド ---------- */
+.matrix-axis{margin-top:20px}
+.axis-note{display:flex; gap:8px 24px; flex-wrap:wrap; font-size:12px; color:var(--ink-muted); padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); margin-bottom:14px}
+.axis-note b{color:var(--ink-2); font-weight:700}
+.axis-x{display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11.5px; font-weight:700; color:var(--ink-muted); letter-spacing:.14em; text-align:center; margin-bottom:8px}
+.matrix{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.quad{border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column; min-height:250px}
+.quad-head{padding:14px 16px 12px; border-bottom:1px solid var(--grid); border-top:3px solid var(--qc)}
+.quad-title{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.quad-title .ic{font-size:15px}
+.quad-title h3{font-size:15px}
+.quad-title .badge{font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--qci); border:1px solid color-mix(in oklab,var(--qc) 40%,transparent); background:color-mix(in oklab,var(--qc) 10%,transparent); padding:1px 7px; border-radius:20px}
+.quad-title .cnt{margin-left:auto; font-size:12px; color:var(--ink-muted); font-variant-numeric:tabular-nums}
+.quad-sub{font-size:12.5px; color:var(--ink-2); margin-top:6px; line-height:1.6}
+.quad-ex{margin-top:9px}
+.quad-ex summary{font-size:12px; color:var(--ink-muted); cursor:pointer; list-style:none; font-weight:600}
+.quad-ex summary::-webkit-details-marker{display:none}
+.quad-ex summary::before{content:'▸ '; }
+.quad-ex[open] summary::before{content:'▾ '}
+.quad-ex ul{margin:8px 0 2px; padding-left:18px; font-size:12.5px; color:var(--ink-2); line-height:1.75}
+.quad-ex .rule{margin-top:8px; font-size:12.5px; padding:8px 10px; border-radius:7px; background:color-mix(in oklab,var(--qc) 8%,transparent); color:var(--ink-2)}
+.quad-body{padding:10px 12px 14px; display:grid; gap:8px; align-content:start; flex:1}
+.quad-empty{font-size:12.5px; color:var(--ink-muted); padding:14px 4px; text-align:center}
+
+.task{border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-2); padding:10px 12px; display:grid; gap:6px}
+.task.done{opacity:.5}
+.task-top{display:flex; gap:9px; align-items:flex-start}
+.task-check{appearance:none; width:17px; height:17px; border:1.5px solid var(--axis); border-radius:5px; flex:none; margin-top:3px; cursor:pointer; display:grid; place-items:center}
+.task-check:checked{background:var(--qc); border-color:var(--qc)}
+.task-check:checked::after{content:'✓'; color:#fff; font-size:11px; font-weight:700}
+.task-title{font-size:13.5px; font-weight:600; line-height:1.55; flex:1; word-break:break-word}
+.task.done .task-title{text-decoration:line-through}
+.task-meta{display:flex; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-muted); font-variant-numeric:tabular-nums; padding-left:26px}
+.task-meta .flag{color:var(--q1); font-weight:650}
+.task-acts{display:flex; gap:4px; padding-left:26px; flex-wrap:wrap}
+.chip{font-size:11px; padding:2px 8px; border-radius:20px; border:1px solid var(--border); background:var(--surface); color:var(--ink-2)}
+.chip.warn{color:var(--q3); border-color:color-mix(in oklab,var(--q3) 45%,transparent)}
+
+/* ---------- 週プラン ---------- */
+.plan-grid{display:grid; grid-template-columns:56px repeat(var(--days),1fr); gap:2px; margin-top:16px; font-size:11.5px}
+.plan-grid .hd{padding:7px 4px; text-align:center; font-weight:650; color:var(--ink-2); font-size:12px}
+.plan-grid .hr{color:var(--ink-muted); text-align:right; padding:2px 8px 0 0; font-variant-numeric:tabular-nums; line-height:1}
+.cell{height:34px; border:1px solid var(--grid); border-radius:5px; background:var(--surface); cursor:pointer; position:relative; overflow:hidden; transition:background .1s}
+.cell:hover{background:color-mix(in oklab,var(--q2) 9%,var(--surface))}
+.cell.filled{cursor:default; border-color:transparent; padding:3px 5px; color:#fff; font-weight:650; font-size:10.5px; line-height:1.3; display:flex; align-items:center}
+.cell.filled.tex{background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.3) 4px 6px)}
+.cell.filled span{overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+.cell.filled .x{position:absolute; top:1px; right:3px; opacity:.75; font-size:12px; cursor:pointer}
+.plan-bar{display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:14px 18px}
+.prog{flex:1; min-width:220px; height:10px; background:color-mix(in oklab,var(--grid) 60%,transparent); border-radius:5px; position:relative; overflow:hidden}
+.prog i{position:absolute; left:0; top:0; bottom:0; background:var(--q2); border-radius:0 4px 4px 0; display:block}
+
+/* ---------- ふりかえり ---------- */
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.sec{padding:18px 20px}
+.sec h3{font-size:14px; margin-bottom:4px}
+.sec .lead{font-size:12.5px; color:var(--ink-muted); margin-bottom:12px}
+.list{display:grid; gap:8px}
+.li{display:flex; gap:10px; align-items:baseline; font-size:13px; padding:8px 10px; border-radius:7px; background:var(--surface-2); border:1px solid var(--border)}
+.li .n{font-variant-numeric:tabular-nums; color:var(--ink-muted); font-size:12px; margin-left:auto; white-space:nowrap}
+.vow{display:grid; gap:8px}
+.vow-row{display:grid; grid-template-columns:22px 1fr; gap:8px; align-items:center}
+.vow-row b{color:var(--q2); font-size:13px}
+
+/* ---------- モーダル ---------- */
+.overlay{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.55); display:grid; place-items:center; padding:20px; overflow-y:auto}
+.modal{background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 64px rgba(0,0,0,.35); width:100%; max-width:600px; max-height:calc(100vh - 40px); display:flex; flex-direction:column; overflow:hidden}
+.modal-head{padding:18px 22px 14px; border-bottom:1px solid var(--grid); display:flex; align-items:center; gap:12px}
+.modal-head h3{font-size:16px; flex:1}
+.modal-body{padding:20px 22px; overflow-y:auto; flex:1}
+.modal-foot{padding:14px 22px; border-top:1px solid var(--grid); display:flex; gap:8px; align-items:center; background:var(--surface)}
+.modal-foot .spacer{margin-left:auto}
+.steps{display:flex; gap:4px; padding:0 22px 12px}
+.steps i{height:3px; flex:1; background:var(--grid); border-radius:2px}
+.steps i.on{background:var(--q2)}
+.q{font-size:16px; font-weight:650; line-height:1.55; margin-bottom:6px}
+.qh{font-size:12.5px; color:var(--ink-muted); margin-bottom:16px; line-height:1.65}
+.opts{display:grid; gap:8px}
+.opt{
+  display:flex; gap:11px; align-items:flex-start; text-align:left; width:100%;
+  border:1px solid var(--border); background:var(--surface-2); border-radius:10px; padding:12px 14px;
+  transition:border-color .12s, background .12s;
+}
+.opt:hover{border-color:var(--axis)}
+.opt[aria-pressed=true]{border-color:var(--q2); background:color-mix(in oklab,var(--q2) 9%,var(--surface)); box-shadow:0 0 0 1px var(--q2) inset}
+.opt .mk{width:18px; height:18px; border-radius:50%; border:1.5px solid var(--axis); flex:none; margin-top:2px; display:grid; place-items:center; font-size:10px}
+.opt[aria-pressed=true] .mk{background:var(--q2); border-color:var(--q2); color:#fff}
+.opt .mk.sq{border-radius:5px}
+.opt .ot{font-size:14px; font-weight:600; line-height:1.5}
+.opt .od{font-size:12px; color:var(--ink-muted); line-height:1.55; margin-top:2px}
+
+.verdict{border-radius:12px; border:1px solid color-mix(in oklab,var(--qc) 35%,transparent); overflow:hidden; margin-bottom:16px}
+.verdict-top{padding:16px 18px; background:color-mix(in oklab,var(--qc) 12%,transparent); border-bottom:1px solid color-mix(in oklab,var(--qc) 25%,transparent)}
+.verdict-top .badge{font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--qci)}
+.verdict-top h4{font-size:20px; margin-top:2px}
+.verdict-top .lead{font-size:13px; color:var(--ink-2); margin-top:6px; line-height:1.65}
+.verdict-why{padding:14px 18px; font-size:13px; display:grid; gap:9px}
+.why-row{display:grid; grid-template-columns:74px 1fr; gap:10px; align-items:baseline}
+.why-row .k{font-size:11.5px; font-weight:700; color:var(--ink-muted); letter-spacing:.04em}
+.why-row .v{line-height:1.65}
+.verdict-do{padding:13px 18px; border-top:1px solid color-mix(in oklab,var(--qc) 25%,transparent); font-size:13px; background:color-mix(in oklab,var(--qc) 6%,transparent)}
+.verdict-do b{color:var(--qci)}
+
+/* ---------- オンボーディング ---------- */
+.ob{max-width:660px}
+.ob-body{padding:30px 32px; min-height:330px}
+.ob-body h2{font-size:24px; letter-spacing:-.01em}
+.ob-body .kicker{font-size:12px; font-weight:700; letter-spacing:.1em; color:var(--q2); margin-bottom:8px}
+.ob-body p{font-size:14.5px; color:var(--ink-2); line-height:1.85; margin-top:14px}
+.ob-body p strong{color:var(--ink)}
+.ob-mx{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:20px}
+.ob-mx div{border:1px solid var(--border); border-left:3px solid var(--qc); border-radius:8px; padding:11px 13px; font-size:12.5px; background:var(--surface-2)}
+.ob-mx div b{font-weight:700}
+.ob-mx div b:first-child{display:block; font-size:13px; margin-bottom:3px; color:var(--qci)}
+.quote{border-left:3px solid var(--q2); padding:4px 0 4px 16px; margin-top:20px; font-size:14px; line-height:1.8; color:var(--ink-2)}
+
+@media (max-width: 860px){
+  .matrix{grid-template-columns:1fr}
+  .axis-x{display:none}
+  .grid2{grid-template-columns:1fr}
+  .bar-row{grid-template-columns:112px 1fr 72px; gap:8px}
+  .bar-lab{font-size:12px; gap:5px}
+  .bar-val{font-size:12px}
+  .top-in{padding:10px 14px}
+  .shell{padding:0 14px 60px}
+  .plan-grid{font-size:10px; grid-template-columns:40px repeat(var(--days),1fr)}
+  .ob-mx{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><b>時間管理マトリックス</b><span id="styleLabel">営業向け</span></div>
+    <div class="weeknav">
+      <button class="iconbtn" id="wPrev" title="前の週">‹</button>
+      <b id="wLabel"></b>
+      <button class="iconbtn" id="wNext" title="次の週">›</button>
+      <button class="btn btn-sm btn-ghost" id="wToday">今週</button>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-view="matrix" aria-selected="true">マトリックス</button>
+      <button class="tab" role="tab" data-view="plan" aria-selected="false">週プラン</button>
+      <button class="tab" role="tab" data-view="review" aria-selected="false">ふりかえり</button>
+      <button class="tab" role="tab" data-view="settings" aria-selected="false">設定</button>
+    </nav>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- ========== マトリックス ========== -->
+  <section id="view-matrix">
+    <div class="page-head">
+      <h2>今週のタスクを、4つの領域に切り分ける</h2>
+      <p>成果を決めるのは<b>第2領域</b>です。ここに時間を置けているかどうかだけが、来期の数字を変えます。第1領域が多い週は、第2領域をサボった過去のツケです。</p>
+    </div>
+
+    <div class="alerts" id="alerts"></div>
+
+    <div class="card viz" id="allocCard">
+      <div class="viz-head">
+        <div>
+          <h3>今週の時間配分 — 目標と実績</h3>
+          <p>完了したタスクの実績時間を領域別に集計。縦線は週の目標時間。</p>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn btn-sm btn-ghost" id="toggleTable">表で見る</button>
+      </div>
+      <div class="hero" id="heroStats"></div>
+      <div class="bars" id="allocBars"></div>
+      <div class="viz-foot">
+        <span class="legend-target">目標</span>
+        <span>実績が目標に届いていない領域は、右側の数字が赤で出ます。</span>
+      </div>
+      <div id="allocTable" hidden></div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin:22px 0 4px;flex-wrap:wrap">
+      <button class="btn btn-primary" id="addTask">＋ タスクを追加して判定する</button>
+      <button class="btn btn-sm btn-ghost" id="toggleDone">完了タスクを表示</button>
+      <span class="muted" style="font-size:12.5px;margin-left:auto" id="taskCount"></span>
+    </div>
+
+    <div class="matrix-axis">
+      <div class="axis-note"><span><b>縦軸＝重要度</b>　上の2つが「重要」、下の2つが「重要でない」</span><span><b>横軸＝緊急度</b>　左の2つが「緊急」、右の2つが「緊急でない」</span></div>
+      <div class="axis-x"><div>緊急</div><div>緊急でない</div></div>
+      <div class="matrix" id="matrix"></div>
+    </div>
+  </section>
+
+  <!-- ========== 週プラン ========== -->
+  <section id="view-plan" hidden>
+    <div class="page-head">
+      <h2>第2領域を、先に予定に入れる</h2>
+      <p>空いた時間に第2領域を入れようとすると、永久に入りません。<b>大きな石を先に、砂は後から。</b>まず第2領域のブロックを置き、残った隙間に他を入れてください。</p>
+    </div>
+
+    <div class="card plan-bar" id="planBar"></div>
+    <div class="card" style="padding:16px 18px;margin-top:14px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <label style="font-size:13px;font-weight:650;flex:none">置くタスク</label>
+        <select id="blockTask" style="flex:1;min-width:220px"></select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);flex:none">
+          <input type="checkbox" id="showWeekend" style="width:auto"> 土日も表示
+        </label>
+        <button class="btn btn-sm" id="icsBtn">📅 .ics でカレンダーに書き出す</button>
+      </div>
+      <p class="muted" style="font-size:12.5px">選んだタスクを、下のマスをクリックして 1 時間単位で置きます。置いたマスをもう一度クリックすると外れます。</p>
+      <div class="plan-grid" id="planGrid"></div>
+    </div>
+  </section>
+
+  <!-- ========== ふりかえり ========== -->
+  <section id="view-review" hidden>
+    <div class="page-head">
+      <h2>今週、何に時間を使ったのか</h2>
+      <p>感想ではなく数字で見ます。逃げた時間は必ず数字に出ます。</p>
+    </div>
+
+    <div class="alerts" id="reviewAlerts"></div>
+    <div class="card viz" id="reviewViz"></div>
+
+    <div class="grid2" style="margin-top:16px">
+      <div class="card sec">
+        <h3>第2領域 — 予約した時間と、実際にやった時間</h3>
+        <p class="lead">予約したのにやらなかった分が、来期の数字から消えた分です。</p>
+        <div id="revQ2"></div>
+      </div>
+      <div class="card sec">
+        <h3>逃げていた場所</h3>
+        <p class="lead">第3領域・第4領域で時間を使った上位と、自分で「逃避」と答えたタスク。</p>
+        <div id="revEscape"></div>
+      </div>
+    </div>
+
+    <div class="card sec" style="margin-top:16px">
+      <h3>来週、先に確保する第2領域を3つ決める</h3>
+      <p class="lead">3つだけです。多く決めるほど、ひとつも実行されません。</p>
+      <div class="vow" id="revVow"></div>
+    </div>
+
+    <div class="card sec" style="margin-top:16px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <h3>チームに共有するサマリー</h3>
+          <p class="lead" style="margin:0">上司・メンバーにそのまま貼れるテキストを書き出します。</p>
+        </div>
+        <button class="btn btn-sm" id="copySummary">サマリーをコピー</button>
+        <button class="btn btn-sm btn-ghost" id="dlSummary">.txt で保存</button>
+      </div>
+      <textarea id="summaryBox" readonly style="margin-top:12px;min-height:220px;font-size:12.5px;line-height:1.7"></textarea>
+    </div>
+  </section>
+
+  <!-- ========== 設定 ========== -->
+  <section id="view-settings" hidden>
+    <div class="page-head"><h2>設定</h2><p>営業スタイルを変えると、各領域に表示される具体例が切り替わります。</p></div>
+    <div class="grid2">
+      <div class="card sec">
+        <h3>営業スタイル</h3>
+        <p class="lead">あなたの主戦場に合わせて、象限の具体例を出し分けます。</p>
+        <div class="opts" id="styleOpts"></div>
+      </div>
+      <div class="card sec">
+        <h3>週の目標配分</h3>
+        <p class="lead">合計が週の稼働時間になるように置きます。第2領域は「多すぎるかな」と思うくらいが適正です。</p>
+        <div id="targetFields"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="autoTargets">稼働時間から自動配分（20/50/25/5）</button>
+        </div>
+        <label class="field" style="margin-top:16px"><span>逃避アラートのしきい値 — 第3+第4領域の上限（%）</span>
+          <input type="number" id="setThreshold" min="5" max="90" step="5"></label>
+      </div>
+      <div class="card sec">
+        <h3>表示</h3>
+        <label class="field"><span>テーマ</span>
+          <select id="setTheme"><option value="system">システムに合わせる</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label>
+        <label class="field"><span>週の稼働時間（h）</span><input type="number" id="setWeekly" min="1" max="120" step="1"></label>
+        <button class="btn btn-sm btn-ghost" id="replayOb">はじめの説明をもう一度見る</button>
+      </div>
+      <div class="card sec">
+        <h3>データ</h3>
+        <p class="lead">データはこのブラウザの中だけに保存されます。サーバーには何も送られません。端末を移るときは書き出して読み込んでください。</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="expBtn">JSON を書き出す</button>
+          <button class="btn btn-sm" id="impBtn">JSON を読み込む</button>
+          <input type="file" id="impFile" accept="application/json" hidden>
+          <button class="btn btn-sm btn-ghost" id="clearBtn" style="color:var(--bad)">すべて消す</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="obOverlay" hidden>
+  <div class="modal ob">
+    <div class="ob-body" id="obBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" id="obSkip">スキップ</button>
+      <span class="spacer"></span>
+      <span class="muted tnum" id="obCount" style="font-size:12px"></span>
+      <button class="btn btn-sm" id="obBack">戻る</button>
+      <button class="btn btn-primary btn-sm" id="obNext">次へ</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="wzOverlay" hidden>
+  <div class="modal">
+    <div class="modal-head"><h3 id="wzTitle">タスクを判定する</h3><button class="iconbtn" id="wzClose">✕</button></div>
+    <div class="steps" id="wzSteps"></div>
+    <div class="modal-body" id="wzBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" id="wzBack">戻る</button>
+      <span class="spacer"></span>
+      <button class="btn btn-primary btn-sm" id="wzNext">次へ</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="edOverlay" hidden>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head"><h3 id="edTitle">タスク</h3><button class="iconbtn" id="edClose">✕</button></div>
+    <div class="modal-body" id="edBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-sm btn-ghost" id="edDelete" style="color:var(--bad)">削除</button>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" id="edRewiz">判定をやり直す</button>
+      <button class="btn btn-primary btn-sm" id="edSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   1. 定数 — 4象限の定義と、営業スタイル別の具体例
+   ========================================================================= */
+const Q = {
+  q1:{key:'q1', no:'第1領域', axis:'緊急 × 重要', name:'火消し', ic:'🔥', v:'--q1', iv:'--q1i',
+    sub:'締切直前・クレーム・失注寸前。やらざるを得ない。ただしここが太い週は、第2領域をサボった過去のツケが回収されているだけです。',
+    rule:'減らす方法は第1領域の中にはありません。第2領域を増やすことでしか減りません。',
+    act:'今日やる。終わったら「これは第2領域で防げたか？」を一行だけ残す。'},
+  q2:{key:'q2', no:'第2領域', axis:'緊急でない × 重要', name:'投資', ic:'🌱', v:'--q2', iv:'--q2i',
+    sub:'誰も催促してこないのに、来期の数字を決めてしまう領域。放っておくと必ずゼロになります。',
+    rule:'空いた時間にやろうとすると永久にやりません。予定に先に置いてください。',
+    act:'週プランでブロックを先に確保する。予定表に入っていない第2領域は、やらないのと同じです。'},
+  q3:{key:'q3', no:'第3領域', axis:'緊急 × 重要でない', name:'見せかけ', ic:'🎭', v:'--q3', iv:'--q3i',
+    sub:'誰かの緊急であって、あなたの成果ではない。速く反応するほど「仕事をした感」が出るので、いちばん逃げ込みやすい場所です。',
+    rule:'ここに使った時間は、あなたの評価にも顧客の成果にも残りません。',
+    act:'任せる・断る・時間を区切る。この3つ以外の選択肢はありません。'},
+  q4:{key:'q4', no:'第4領域', axis:'緊急でない × 重要でない', name:'ムダ', ic:'🗑', v:'--q4', iv:'--q4i',
+    sub:'手を動かしている実感だけがある領域。多くは、気の重い第2領域から逃げるために選ばれています。',
+    rule:'ここを削っても、誰も困りません。困る人がいるなら、それは第3領域です。',
+    act:'やらない。消す。今日から手をつけない。'}
+};
+const QKEYS = ['q1','q2','q3','q4'];
+
+const STYLES = {
+  shinki:{ label:'法人・新規開拓中心', hint:'リスト作成・アポ獲得・初回商談が主戦場',
+    ex:{
+      q1:['今日締切の見積・提案書の提出','失注寸前の案件の火消し','決裁直前に出たトラブルの対応','今日返さないと流れる稟議の差し戻し'],
+      q2:['ターゲットリストと「攻める順番」の設計','商談前の仮説（相手の課題）構築','トークスクリプト・提案の型の改善','用件のないキーマンとの関係づくり','受注・失注理由の言語化','翌々月のパイプラインの仕込み'],
+      q3:['頼まれた社内資料の体裁調整','鳴った電話・チャットへの反射的な即レス','目的の曖昧な社内定例への出席','自分の数字に関係ない他部署の急ぎ依頼','議事録の清書'],
+      q4:['CRMの色分け・タグの整理','件数を稼ぐためだけの意味のない訪問','移動中のあてのないネット閲覧','誰も読まない日報の作り込み','提案書の見た目を何度も直す']}},
+  shinko:{ label:'法人・既存深耕／カスタマーサクセス', hint:'既存顧客の維持・拡大が主戦場',
+    ex:{
+      q1:['顧客からのクレーム対応','更新期限直前の条件交渉','納品トラブルの復旧','解約通告への対応'],
+      q2:['定期的な利活用レビューの実施','解約予兆（利用率低下・担当交代）の観察','アップセル／クロスセルの設計','キーマン交代に備えた複数接点づくり','顧客の事業計画のヒアリング','成功事例の言語化と横展開'],
+      q3:['依頼された単純作業の代行','催促と確認だけの往復メール','定型の月次報告の作り込み','自分でなくてもいい問い合わせの一次対応'],
+      q4:['用件のない御用聞き訪問','読まれない定期レポートの装飾','関係のない社内雑談への長居','使われないFAQの延々とした整備']}},
+  manager:{ label:'マネージャー／プレイングマネージャー', hint:'自分の数字と部下の育成の両方を持つ',
+    ex:{
+      q1:['部下の炎上案件の火消し','今日の数字の詰め','上位顧客のエスカレーション対応','急な欠員への対応'],
+      q2:['同行・ロープレによる育成','1on1','勝ちパターンの型化と横展開','採用と戦力化の設計','来期の戦略・テリトリー設計','数字が上がる仕組みの構築'],
+      q3:['形式的な社内報告資料の作り込み','出席するだけの会議','上への説明資料の過剰な作り込み','部下でもできる報告の取りまとめ'],
+      q4:['部下の仕事の巻き取り（本人が育たない）','使われないダッシュボードの整備','眺めるだけの数字チェック','目的のない情報収集']}}
+};
+
+/* =========================================================================
+   2. 判定ウィザード — 設問と採点
+   ========================================================================= */
+const WZ = [
+  {id:'title', type:'text', q:'このタスクは何ですか？',
+   h:'あとで自分が見て分かる粒度で。「A社対応」ではなく「A社・情シス部長への提案骨子づくり」。'},
+  {id:'deadline', type:'one', q:'いつまでにやる必要がありますか？',
+   h:'「早くやりたい」ではなく「いつまでに終わっていないと問題が起きるか」で答えてください。',
+   opts:[{v:'today', t:'今日中', d:'今日を過ぎると実害が出る', s:3},
+         {v:'d2',    t:'48時間以内', d:'明日〜明後日が事実上の期限', s:2},
+         {v:'week',  t:'今週中', d:'週内なら間に合う', s:1},
+         {v:'later', t:'来週以降 ／ 期限なし', d:'誰も締切を決めていない。第2領域の候補です。', s:0}]},
+  {id:'blocks', type:'one', q:'あなたが今やらないと、誰かの仕事が止まりますか？',
+   h:'止まるのは「他人」か「自分の気分」かを区別してください。気分が落ち着かないだけなら「いいえ」です。',
+   opts:[{v:'yes', t:'はい、実際に誰かが止まる', d:'顧客・上司・他部署の作業が実際にブロックされる', s:1},
+         {v:'no',  t:'いいえ、止まらない', d:'自分が気になっているだけ', s:0}]},
+  {id:'contrib', type:'multi', max:2, q:'このタスクは、何に効きますか？（最大2つ）',
+   h:'ここは「最大2つ」です。全部に効くタスクは存在しません。2つに絞れないものは、たいてい重要ではありません。',
+   opts:[{v:'now',   t:'今期の受注・売上に直結する', d:'進めれば数字が動く', s:3},
+         {v:'pipe',  t:'来期以降のパイプライン・関係資産をつくる', d:'今日は1円にもならないが、半年後の受注をつくる', s:3},
+         {v:'trust', t:'顧客の信頼・継続に効く', d:'解約を防ぐ・単価を守る・紹介につながる', s:2},
+         {v:'asset', t:'自分やチームに能力・仕組みが残る', d:'次回から速くなる、他の人も再現できる', s:2},
+         {v:'none',  t:'どれにも当てはまらない', d:'頼まれた／慣習／手が空いた感を消したいだけ', s:0, excl:true}]},
+  {id:'impact', type:'one', q:'これをやらなかったら、3ヶ月後に何が起きますか？',
+   h:'来週ではなく3ヶ月後です。短期の焦りと本当の重要性を切り離すための設問です。',
+   opts:[{v:'lose', t:'数字が落ちる／失注する／顧客を失う', d:'成果に直結して跳ね返ってくる', s:3},
+         {v:'minor',t:'誰かが少し困るが、数字は変わらない', d:'不便だが成果は変わらない', s:1},
+         {v:'none', t:'何も起きない', d:'3ヶ月後、やらなかったことすら思い出せない', s:-2}]},
+  {id:'owner', type:'one', q:'これは本当に「あなたが」やるべきですか？',
+   h:'重要なタスクでも、あなたである必要がないなら、あなたの時間の使い道としては第3領域です。',
+   opts:[{v:'only', t:'自分にしかできない', d:'関係性・判断・専門性が自分に紐づく', s:1},
+         {v:'deleg',t:'人に任せられる／仕組みにできる', d:'やり方を渡せば他の人でもできる', s:-1},
+         {v:'no',   t:'そもそも断れる・やめられる', d:'引き受けた理由が「断りにくかった」だけ', s:-2}]},
+  {id:'escape', type:'one', q:'これは、気が重い別のタスクを避けるために選んでいませんか？',
+   h:'正直に答えるほど、このツールは役に立ちます。ここで嘘をつくと、逃避が「仕事」として記録され続けます。',
+   opts:[{v:'no',  t:'いいえ、これ自体をやる必要がある', d:'', s:0},
+         {v:'yes', t:'はい、正直そうかもしれない', d:'本当は先に手をつけるべきものが別にある', s:-3}]},
+  {id:'estimate', type:'num', q:'どのくらい時間がかかりますか？',
+   h:'見積もりです。完了時に実績を入れると、あなたの見積もりのクセ（何倍ズレるか）も分かります。'}
+];
+const TH_URGENT = 2, TH_IMPORTANT = 3;
+
+function score(a){
+  const opt = (id,v)=> (WZ.find(w=>w.id===id).opts||[]).find(o=>o.v===v);
+  let u = 0;
+  u += (opt('deadline', a.deadline)||{s:0}).s;
+  u += (opt('blocks', a.blocks)||{s:0}).s;
+  let i = 0;
+  (a.contrib||[]).forEach(v => i += (opt('contrib', v)||{s:0}).s);
+  i += (opt('impact', a.impact)||{s:0}).s;
+  i += (opt('owner', a.owner)||{s:0}).s;
+  i += (opt('escape', a.escape)||{s:0}).s;
+  const urgent = u >= TH_URGENT, important = i >= TH_IMPORTANT;
+  const q = urgent ? (important?'q1':'q3') : (important?'q2':'q4');
+  return {u, i, urgent, important, quadrant:q};
+}
+
+function reason(a, sc){
+  const T = (id,v)=>{const o=(WZ.find(w=>w.id===id).opts||[]).find(x=>x.v===v); return o?o.t:''};
+  const uParts = [];
+  if(a.deadline==='today') uParts.push('期限は今日中');
+  else if(a.deadline==='d2') uParts.push('期限は48時間以内');
+  else if(a.deadline==='week') uParts.push('期限は今週中');
+  else uParts.push('締切を決めている人が誰もいない');
+  if(a.blocks==='yes') uParts.push('やらないと他の人の仕事が実際に止まる');
+  else uParts.push('止まるのは他人ではなく自分の気分だけ');
+
+  const iParts = [];
+  const cs = (a.contrib||[]);
+  if(cs.includes('none') || cs.length===0) iParts.push('成果への貢献として何も選べなかった');
+  else iParts.push('効くのは「' + cs.map(v=>T('contrib',v)).join('」「') + '」');
+  if(a.impact==='lose') iParts.push('やらなければ3ヶ月後に数字が落ちる');
+  else if(a.impact==='minor') iParts.push('やらなくても3ヶ月後の数字は変わらない');
+  else iParts.push('やらなくても3ヶ月後は何も起きない');
+  if(a.owner==='only') iParts.push('自分にしかできない');
+  else if(a.owner==='deleg') iParts.push('人に任せられると自分で答えている');
+  else iParts.push('そもそも断れると自分で答えている');
+  if(a.escape==='yes') iParts.push('別のタスクからの逃避だと自分で認めている');
+
+  const notes = [];
+  if(a.escape==='yes') notes.push('これは逃避です。先に手をつけるべき第2領域のタスクを、いま1つ書き出してください。');
+  if(a.owner!=='only' && sc.important) notes.push('重要ですが、あなたである必要はありません。任せて結果だけ確認する形にできないか、10秒だけ考えてください。');
+  if(sc.quadrant==='q1' && cs.includes('pipe')) notes.push('本来は第2領域だったものが、放置されて締切に追いつかれた形です。次は前倒しできます。');
+  if(sc.quadrant==='q2') notes.push('誰も催促してきません。だから予定に置かないと、今週も消えます。');
+  if(sc.quadrant==='q3') notes.push('速く反応するほど「仕事をした感」が出ます。それがこの領域の罠です。');
+
+  return {
+    urgency: uParts.join('／') + ' → ' + (sc.urgent?'緊急':'緊急ではない'),
+    importance: iParts.join('／') + ' → ' + (sc.important?'重要':'重要ではない'),
+    notes
+  };
+}
+
+/* =========================================================================
+   3. 状態と保存
+   ========================================================================= */
+const KEY = 'sales-time-matrix-v1';
+const DEF = {
+  settings:{ style:'shinki', weekly:40, targets:{q1:8,q2:20,q3:10,q4:2}, threshold:35, theme:'system', onboarded:false, showWeekend:false },
+  tasks:[], blocks:[], vows:{}
+};
+let S = load();
+let view = 'matrix', weekOffset = 0, showDone = false, showTable = false;
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return structuredClone(DEF);
+    const d = JSON.parse(raw);
+    return {...structuredClone(DEF), ...d, settings:{...DEF.settings, ...(d.settings||{})}};
+  }catch(e){ return structuredClone(DEF); }
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ console.warn('保存できませんでした', e); } }
+const uid = ()=> Math.random().toString(36).slice(2,10);
+
+/* ---- 週の計算（月曜はじまり） ---- */
+function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); const w=(x.getDay()+6)%7; x.setDate(x.getDate()-w); return x; }
+function weekStart(off=weekOffset){ const m=mondayOf(new Date()); m.setDate(m.getDate()+off*7); return m; }
+function wk(d){ const m=mondayOf(d); return m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0')+'-'+String(m.getDate()).padStart(2,'0'); }
+function curWeek(){ return wk(weekStart()); }
+function weekLabel(off=weekOffset){
+  const a=weekStart(off), b=new Date(a); b.setDate(b.getDate()+6);
+  const f=x=>(x.getMonth()+1)+'/'+x.getDate();
+  return f(a)+' – '+f(b) + (off===0?'（今週）':off===-1?'（先週）':off===1?'（来週）':'');
+}
+function weekProgress(){
+  if(weekOffset < 0) return 1;
+  if(weekOffset > 0) return 0;
+  const a=weekStart(), now=new Date();
+  return Math.min(1, Math.max(0, (now-a)/(7*24*3600*1000)));
+}
+const h1 = n => (Math.round(n*10)/10).toFixed(1);
+const pct = (a,b) => b>0 ? Math.round(a/b*1000)/10 : 0;
+
+/* ---- 集計 ---- */
+function actualByQuad(week){
+  const o = {q1:0,q2:0,q3:0,q4:0};
+  S.tasks.forEach(t=>{ if(t.done && t.doneWeek===week) o[t.quadrant] += (+t.actual||0); });
+  return o;
+}
+function plannedByQuad(week){
+  const o = {q1:0,q2:0,q3:0,q4:0};
+  S.blocks.filter(b=>b.week===week).forEach(b=>{ const t=S.tasks.find(x=>x.id===b.taskId); if(t) o[t.quadrant] += 1; });
+  return o;
+}
+const openTasks = ()=> S.tasks.filter(t=>!t.done && !t.dropped);
+const doneIn = w => S.tasks.filter(t=>t.done && t.doneWeek===w);
+
+/* =========================================================================
+   4. 配分チャート（バレット型・横バー）
+   ========================================================================= */
+const tip = document.getElementById('tip');
+function showTip(e, html){
+  tip.innerHTML = html; tip.style.opacity = '1';
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if(x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if(y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x+'px'; tip.style.top = y+'px';
+}
+function hideTip(){ tip.style.opacity = '0'; }
+
+function renderBars(host, actual, targets){
+  const max = Math.max(...QKEYS.map(k=>Math.max(actual[k], targets[k])), 1) * 1.12;
+  host.innerHTML = QKEYS.map(k=>{
+    const q = Q[k], a = actual[k], t = targets[k];
+    const short = a < t, over = k!=='q2' && a > t && t >= 0;
+    const col = 'var('+q.v+')';
+    const valCol = (k==='q2' && short) ? 'var(--bad)' : (k!=='q2' && over) ? 'var(--bad)' : 'var(--ink)';
+    return '<div class="bar-row" data-q="'+k+'">'
+      + '<div class="bar-lab"><i style="background:'+col+'"></i>'+q.no+'・'+q.name+'</div>'
+      + '<div class="bar-track">'
+      +   '<div class="bar-fill'+(k==='q4'?' tex':'')+'" style="width:'+(a/max*100)+'%;background:'+col+'"></div>'
+      +   '<div class="bar-target" style="left:'+(t/max*100)+'%"></div>'
+      + '</div>'
+      + '<div class="bar-val"><b style="color:'+valCol+'">'+h1(a)+'h</b> <span class="muted">/'+h1(t)+'</span></div>'
+      + '</div>';
+  }).join('');
+  host.querySelectorAll('.bar-row').forEach(row=>{
+    const k = row.dataset.q, q = Q[k];
+    const total = QKEYS.reduce((s,x)=>s+actual[x],0);
+    const body = '<b>'+q.no+'・'+q.name+'</b>実績 '+h1(actual[k])+'h（全体の '+pct(actual[k],total)+'%）<br>目標 '+h1(targets[k])+'h　差 '
+      + (actual[k]-targets[k]>=0?'+':'') + h1(actual[k]-targets[k]) + 'h';
+    row.addEventListener('mousemove', e=>showTip(e, body));
+    row.addEventListener('mouseleave', hideTip);
+  });
+}
+function renderTable(host, actual, targets){
+  const total = QKEYS.reduce((s,k)=>s+actual[k],0);
+  host.innerHTML = '<table class="viz-table"><thead><tr><th>領域</th><th>実績</th><th>構成比</th><th>目標</th><th>差</th></tr></thead><tbody>'
+    + QKEYS.map(k=>'<tr><td>'+Q[k].no+'・'+Q[k].name+'</td><td>'+h1(actual[k])+'h</td><td>'+pct(actual[k],total)+'%</td><td>'+h1(targets[k])+'h</td><td>'
+      + (actual[k]-targets[k]>=0?'+':'')+h1(actual[k]-targets[k])+'h</td></tr>').join('')
+    + '<tr><td><b>合計</b></td><td><b>'+h1(total)+'h</b></td><td>100%</td><td>'+h1(QKEYS.reduce((s,k)=>s+targets[k],0))+'h</td><td></td></tr>'
+    + '</tbody></table>';
+}
+function renderHero(host, actual, targets){
+  const total = QKEYS.reduce((s,k)=>s+actual[k],0);
+  const q2p = pct(actual.q2,total), lostp = pct(actual.q3+actual.q4,total);
+  const st = (k,v,s,c)=>'<div class="stat"><div class="k">'+k+'</div><div class="v tnum" style="color:'+(c||'var(--ink)')+'">'+v+'</div><div class="s">'+s+'</div></div>';
+  host.innerHTML =
+      st('記録された時間', h1(total)+'h', '完了タスクの実績合計')
+    + st('第2領域（投資）', q2p+'%', h1(actual.q2)+'h ／ 目標 '+h1(targets.q2)+'h', actual.q2 < targets.q2*0.6 ? 'var(--bad)' : 'var(--good)')
+    + st('第3+第4領域（逃避）', lostp+'%', h1(actual.q3+actual.q4)+'h ／ 上限 '+S.settings.threshold+'%', lostp > S.settings.threshold ? 'var(--bad)' : 'var(--ink)')
+    + st('第1領域（火消し）', pct(actual.q1,total)+'%', h1(actual.q1)+'h');
+}
+
+/* =========================================================================
+   5. 逃避アラート — 事実を数字で突きつける
+   ========================================================================= */
+function buildAlerts(week){
+  const a = actualByQuad(week), t = S.settings.targets;
+  const total = QKEYS.reduce((s,k)=>s+a[k],0);
+  const prog = weekProgress();
+  const out = [];
+  const A = (sev,ic,tx,em)=>out.push({sev,ic,tx,em});
+
+  if(total === 0){
+    A('mid','○','この週はまだ1時間も記録されていません。<b>完了したタスクにチェックを入れ、実績時間を入れる</b>まで、あなたが何に時間を使ったかは誰にも分かりません。',
+      '記録しない限り、逃避は「忙しかった」という感想のまま残ります。');
+    return out;
+  }
+
+  const lost = a.q3 + a.q4, lostp = pct(lost, total);
+  if(lostp > S.settings.threshold){
+    A('high','🎭','今週の実績 <b>'+h1(total)+'h</b> のうち、第3領域（見せかけ）と第4領域（ムダ）が <b>'+h1(lost)+'h ＝ '+lostp+'%</b>。上限の '+S.settings.threshold+'% を超えています。',
+      'この '+h1(lost)+'h は、誰かの緊急に反応しただけの時間です。あなたの数字にも顧客の成果にも残りません。');
+  }
+  if(a.q4 > 0){
+    A('high','🗑','第4領域（ムダ）に <b>'+h1(a.q4)+'h</b>。ここを丸ごと削っても、困る人はひとりもいません。',
+      '削って空いた '+h1(a.q4)+'h を、そのまま第2領域に移してください。');
+  }
+  if(a.q2 < t.q2 * 0.5 && prog >= 0.5){
+    A('high','🌱','第2領域は目標 <b>'+h1(t.q2)+'h</b> に対して <b>'+h1(a.q2)+'h（'+Math.round(a.q2/Math.max(t.q2,.01)*100)+'%）</b>。週はすでに <b>'+Math.round(prog*100)+'%</b> 過ぎています。',
+      'このペースだと、今週も「来期の種まき」はほぼゼロで終わります。来週の数字は、今週の第2領域で決まっています。');
+  }else if(a.q2 >= t.q2){
+    A('ok','✓','第2領域を目標どおり <b>'+h1(a.q2)+'h</b> 確保できています。今週いちばん価値のある事実です。','この状態を来週も再現できるかどうかが、実力です。');
+  }
+  const q1p = pct(a.q1, total);
+  if(q1p > 40){
+    A('mid','🔥','第1領域（火消し）が <b>'+h1(a.q1)+'h ＝ '+q1p+'%</b>。追われた週です。',
+      '火消しは第1領域の中では減りません。今週火を消した案件のうち、何件が「先月の第2領域」で防げたかを確認してください。');
+  }
+  const escaped = S.tasks.filter(x=>x.answers && x.answers.escape==='yes' && !x.dropped);
+  if(escaped.length){
+    A('high','⚠','<b>'+escaped.length+'件</b>のタスクに、あなた自身が「別のタスクからの逃避だ」と答えています。<br>' 
+      + escaped.slice(0,3).map(x=>'「'+esc(x.title)+'」').join('、'),
+      '逃避先を消しても意味はありません。逃げている先にある第2領域のタスクを、いま予定に入れてください。');
+  }
+  const now = Date.now();
+  const stale = openTasks().filter(x=>x.quadrant==='q2').map(x=>({t:x, d:Math.floor((now - x.created)/86400000)})).filter(x=>x.d>=7).sort((a,b)=>b.d-a.d);
+  if(stale.length >= 2){
+    A('mid','⏳','第2領域のタスクが <b>'+stale.length+'件</b>、7日以上手つかずです。最も古いのは「'+esc(stale[0].t.title)+'」で <b>'+stale[0].d+'日</b>。',
+      '第2領域は誰も催促してきません。だから放置され、いつか第1領域として炎上して戻ってきます。');
+  }
+  const delegable = openTasks().filter(x=>x.answers && (x.answers.owner==='deleg'||x.answers.owner==='no'));
+  if(delegable.length >= 3){
+    A('mid','↗','<b>'+delegable.length+'件</b>のタスクに「人に任せられる／断れる」と自分で答えたまま、まだ自分で抱えています。',
+      '抱えた理由が「頼むより自分でやったほうが速い」なら、それは来月も再来月も同じ時間を失う選択です。');
+  }
+  if(out.length === 0) A('ok','✓','逃避の兆候は出ていません。第2領域 <b>'+h1(a.q2)+'h</b>、第3+第4領域 <b>'+lostp+'%</b>。','この配分を維持してください。');
+  return out;
+}
+function renderAlerts(host, week){
+  host.innerHTML = buildAlerts(week).map(x=>
+    '<div class="alert sev-'+x.sev+'"><div class="ic">'+x.ic+'</div><div class="tx">'+x.tx+'<em>'+x.em+'</em></div></div>').join('');
+}
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* =========================================================================
+   6. マトリックス描画
+   ========================================================================= */
+function renderMatrix(){
+  const week = curWeek();
+  renderAlerts(document.getElementById('alerts'), week);
+  const a = actualByQuad(week), t = S.settings.targets;
+  renderHero(document.getElementById('heroStats'), a, t);
+  renderBars(document.getElementById('allocBars'), a, t);
+  const tb = document.getElementById('allocTable');
+  tb.hidden = !showTable; if(showTable) renderTable(tb, a, t);
+  document.getElementById('toggleTable').textContent = showTable ? 'グラフで見る' : '表で見る';
+
+  const ex = STYLES[S.settings.style].ex;
+  const list = S.tasks.filter(x=>!x.dropped && (showDone || !x.done));
+  document.getElementById('taskCount').textContent = '未完了 ' + openTasks().length + ' 件 ／ 今週完了 ' + doneIn(week).length + ' 件';
+  document.getElementById('toggleDone').textContent = showDone ? '完了タスクを隠す' : '完了タスクを表示';
+
+  document.getElementById('matrix').innerHTML = QKEYS.map(k=>{
+    const q = Q[k], ts = list.filter(x=>x.quadrant===k);
+    const sum = ts.reduce((s,x)=>s+(+x.estimate||0),0);
+    return '<div class="quad" style="--qc:var('+q.v+');--qci:var('+q.iv+')">'
+      + '<div class="quad-head">'
+      +   '<div class="quad-title"><span class="ic">'+q.ic+'</span><h3>'+q.no+'・'+q.name+'</h3><span class="badge">'+q.axis+'</span>'
+      +     '<span class="cnt">'+ts.length+'件 / 見積'+h1(sum)+'h</span></div>'
+      +   '<p class="quad-sub">'+q.sub+'</p>'
+      +   '<details class="quad-ex"><summary>営業ではここに何が入るか</summary><ul>'
+      +     ex[k].map(x=>'<li>'+esc(x)+'</li>').join('')
+      +   '</ul><div class="rule">'+q.rule+'<br><b>→ '+q.act+'</b></div></details>'
+      + '</div>'
+      + '<div class="quad-body" data-q="'+k+'">'
+      + (ts.length ? ts.map(taskHTML).join('') : '<div class="quad-empty">'+emptyMsg(k)+'</div>')
+      + '</div></div>';
+  }).join('');
+}
+function emptyMsg(k){
+  const d = doneIn(curWeek()).filter(x=>x.quadrant===k).length;
+  if(d && !showDone) return '未完了はありません（今週 '+d+' 件完了ずみ・「完了タスクを表示」で見られます）';
+  if(k==='q2') return 'この領域が空のままなら、来期の数字は今週ぶんだけ確実に減ります。';
+  return 'この領域のタスクはありません';
+}
+function taskHTML(t){
+  const q = Q[t.quadrant];
+  const meta = [];
+  meta.push('見積 '+h1(t.estimate||0)+'h');
+  if(t.done) meta.push('実績 '+h1(t.actual||0)+'h');
+  if(t.answers && t.answers.escape==='yes') meta.push('<span class="flag">⚠ 逃避と自認</span>');
+  if(t.answers && (t.answers.owner==='deleg'||t.answers.owner==='no')) meta.push('任せられる');
+  const blocked = S.blocks.filter(b=>b.taskId===t.id).length;
+  if(blocked) meta.push('予約 '+blocked+'h');
+  const days = Math.floor((Date.now()-t.created)/86400000);
+  if(!t.done && days>=7) meta.push(days+'日 放置');
+  return '<div class="task'+(t.done?' done':'')+'" style="--qc:var('+q.v+');--qci:var('+q.iv+')" data-id="'+t.id+'">'
+    + '<div class="task-top"><input type="checkbox" class="task-check" '+(t.done?'checked':'')+' data-act="done" title="完了にする">'
+    + '<div class="task-title" data-act="open">'+esc(t.title)+'</div></div>'
+    + '<div class="task-meta">'+meta.join('<span class="muted">·</span> ')+'</div>'
+    + '<div class="task-acts">'
+    + (t.quadrant==='q2' && !t.done ? '<button class="chip" data-act="plan">週プランに置く</button>' : '')
+    + (t.quadrant==='q3' && !t.done ? '<button class="chip warn" data-act="delegate">任せる・断る</button>' : '')
+    + (t.quadrant==='q4' && !t.done ? '<button class="chip warn" data-act="drop">やめる</button>' : '')
+    + '<button class="chip" data-act="open">詳細</button>'
+    + '</div></div>';
+}
+
+/* =========================================================================
+   7. 判定ウィザード
+   ========================================================================= */
+let wz = null;
+function openWizard(editId){
+  const t = editId ? S.tasks.find(x=>x.id===editId) : null;
+  wz = { step:0, editId:editId||null, a: t ? {...t.answers, title:t.title, estimate:t.estimate, note:t.note} : {contrib:[]}, result:null };
+  if(!wz.a.contrib) wz.a.contrib = [];
+  document.getElementById('wzTitle').textContent = editId ? 'タスクを判定しなおす' : 'タスクを判定する';
+  document.getElementById('wzOverlay').hidden = false;
+  drawWizard();
+}
+function closeWizard(){ document.getElementById('wzOverlay').hidden = true; wz = null; }
+
+function drawWizard(){
+  const total = WZ.length;
+  document.getElementById('wzSteps').innerHTML =
+    Array.from({length: total+1}, (_,i)=>'<i class="'+(i<=wz.step?'on':'')+'"></i>').join('');
+  const body = document.getElementById('wzBody');
+  const back = document.getElementById('wzBack'), next = document.getElementById('wzNext');
+  back.style.visibility = wz.step===0 ? 'hidden' : 'visible';
+
+  if(wz.step === total){ drawVerdict(body, back, next); return; }
+
+  const s = WZ[wz.step];
+  next.textContent = wz.step === total-1 ? '判定する' : '次へ';
+  let html = '<div class="q">'+s.q+'</div><div class="qh">'+s.h+'</div>';
+  if(s.type === 'text'){
+    html += '<label class="field"><span>タスク名</span><input type="text" id="fTitle" value="'+esc(wz.a.title||'')+'" placeholder="例：A社・情シス部長への提案骨子づくり"></label>'
+          + '<label class="field"><span>背景メモ（任意）</span><textarea id="fNote" placeholder="なぜこれをやろうと思ったのか。誰に頼まれたのか。">'+esc(wz.a.note||'')+'</textarea></label>';
+  } else if(s.type === 'num'){
+    html += '<label class="field"><span>見積もり時間（h）</span><input type="number" id="fEst" min="0.25" step="0.25" value="'+(wz.a.estimate||1)+'"></label>';
+  } else {
+    const multi = s.type === 'multi';
+    html += '<div class="opts">' + s.opts.map(o=>{
+      const on = multi ? (wz.a[s.id]||[]).includes(o.v) : wz.a[s.id]===o.v;
+      return '<button class="opt" data-v="'+o.v+'" aria-pressed="'+on+'">'
+        + '<span class="mk'+(multi?' sq':'')+'">'+(on?'✓':'')+'</span>'
+        + '<span><span class="ot">'+o.t+'</span>'+(o.d?'<span class="od">'+o.d+'</span>':'')+'</span></button>';
+    }).join('') + '</div>';
+    if(multi) html += '<p class="muted" style="font-size:12px;margin-top:10px">最大'+s.max+'つまで。3つ目を選ぶと、いちばん古い選択が外れます。</p>';
+  }
+  body.innerHTML = html;
+
+  body.querySelectorAll('.opt').forEach(b=>b.addEventListener('click', ()=>{
+    const v = b.dataset.v, multi = s.type==='multi';
+    if(!multi){ wz.a[s.id] = v; drawWizard(); nextStep(true); return; }
+    let arr = (wz.a[s.id]||[]).slice();
+    const opt = s.opts.find(o=>o.v===v);
+    if(arr.includes(v)) arr = arr.filter(x=>x!==v);
+    else if(opt.excl) arr = [v];
+    else { arr = arr.filter(x=>!s.opts.find(o=>o.v===x).excl); arr.push(v); if(arr.length > s.max) arr.shift(); }
+    wz.a[s.id] = arr; drawWizard();
+  }));
+  const ti = document.getElementById('fTitle'); if(ti) ti.focus();
+}
+
+function drawVerdict(body, back, next){
+  const a = {...wz.a};
+  const est = wz.a.estimate;
+  const sc = score(a); const r = reason(a, sc); const q = Q[sc.quadrant];
+  wz.result = {sc, r};
+  next.textContent = wz.editId ? '判定を更新する' : 'このタスクを登録する';
+  body.innerHTML =
+    '<div class="verdict" style="--qc:var('+q.v+');--qci:var('+q.iv+')">'
+    + '<div class="verdict-top"><div class="badge">'+q.ic+' '+q.axis+'</div><h4>'+q.no+'・'+q.name+'</h4><p class="lead">'+q.sub+'</p></div>'
+    + '<div class="verdict-why">'
+    +   '<div class="why-row"><span class="k">緊急度</span><span class="v">'+r.urgency+'</span></div>'
+    +   '<div class="why-row"><span class="k">重要度</span><span class="v">'+r.importance+'</span></div>'
+    + '</div>'
+    + '<div class="verdict-do"><b>やること：</b>'+q.act+'</div>'
+    + '</div>'
+    + (r.notes.length ? '<div class="alerts">' + r.notes.map(n=>'<div class="alert sev-mid"><div class="ic">→</div><div class="tx">'+n+'</div></div>').join('') + '</div>' : '')
+    + '<p class="muted" style="font-size:12.5px">判定：「'+esc(a.title||'（無題）')+'」／ 見積 '+h1(est||0)+'h</p>';
+}
+
+function nextStep(auto){
+  const total = WZ.length;
+  if(wz.step === total){ commitWizard(); return; }
+  const s = WZ[wz.step];
+  if(s.type === 'text'){
+    const v = (document.getElementById('fTitle').value||'').trim();
+    if(!v){ document.getElementById('fTitle').focus(); return; }
+    wz.a.title = v; wz.a.note = document.getElementById('fNote').value.trim();
+  } else if(s.type === 'num'){
+    wz.a.estimate = Math.max(0, +document.getElementById('fEst').value || 0);
+  } else if(s.type === 'multi'){
+    if(!(wz.a[s.id]||[]).length) return;
+  } else {
+    if(!wz.a[s.id]) return;
+  }
+  wz.step++; drawWizard();
+}
+function commitWizard(){
+  const {sc, r} = wz.result, a = wz.a;
+  const answers = {deadline:a.deadline, blocks:a.blocks, contrib:a.contrib, impact:a.impact, owner:a.owner, escape:a.escape};
+  if(wz.editId){
+    const t = S.tasks.find(x=>x.id===wz.editId);
+    Object.assign(t, {title:a.title, note:a.note, estimate:a.estimate, answers, quadrant:sc.quadrant, reason:r});
+  } else {
+    S.tasks.push({ id:uid(), title:a.title, note:a.note||'', estimate:a.estimate||1, actual:0,
+      answers, quadrant:sc.quadrant, reason:r, done:false, dropped:false, delegateTo:'',
+      created:Date.now(), week:curWeek(), doneWeek:null });
+  }
+  save(); closeWizard(); render();
+}
+
+/* =========================================================================
+   8. タスク詳細
+   ========================================================================= */
+let edId = null;
+function openEdit(id){
+  const t = S.tasks.find(x=>x.id===id); if(!t) return;
+  edId = id; const q = Q[t.quadrant];
+  document.getElementById('edTitle').textContent = q.no+'・'+q.name;
+  document.getElementById('edBody').innerHTML =
+      '<label class="field"><span>タスク名</span><input type="text" id="eTitle" value="'+esc(t.title)+'"></label>'
+    + '<label class="field"><span>背景メモ</span><textarea id="eNote">'+esc(t.note||'')+'</textarea></label>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +   '<label class="field"><span>見積もり（h）</span><input type="number" id="eEst" min="0" step="0.25" value="'+(t.estimate||0)+'"></label>'
+    +   '<label class="field"><span>実績（h）</span><input type="number" id="eAct" min="0" step="0.25" value="'+(t.actual||0)+'"></label>'
+    + '</div>'
+    + (t.quadrant==='q3' ? '<label class="field"><span>誰に任せる／どう断る</span><input type="text" id="eDel" value="'+esc(t.delegateTo||'')+'" placeholder="例：見積作成は営業事務の田中さんに定型化して渡す"></label>' : '')
+    + '<label class="field" style="display:flex;gap:9px;align-items:center"><input type="checkbox" id="eDone" '+(t.done?'checked':'')+' style="width:auto"><span style="margin:0">完了にする</span></label>'
+    + (t.quadrant==='q1' ? '<label class="field"><span>これは第2領域で防げたか（1行）</span><input type="text" id="ePrev" value="'+esc(t.preventable||'')+'" placeholder="例：2週間前に決裁ルートを確認していれば締切前の火消しは不要だった"></label>' : '')
+    + (t.reason ? '<div class="card" style="padding:12px 14px;background:var(--surface-2);box-shadow:none"><div style="font-size:11.5px;font-weight:700;color:var(--ink-muted);letter-spacing:.04em;margin-bottom:6px">判定の理由</div>'
+        + '<div style="font-size:12.5px;line-height:1.7"><b>緊急度</b> '+esc(t.reason.urgency)+'<br><b>重要度</b> '+esc(t.reason.importance)+'</div></div>' : '');
+  document.getElementById('edOverlay').hidden = false;
+}
+function closeEdit(){ document.getElementById('edOverlay').hidden = true; edId = null; }
+function saveEdit(){
+  const t = S.tasks.find(x=>x.id===edId); if(!t) return closeEdit();
+  t.title = document.getElementById('eTitle').value.trim() || t.title;
+  t.note = document.getElementById('eNote').value.trim();
+  t.estimate = Math.max(0, +document.getElementById('eEst').value || 0);
+  t.actual = Math.max(0, +document.getElementById('eAct').value || 0);
+  const del = document.getElementById('eDel'); if(del) t.delegateTo = del.value.trim();
+  const prev = document.getElementById('ePrev'); if(prev) t.preventable = prev.value.trim();
+  setDone(t, document.getElementById('eDone').checked);
+  save(); closeEdit(); render();
+}
+function setDone(t, on){
+  if(on && !t.done){ t.done = true; t.doneWeek = curWeek(); if(!t.actual) t.actual = t.estimate||0; }
+  else if(!on && t.done){ t.done = false; t.doneWeek = null; }
+}
+
+/* =========================================================================
+   9. 週プラン — 第2領域の先取り予約 + .ics 書き出し
+   ========================================================================= */
+const DAYS = ['月','火','水','木','金','土','日'];
+const HOURS = Array.from({length:13},(_,i)=>i+8); // 8:00 - 20:00
+
+function renderPlan(){
+  const week = curWeek();
+  const wkBlocks = S.blocks.filter(b=>b.week===week);
+  const planned = plannedByQuad(week);
+  const tQ2 = S.settings.targets.q2;
+  const others = planned.q1+planned.q3+planned.q4;
+  const ratio = Math.min(1, planned.q2 / Math.max(tQ2, .01));
+
+  let msg, sev;
+  if(planned.q2 >= tQ2){ sev='ok'; msg='第2領域を <b>'+h1(planned.q2)+'h</b> 確保しました。目標 '+h1(tQ2)+'h を満たしています。あとは実行するだけです。'; }
+  else if(others > 0 && planned.q2 < tQ2*0.5){ sev='high'; msg='第2領域が <b>'+h1(planned.q2)+'h</b> しか置かれていないのに、他の領域を <b>'+h1(others)+'h</b> 置いています。<b>大きな石が後回し</b>です。先に第2領域を '+h1(tQ2)+'h まで置いてください。'; }
+  else{ sev='mid'; msg='第2領域の確保は <b>'+h1(planned.q2)+'h / '+h1(tQ2)+'h</b>。あと <b>'+h1(tQ2-planned.q2)+'h</b> 置けば、今週は「投資した週」になります。'; }
+
+  document.getElementById('planBar').innerHTML =
+      '<div style="flex:none"><div class="k muted" style="font-size:12px;font-weight:600">第2領域の確保</div>'
+    + '<div class="v tnum" style="font-size:26px;font-weight:700;color:'+(planned.q2>=tQ2?'var(--good)':'var(--bad)')+'">'+h1(planned.q2)+'h <span style="font-size:14px;color:var(--ink-muted)">/ '+h1(tQ2)+'h</span></div></div>'
+    + '<div class="prog"><i style="width:'+(ratio*100)+'%"></i></div>'
+    + '<div style="flex:1 1 260px;font-size:13px;line-height:1.6" class="alert sev-'+sev+'"><div class="tx">'+msg+'</div></div>';
+
+  const sel = document.getElementById('blockTask');
+  const cand = openTasks().sort((a,b)=> QKEYS.indexOf(a.quadrant)-QKEYS.indexOf(b.quadrant));
+  const q2s = cand.filter(t=>t.quadrant==='q2'), rest = cand.filter(t=>t.quadrant!=='q2');
+  const prev = sel.value;
+  sel.innerHTML = (q2s.length ? '<optgroup label="🌱 第2領域 — 先に置くもの">'+q2s.map(t=>'<option value="'+t.id+'">'+esc(t.title)+'（見積'+h1(t.estimate)+'h）</option>').join('')+'</optgroup>' : '')
+    + (rest.length ? '<optgroup label="その他の領域 — 第2領域の後で">'+rest.map(t=>'<option value="'+t.id+'">'+Q[t.quadrant].ic+' '+esc(t.title)+'</option>').join('')+'</optgroup>' : '')
+    + (cand.length ? '' : '<option value="">先にタスクを登録してください</option>');
+  if(prev && cand.some(t=>t.id===prev)) sel.value = prev;
+
+  const showWe = S.settings.showWeekend;
+  document.getElementById('showWeekend').checked = showWe;
+  const nd = showWe ? 7 : 5;
+  const g = document.getElementById('planGrid');
+  g.style.setProperty('--days', nd);
+  let html = '<div></div>' + DAYS.slice(0,nd).map((d,i)=>{
+    const dt = new Date(weekStart()); dt.setDate(dt.getDate()+i);
+    return '<div class="hd">'+d+' <span class="muted">'+(dt.getMonth()+1)+'/'+dt.getDate()+'</span></div>';
+  }).join('');
+  HOURS.forEach(h=>{
+    html += '<div class="hr">'+h+':00</div>';
+    for(let d=0; d<nd; d++){
+      const b = wkBlocks.find(x=>x.day===d && x.hour===h);
+      if(b){
+        const t = S.tasks.find(x=>x.id===b.taskId);
+        const q = t ? Q[t.quadrant] : Q.q4;
+        html += '<div class="cell filled'+(t&&t.quadrant==='q4'?' tex':'')+'" style="background:var('+q.v+')" data-bid="'+b.id+'" title="'+esc(t?t.title:'')+'">'
+              + '<span>'+esc(t?t.title:'（削除済み）')+'</span><span class="x" data-act="rm">✕</span></div>';
+      } else {
+        html += '<div class="cell" data-day="'+d+'" data-hour="'+h+'"></div>';
+      }
+    }
+  });
+  g.innerHTML = html;
+}
+
+function toICS(){
+  const week = curWeek(), bs = S.blocks.filter(b=>b.week===week);
+  if(!bs.length) return alert('この週にはまだブロックが置かれていません。');
+  const pad = n=>String(n).padStart(2,'0');
+  const fmt = d => d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'T'+pad(d.getHours())+pad(d.getMinutes())+'00';
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  // RFC5545：特殊文字のエスケープと75オクテット折り返し
+  const escv = v => String(v==null?'':v).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+  const foldLine = line => {
+    const bytes = new TextEncoder().encode(line);
+    if(bytes.length <= 75) return line;
+    const out = []; let cur = '', len = 0, limit = 73;
+    for(const ch of line){
+      const n = new TextEncoder().encode(ch).length;
+      if(len + n > limit){ out.push(cur); cur = ' '; len = 1; limit = 74; }
+      cur += ch; len += n;
+    }
+    out.push(cur);
+    return out.join('\r\n');
+  };
+  const merged = [];
+  bs.slice().sort((a,b)=> a.day-b.day || a.hour-b.hour).forEach(b=>{
+    const last = merged[merged.length-1];
+    if(last && last.taskId===b.taskId && last.day===b.day && last.hour+last.len===b.hour) last.len++;
+    else merged.push({...b, len:1});
+  });
+  const ev = merged.map(b=>{
+    const t = S.tasks.find(x=>x.id===b.taskId); if(!t) return '';
+    const s = new Date(weekStart()); s.setDate(s.getDate()+b.day); s.setHours(b.hour,0,0,0);
+    const e = new Date(s); e.setHours(e.getHours()+b.len);
+    const desc = [Q[t.quadrant].no+'・'+Q[t.quadrant].name, t.note||'', t.reason?t.reason.importance:''].filter(Boolean).join('\n');
+    return ['BEGIN:VEVENT','UID:'+b.id+'@time-matrix','DTSTAMP:'+stamp,'DTSTART:'+fmt(s),'DTEND:'+fmt(e),
+      foldLine('SUMMARY:['+Q[t.quadrant].no+'] '+escv(t.title)),
+      foldLine('DESCRIPTION:'+escv(desc)),
+      'END:VEVENT'].join('\r\n');
+  }).filter(Boolean);
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//time-matrix//JP','CALSCALE:GREGORIAN',
+    foldLine('X-WR-CALNAME:時間管理マトリックス '+week), ...ev, 'END:VCALENDAR'].join('\r\n');
+  download('time-matrix-'+week+'.ics', ics, 'text/calendar');
+}
+function download(name, text, mime){
+  const url = URL.createObjectURL(new Blob([text], {type:(mime||'text/plain')+';charset=utf-8'}));
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* =========================================================================
+   10. ふりかえり
+   ========================================================================= */
+function renderReview(){
+  const week = curWeek();
+  renderAlerts(document.getElementById('reviewAlerts'), week);
+  const a = actualByQuad(week), t = S.settings.targets, planned = plannedByQuad(week);
+  const viz = document.getElementById('reviewViz');
+  viz.innerHTML = '<div class="viz-head"><div><h3>'+weekLabel()+' の時間配分</h3><p>完了タスクの実績時間。縦線は目標。</p></div></div>'
+    + '<div class="hero" id="rvHero"></div><div class="bars" id="rvBars"></div>'
+    + '<div class="viz-foot"><span class="legend-target">目標</span><span>数字が事実です。感想は後から書けますが、時間は戻りません。</span></div><div id="rvTable"></div>';
+  renderHero(document.getElementById('rvHero'), a, t);
+  renderBars(document.getElementById('rvBars'), a, t);
+  renderTable(document.getElementById('rvTable'), a, t);
+
+  // 第2領域：予約 vs 実行
+  const q2done = doneIn(week).filter(x=>x.quadrant==='q2');
+  const q2doneH = q2done.reduce((s,x)=>s+(+x.actual||0),0);
+  const q2open = openTasks().filter(x=>x.quadrant==='q2');
+  const gap = planned.q2 - q2doneH;
+  document.getElementById('revQ2').innerHTML =
+      '<div class="list">'
+    + '<div class="li">カレンダーに予約した時間<span class="n">'+h1(planned.q2)+'h</span></div>'
+    + '<div class="li">実際にやった時間<span class="n" style="color:'+(q2doneH>=planned.q2?'var(--good)':'var(--bad)')+'">'+h1(q2doneH)+'h</span></div>'
+    + (gap > 0 ? '<div class="li" style="border-color:var(--bad)">予約したのに使わなかった時間<span class="n" style="color:var(--bad)">-'+h1(gap)+'h</span></div>' : '')
+    + '</div>'
+    + (q2open.length ? '<p class="lead" style="margin:14px 0 8px">やり残した第2領域（' + q2open.length + '件）</p><div class="list">'
+        + q2open.slice(0,6).map(x=>'<div class="li">'+esc(x.title)+'<span class="n">'+Math.floor((Date.now()-x.created)/86400000)+'日</span></div>').join('')
+        + '</div>' : '<p class="lead" style="margin-top:14px">やり残した第2領域はありません。</p>');
+
+  // 逃げていた場所
+  const q34 = doneIn(week).filter(x=>x.quadrant==='q3'||x.quadrant==='q4').sort((x,y)=>(y.actual||0)-(x.actual||0));
+  const escapes = S.tasks.filter(x=>x.answers && x.answers.escape==='yes');
+  const notdel = S.tasks.filter(x=>x.answers && (x.answers.owner==='deleg'||x.answers.owner==='no') && x.done && x.doneWeek===week);
+  document.getElementById('revEscape').innerHTML =
+      (q34.length ? '<div class="list">'+q34.slice(0,5).map(x=>'<div class="li"><span style="color:var('+Q[x.quadrant].iv+')">'+Q[x.quadrant].ic+'</span>'+esc(x.title)+'<span class="n">'+h1(x.actual||0)+'h</span></div>').join('')+'</div>'
+        : '<p class="lead">今週、第3・第4領域に記録された完了タスクはありません。</p>')
+    + (notdel.length ? '<p class="lead" style="margin:14px 0 8px">「任せられる／断れる」と答えたのに自分でやった（'+notdel.length+'件・計'+h1(notdel.reduce((s,x)=>s+(+x.actual||0),0))+'h）</p><div class="list">'
+        + notdel.slice(0,4).map(x=>'<div class="li">'+esc(x.title)+'<span class="n">'+h1(x.actual||0)+'h</span></div>').join('')+'</div>' : '')
+    + (escapes.length ? '<p class="lead" style="margin:14px 0 8px">逃避と自認したタスク（'+escapes.length+'件）</p><div class="list">'
+        + escapes.slice(0,4).map(x=>'<div class="li">⚠ '+esc(x.title)+'</div>').join('')+'</div>' : '');
+
+  // 来週の宣言
+  const vows = S.vows[week] || ['','',''];
+  document.getElementById('revVow').innerHTML = [0,1,2].map(i=>
+    '<div class="vow-row"><b>'+(i+1)+'.</b><input type="text" data-vow="'+i+'" value="'+esc(vows[i]||'')+'" placeholder="来週かならず時間を取る第2領域のタスク"></div>').join('')
+    + '<p class="muted" style="font-size:12px;margin-top:4px">書いたら「週プラン」でカレンダーに置いてください。置かれていない宣言は、来週も実行されません。</p>';
+
+  document.getElementById('summaryBox').value = buildSummary(week, a, t, planned, q2doneH);
+}
+function buildSummary(week, a, t, planned, q2doneH){
+  const total = QKEYS.reduce((s,k)=>s+a[k],0);
+  const L = [];
+  L.push('■ 時間管理マトリックス 週次ふりかえり（'+weekLabel()+'）');
+  L.push('スタイル：'+STYLES[S.settings.style].label);
+  L.push('');
+  L.push('【時間配分】記録された時間 '+h1(total)+'h');
+  QKEYS.forEach(k=>{
+    L.push('  '+Q[k].no+'・'+Q[k].name+'：'+h1(a[k])+'h（'+pct(a[k],total)+'%）　目標 '+h1(t[k])+'h　差 '+(a[k]-t[k]>=0?'+':'')+h1(a[k]-t[k])+'h');
+  });
+  L.push('');
+  L.push('【第2領域（投資）】');
+  L.push('  カレンダーに予約：'+h1(planned.q2)+'h ／ 実際にやった：'+h1(q2doneH)+'h');
+  const q2open = openTasks().filter(x=>x.quadrant==='q2');
+  if(q2open.length){ L.push('  やり残し：'+q2open.length+'件'); q2open.slice(0,5).forEach(x=>L.push('   - '+x.title)); }
+  L.push('');
+  const lostp = pct(a.q3+a.q4, total);
+  L.push('【逃避の状況】第3+第4領域 '+h1(a.q3+a.q4)+'h＝'+lostp+'%（上限 '+S.settings.threshold+'%）'+(lostp>S.settings.threshold?' ← 超過':''));
+  const q34 = doneIn(week).filter(x=>x.quadrant==='q3'||x.quadrant==='q4').sort((x,y)=>(y.actual||0)-(x.actual||0)).slice(0,3);
+  q34.forEach(x=>L.push('   - '+Q[x.quadrant].no+'：'+x.title+'（'+h1(x.actual||0)+'h）'));
+  L.push('');
+  L.push('【来週かならず確保する第2領域】');
+  (S.vows[week]||[]).forEach((v,i)=>{ if(v) L.push('  '+(i+1)+'. '+v); });
+  return L.join('\n');
+}
+
+/* =========================================================================
+   11. 設定
+   ========================================================================= */
+function renderSettings(){
+  const st = S.settings;
+  document.getElementById('styleOpts').innerHTML = Object.entries(STYLES).map(([k,v])=>
+    '<button class="opt" data-style="'+k+'" aria-pressed="'+(st.style===k)+'"><span class="mk">'+(st.style===k?'✓':'')+'</span>'
+    + '<span><span class="ot">'+v.label+'</span><span class="od">'+v.hint+'</span></span></button>').join('');
+  document.getElementById('targetFields').innerHTML = QKEYS.map(k=>
+    '<label class="field" style="margin-bottom:10px"><span style="color:var('+Q[k].iv+')">'+Q[k].no+'・'+Q[k].name+'（h／週）</span>'
+    + '<input type="number" data-target="'+k+'" min="0" step="0.5" value="'+st.targets[k]+'"></label>').join('')
+    + '<p class="muted tnum" style="font-size:12.5px">合計 '+h1(QKEYS.reduce((s,k)=>s+st.targets[k],0))+'h ／ 稼働 '+h1(st.weekly)+'h</p>';
+  document.getElementById('setThreshold').value = st.threshold;
+  document.getElementById('setTheme').value = st.theme;
+  document.getElementById('setWeekly').value = st.weekly;
+}
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', S.settings.theme);
+}
+
+/* =========================================================================
+   12. オンボーディング
+   ========================================================================= */
+const OB = [
+  {k:'はじめに', h:'忙しさは、成果の証明にはならない',
+   b:'<p>営業は、放っておくと<strong>反応する仕事</strong>で一日が埋まります。鳴った電話、飛んできた依頼、今日締切の資料。どれも「やった感」があり、どれも断りにくい。</p>'
+    +'<p>けれど月末に数字を見ると、動いていない。理由はひとつです。<strong>反応した時間は、あなたの数字をつくらないから</strong>です。</p>'
+    +'<p>このツールは、あなたのタスクを<strong>緊急度</strong>と<strong>重要度</strong>の2軸で切り分け、いま自分がどこに時間を溶かしているかを数字で見せます。</p>'},
+  {k:'4つの領域', h:'すべての仕事は、この4つのどれかに入る',
+   b:'<p>縦軸が「重要かどうか」、横軸が「緊急かどうか」。この2つは<strong>別のもの</strong>です。混同している間は、緊急なものだけが片づいていきます。</p>'
+    +'<div class="ob-mx">'
+    +'<div style="--qc:var(--q1);--qci:var(--q1i)"><b>🔥 第1領域｜緊急×重要</b>クレーム、締切直前の提案、失注寸前の火消し。やるしかない。</div>'
+    +'<div style="--qc:var(--q2);--qci:var(--q2i)"><b>🌱 第2領域｜緊急でない×重要</b>仮説構築、関係づくり、型化、育成。<b>誰も催促してこない。</b></div>'
+    +'<div style="--qc:var(--q3);--qci:var(--q3i)"><b>🎭 第3領域｜緊急×重要でない</b>他人の急ぎ、即レス、体裁調整。緊急に<b>見える</b>だけ。</div>'
+    +'<div style="--qc:var(--q4);--qci:var(--q4i)"><b>🗑 第4領域｜緊急でない×重要でない</b>タグ整理、意味のない訪問。手は動いている。</div>'
+    +'</div>'},
+  {k:'いちばん大事なこと', h:'数字を変えるのは、第2領域だけ',
+   b:'<p>第1領域を頑張っても、現状維持です。火を消しているだけだからです。<br>第3・第4領域を頑張っても、何も残りません。</p>'
+    +'<p><strong>来期の数字をつくるのは、第2領域だけ</strong>です。そして第2領域には締切がありません。誰も催促してきません。だから、<strong>意識しない限り必ずゼロになります。</strong></p>'
+    +'<div class="quote">今月の第1領域（火消し）は、先月サボった第2領域のツケです。<br>火消しを減らす方法は、火消しの中にはありません。</div>'},
+  {k:'逃げ場', h:'いちばん危ないのは、第3領域',
+   b:'<p>第3領域は「他人の緊急」です。速く反応するほど周囲に感謝され、<strong>仕事をした実感が強く出ます</strong>。だから、気の重い第2領域から逃げるとき、人は必ずここに逃げ込みます。</p>'
+    +'<p>このツールは、あなたが第3・第4領域に何時間逃げたかを毎週<strong>数字で突きつけます</strong>。責めるためではありません。感想ではなく事実でしか、人は行動を変えられないからです。</p>'
+    +'<div class="quote">「忙しかった」は感想です。<br>「第3領域に13.0時間、全体の41%」は事実です。</div>'},
+  {k:'使い方', h:'やることは3つだけ',
+   b:'<p><strong>① タスクを登録する。</strong>7つの設問に答えると、自動で領域が決まります。自分で決めないのがポイントです。「全部重要」と思い込むクセを、設問が外します。</p>'
+    +'<p><strong>② 第2領域を、先に予定へ置く。</strong>「週プラン」で先にブロックを確保します。空いた時間にやろうとすると、永久に手をつけません。<b>大きな石を先に、砂は後から。</b></p>'
+    +'<p><strong>③ 完了したら実績時間を入れる。</strong>これが唯一の入力コストです。ここを飛ばすと、逃避は「忙しかった」という感想のまま消えます。</p>'
+    +'<p class="muted" style="font-size:13px">データはこのブラウザにだけ保存されます。どこにも送信されません。</p>'}
+];
+let obStep = 0;
+function openOb(){ obStep = 0; document.getElementById('obOverlay').hidden = false; drawOb(); }
+function drawOb(){
+  const s = OB[obStep];
+  document.getElementById('obBody').innerHTML = '<div class="kicker">'+s.k+'</div><h2>'+s.h+'</h2>'+s.b;
+  document.getElementById('obCount').textContent = (obStep+1)+' / '+OB.length;
+  document.getElementById('obBack').style.visibility = obStep===0?'hidden':'visible';
+  document.getElementById('obNext').textContent = obStep===OB.length-1 ? 'はじめる' : '次へ';
+}
+function closeOb(){ document.getElementById('obOverlay').hidden = true; S.settings.onboarded = true; save(); }
+
+/* =========================================================================
+   13. 描画切り替えとイベント
+   ========================================================================= */
+function render(){
+  applyTheme();
+  document.getElementById('wLabel').textContent = weekLabel();
+  document.getElementById('styleLabel').textContent = STYLES[S.settings.style].label;
+  ['matrix','plan','review','settings'].forEach(v=>{ document.getElementById('view-'+v).hidden = (v!==view); });
+  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.view===view)));
+  if(view==='matrix') renderMatrix();
+  if(view==='plan') renderPlan();
+  if(view==='review') renderReview();
+  if(view==='settings') renderSettings();
+}
+const $ = id => document.getElementById(id);
+
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click', ()=>{ view = b.dataset.view; render(); }));
+$('wPrev').onclick = ()=>{ weekOffset--; render(); };
+$('wNext').onclick = ()=>{ weekOffset++; render(); };
+$('wToday').onclick = ()=>{ weekOffset = 0; render(); };
+$('addTask').onclick = ()=> openWizard(null);
+$('toggleDone').onclick = ()=>{ showDone = !showDone; render(); };
+$('toggleTable').onclick = ()=>{ showTable = !showTable; render(); };
+
+$('wzClose').onclick = closeWizard;
+$('wzBack').onclick = ()=>{ if(wz.step>0){ wz.step--; drawWizard(); } };
+$('wzNext').onclick = ()=> nextStep(false);
+$('edClose').onclick = closeEdit;
+$('edSave').onclick = saveEdit;
+$('edDelete').onclick = ()=>{
+  const t = S.tasks.find(x=>x.id===edId);
+  if(!t || !confirm('「'+t.title+'」を削除します。取り消せません。よろしいですか？')) return;
+  S.tasks = S.tasks.filter(x=>x.id!==edId);
+  S.blocks = S.blocks.filter(b=>b.taskId!==edId);
+  save(); closeEdit(); render();
+};
+$('edRewiz').onclick = ()=>{ const id = edId; closeEdit(); openWizard(id); };
+
+$('obNext').onclick = ()=>{ if(obStep < OB.length-1){ obStep++; drawOb(); } else closeOb(); };
+$('obBack').onclick = ()=>{ if(obStep>0){ obStep--; drawOb(); } };
+$('obSkip').onclick = closeOb;
+
+// マトリックス内のタスク操作
+$('view-matrix').addEventListener('click', e=>{
+  const card = e.target.closest('.task'); if(!card) return;
+  const id = card.dataset.id, act = e.target.dataset.act;
+  const t = S.tasks.find(x=>x.id===id); if(!t) return;
+  if(act==='done'){ setDone(t, e.target.checked); save(); render(); openEdit(id); }
+  else if(act==='open'){ openEdit(id); }
+  else if(act==='plan'){ view='plan'; render(); $('blockTask').value = id; }
+  else if(act==='delegate'){ openEdit(id); }
+  else if(act==='drop'){
+    if(confirm('「'+t.title+'」を第4領域として「やらない」に移します。一覧から消えます。よろしいですか？')){
+      t.dropped = true; S.blocks = S.blocks.filter(b=>b.taskId!==id); save(); render();
+    }
+  }
+});
+
+// 週プラン
+$('planGrid').addEventListener('click', e=>{
+  const cell = e.target.closest('.cell'); if(!cell) return;
+  if(cell.dataset.bid){ S.blocks = S.blocks.filter(b=>b.id!==cell.dataset.bid); save(); renderPlan(); return; }
+  const id = $('blockTask').value; if(!id) return alert('先にタスクを登録し、置くタスクを選んでください。');
+  S.blocks.push({id:uid(), taskId:id, week:curWeek(), day:+cell.dataset.day, hour:+cell.dataset.hour});
+  save(); renderPlan();
+});
+$('showWeekend').onchange = e=>{ S.settings.showWeekend = e.target.checked; save(); renderPlan(); };
+$('icsBtn').onclick = toICS;
+
+// ふりかえり
+$('revVow').addEventListener('input', e=>{
+  const i = e.target.dataset.vow; if(i==null) return;
+  const w = curWeek(); S.vows[w] = S.vows[w] || ['','',''];
+  S.vows[w][+i] = e.target.value; save();
+  $('summaryBox').value = buildSummary(w, actualByQuad(w), S.settings.targets, plannedByQuad(w),
+    doneIn(w).filter(x=>x.quadrant==='q2').reduce((s,x)=>s+(+x.actual||0),0));
+});
+$('copySummary').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText($('summaryBox').value); $('copySummary').textContent = 'コピーしました'; }
+  catch(err){ $('summaryBox').select(); document.execCommand('copy'); $('copySummary').textContent = 'コピーしました'; }
+  setTimeout(()=>$('copySummary').textContent='サマリーをコピー', 1800);
+};
+$('dlSummary').onclick = ()=> download('furikaeri-'+curWeek()+'.txt', $('summaryBox').value);
+
+// 設定
+$('view-settings').addEventListener('click', e=>{
+  const b = e.target.closest('[data-style]'); if(!b) return;
+  S.settings.style = b.dataset.style; save(); render();
+});
+$('view-settings').addEventListener('change', e=>{
+  const k = e.target.dataset.target;
+  if(k){ S.settings.targets[k] = Math.max(0, +e.target.value||0); save(); renderSettings(); }
+});
+$('setThreshold').onchange = e=>{ S.settings.threshold = Math.min(90, Math.max(5, +e.target.value||35)); save(); renderSettings(); };
+$('setWeekly').onchange = e=>{ S.settings.weekly = Math.max(1, +e.target.value||40); save(); renderSettings(); };
+$('setTheme').onchange = e=>{ S.settings.theme = e.target.value; save(); render(); };
+$('autoTargets').onclick = ()=>{
+  const w = S.settings.weekly;
+  S.settings.targets = {q1:Math.round(w*0.20*2)/2, q2:Math.round(w*0.50*2)/2, q3:Math.round(w*0.25*2)/2, q4:Math.round(w*0.05*2)/2};
+  save(); renderSettings();
+};
+$('replayOb').onclick = openOb;
+$('expBtn').onclick = ()=> download('time-matrix-'+curWeek()+'.json', JSON.stringify(S, null, 2), 'application/json');
+$('impBtn').onclick = ()=> $('impFile').click();
+$('impFile').onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(!d || !Array.isArray(d.tasks)) throw new Error('形式が違います');
+      if(!confirm('現在のデータを、読み込むファイルの内容で置き換えます。よろしいですか？')) return;
+      S = {...structuredClone(DEF), ...d, settings:{...DEF.settings, ...(d.settings||{})}};
+      save(); render();
+    }catch(err){ alert('読み込めませんでした：'+err.message); }
+  };
+  r.readAsText(f); e.target.value='';
+};
+$('clearBtn').onclick = ()=>{
+  if(!confirm('すべてのタスク・予約・設定を消します。取り消せません。よろしいですか？')) return;
+  if(!confirm('本当によろしいですか？　書き出していないデータは戻りません。')) return;
+  S = structuredClone(DEF); save(); render(); openOb();
+};
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape'){
+    if(!$('wzOverlay').hidden) closeWizard();
+    else if(!$('edOverlay').hidden) closeEdit();
+  }
+  if(e.key === 'Enter' && !$('wzOverlay').hidden && !e.isComposing){
+    const tag = (document.activeElement.tagName||'').toLowerCase();
+    if(tag !== 'textarea'){ e.preventDefault(); nextStep(false); }
+  }
+});
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('mousedown', e=>{
+  if(e.target !== o) return;
+  if(o.id === 'wzOverlay') closeWizard();
+  if(o.id === 'edOverlay') closeEdit();
+}));
+
+/* ---- 起動 ---- */
+applyTheme();
+render();
+if(!S.settings.onboarded) openOb();
+</script>
+</body>
+</html>
