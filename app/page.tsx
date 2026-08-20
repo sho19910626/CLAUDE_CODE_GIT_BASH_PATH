@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/indeed/server/auth";
 
 export const metadata: Metadata = {
   title: "Indeed 運用代行ツール",
@@ -35,7 +37,12 @@ const TOOLS = [
   },
 ];
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  // 入口(middleware)でも見ているが、ここでも確かめる。
+  // 停止されたアカウントに画面を描かないための二重の確認。
+  if (!(await currentUser())) redirect("/login");
   return (
     <div className="container idd">
       <div className="header">
