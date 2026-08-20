@@ -206,6 +206,15 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 .cell.filled.tex{background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.3) 4px 6px)}
 .cell.filled span{overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
 .cell.filled .x{position:absolute; top:1px; right:3px; opacity:.75; font-size:12px; cursor:pointer}
+.gcal-row{display:flex; gap:12px; align-items:center; font-size:13px; padding:9px 12px; border-radius:8px; background:var(--surface-2); border:1px solid var(--border); flex-wrap:wrap}
+.gcal-row .qi{width:10px; height:10px; border-radius:3px; flex:none}
+.gcal-row .ti{flex:1; min-width:140px; font-weight:600; word-break:break-word}
+.gcal-row .wh{color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap; font-size:12.5px}
+.gcal-row.added{opacity:.62}
+.gcal-row.added .ti{font-weight:500}
+.gbtn{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--surface); border-radius:7px; padding:5px 11px; font-size:12.5px; font-weight:650; white-space:nowrap}
+.gbtn:hover{border-color:var(--axis); background:var(--surface-2)}
+.gbtn.done{color:var(--good); border-color:color-mix(in oklab,var(--good) 40%,transparent)}
 .plan-bar{display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:14px 18px}
 .prog{flex:1; min-width:220px; height:10px; background:color-mix(in oklab,var(--grid) 60%,transparent); border-radius:5px; position:relative; overflow:hidden}
 .prog i{position:absolute; left:0; top:0; bottom:0; background:var(--q2); border-radius:0 4px 4px 0; display:block}
@@ -379,6 +388,8 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
       <p class="muted" style="font-size:12.5px">選んだタスクを、下のマスをクリックして 1 時間単位で置きます。置いたマスをもう一度クリックすると外れます。</p>
       <div class="plan-grid" id="planGrid"></div>
     </div>
+
+    <div class="card sec" id="gcalPanel" style="margin-top:14px"></div>
   </section>
 
   <!-- ========== ふりかえり ========== -->
@@ -663,7 +674,7 @@ function reason(a, sc){
 const KEY = 'sales-time-matrix-v1';
 const DEF = {
   settings:{ style:'shinki', weekly:40, targets:{q1:8,q2:20,q3:10,q4:2}, threshold:35, theme:'system', onboarded:false, showWeekend:false },
-  tasks:[], blocks:[], vows:{}
+  tasks:[], blocks:[], vows:{}, gcal:{}
 };
 let S = load();
 let view = 'matrix', weekOffset = 0, showDone = false, showTable = false;
@@ -1105,6 +1116,88 @@ function renderPlan(){
     }
   });
   g.innerHTML = html;
+  renderGcal();
+}
+
+/* ---- Googleカレンダーへの追加（認証・設定なし） ---- */
+function renderGcal(){
+  const week = curWeek();
+  const ms = mergedBlocks(week);
+  const host = document.getElementById('gcalPanel');
+  const head = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    + '<div style="flex:1;min-width:230px"><h3>Googleカレンダーに追加</h3>'
+    + '<p class="lead" style="margin:0">ボタンを押すとGoogleカレンダーの登録画面が内容入りで開きます。あとは「保存」を押すだけです。ログインしていればそのまま使えます。</p></div>'
+    + (ms.length ? '<span class="muted tnum" style="font-size:12.5px">追加ずみ '
+        + ms.filter(m=>S.gcal[gkey(m)]).length + ' / ' + ms.length + ' 件</span>' : '')
+    + '</div>';
+
+  if(!ms.length){
+    host.innerHTML = head + '<p class="lead" style="margin-top:12px">まだブロックが置かれていません。上のマスに第2領域のタスクを置くと、ここに一覧が出ます。</p>';
+    return;
+  }
+
+  const rows = ms.map(m=>{
+    const t = S.tasks.find(x=>x.id===m.taskId);
+    const [st, en] = blockRange(m);
+    const added = !!S.gcal[gkey(m)];
+    const when = DAYS[m.day] + ' ' + (st.getMonth()+1) + '/' + st.getDate() + ' '
+      + String(st.getHours()).padStart(2,'0') + ':00–' + String(en.getHours()).padStart(2,'0') + ':00';
+    return '<div class="gcal-row' + (added?' added':'') + '">'
+      + '<span class="qi" style="background:var(' + Q[t.quadrant].v + ')"></span>'
+      + '<span class="ti">' + esc(t.title) + '</span>'
+      + '<span class="wh">' + when + '（' + m.len + 'h）</span>'
+      + '<button class="gbtn' + (added?' done':'') + '" data-gk="' + esc(gkey(m)) + '">'
+      + (added ? '✓ 追加ずみ・もう一度開く' : '📅 カレンダーに追加') + '</button>'
+      + '</div>';
+  }).join('');
+
+  const remaining = ms.filter(m=>!S.gcal[gkey(m)]).length;
+  host.innerHTML = head
+    + '<div class="list" style="margin-top:14px">' + rows + '</div>'
+    + '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">'
+    +   '<span class="muted" style="font-size:12px;flex:1;min-width:200px">'
+    +     (remaining ? '残り ' + remaining + ' 件。1件ずつ押してください（まとめて開くとブラウザにブロックされるためです）。'
+                     : 'この週のブロックはすべて追加ずみです。')
+    +   '</span>'
+    +   '<button class="btn btn-sm btn-ghost" id="gcalReset">追加ずみの記録を消す</button>'
+    + '</div>';
+}
+
+// 連続する1時間ブロックを1つの予定にまとめる（.ics と Googleカレンダーで共通）
+function mergedBlocks(week){
+  const out = [];
+  S.blocks.filter(b=>b.week===week).sort((a,b)=> a.day-b.day || a.hour-b.hour).forEach(b=>{
+    const last = out[out.length-1];
+    if(last && last.taskId===b.taskId && last.day===b.day && last.hour+last.len===b.hour) last.len++;
+    else out.push({...b, len:1});
+  });
+  return out.filter(m => S.tasks.some(t=>t.id===m.taskId));
+}
+const gkey = m => m.week+'|'+m.day+'|'+m.hour+'|'+m.len+'|'+m.taskId;
+const TZ = (()=>{ try{ return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }catch(e){ return ''; } })();
+
+function blockRange(m){
+  const s = new Date(weekStart()); s.setDate(s.getDate()+m.day); s.setHours(m.hour,0,0,0);
+  const e = new Date(s); e.setHours(e.getHours()+m.len);
+  return [s, e];
+}
+function blockDetails(t){
+  return [Q[t.quadrant].no+'・'+Q[t.quadrant].name, t.note||'', t.reason?t.reason.importance:''].filter(Boolean).join('\n');
+}
+// 認証なしでGoogleカレンダーの登録画面を開くURL。押した人が「保存」を押して確定する。
+function gcalUrl(m){
+  const t = S.tasks.find(x=>x.id===m.taskId); if(!t) return null;
+  const [s, e] = blockRange(m);
+  const pad = n=>String(n).padStart(2,'0');
+  const f = d => d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'T'+pad(d.getHours())+pad(d.getMinutes())+'00';
+  const q = new URLSearchParams({
+    action:'TEMPLATE',
+    text:'['+Q[t.quadrant].no+'] '+t.title,
+    dates:f(s)+'/'+f(e),
+    details:blockDetails(t)
+  });
+  if(TZ) q.set('ctz', TZ);
+  return 'https://calendar.google.com/calendar/render?'+q.toString();
 }
 
 function toICS(){
@@ -1127,17 +1220,10 @@ function toICS(){
     out.push(cur);
     return out.join('\r\n');
   };
-  const merged = [];
-  bs.slice().sort((a,b)=> a.day-b.day || a.hour-b.hour).forEach(b=>{
-    const last = merged[merged.length-1];
-    if(last && last.taskId===b.taskId && last.day===b.day && last.hour+last.len===b.hour) last.len++;
-    else merged.push({...b, len:1});
-  });
-  const ev = merged.map(b=>{
+  const ev = mergedBlocks(week).map(b=>{
     const t = S.tasks.find(x=>x.id===b.taskId); if(!t) return '';
-    const s = new Date(weekStart()); s.setDate(s.getDate()+b.day); s.setHours(b.hour,0,0,0);
-    const e = new Date(s); e.setHours(e.getHours()+b.len);
-    const desc = [Q[t.quadrant].no+'・'+Q[t.quadrant].name, t.note||'', t.reason?t.reason.importance:''].filter(Boolean).join('\n');
+    const [s, e] = blockRange(b);
+    const desc = blockDetails(t);
     return ['BEGIN:VEVENT','UID:'+b.id+'@time-matrix','DTSTAMP:'+stamp,'DTSTART:'+fmt(s),'DTEND:'+fmt(e),
       foldLine('SUMMARY:['+Q[t.quadrant].no+'] '+escv(t.title)),
       foldLine('DESCRIPTION:'+escv(desc)),
@@ -1396,6 +1482,19 @@ $('planGrid').addEventListener('click', e=>{
   save(); renderPlan();
 });
 $('showWeekend').onchange = e=>{ S.settings.showWeekend = e.target.checked; save(); renderPlan(); };
+$('gcalPanel').addEventListener('click', e=>{
+  if(e.target.id === 'gcalReset'){
+    const week = curWeek();
+    mergedBlocks(week).forEach(m=>{ delete S.gcal[gkey(m)]; });
+    save(); renderGcal(); return;
+  }
+  const btn = e.target.closest('[data-gk]'); if(!btn) return;
+  const key = btn.dataset.gk;
+  const m = mergedBlocks(curWeek()).find(x=>gkey(x)===key); if(!m) return;
+  const url = gcalUrl(m); if(!url) return;
+  window.open(url, '_blank', 'noopener');
+  S.gcal[key] = Date.now(); save(); renderGcal();
+});
 $('icsBtn').onclick = toICS;
 
 // ふりかえり
