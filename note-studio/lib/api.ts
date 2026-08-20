@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "./auth";
 import { GenerationError } from "./claude";
 import { requireProject } from "./store";
+import { describeStorageError } from "./storage-error";
 import type { Project } from "./types";
 import type { User } from "./users";
 
@@ -18,18 +19,25 @@ export function isResponse(v: Guarded): v is NextResponse {
 }
 
 export async function guard(projectId: unknown): Promise<Guarded> {
-  const user = await currentUser();
-  if (!user) {
-    return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+  try {
+    const user = await currentUser();
+    if (!user) {
+      return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+    }
+    if (typeof projectId !== "string" || projectId.length === 0) {
+      return NextResponse.json({ error: "案件が指定されていません。" }, { status: 400 });
+    }
+    const project = await requireProject(projectId);
+    if (!project) {
+      return NextResponse.json({ error: "案件が見つかりません。" }, { status: 404 });
+    }
+    return { user, project };
+  } catch (e) {
+    // データベースに繋がらないときに、原因の分かる文言を返す
+    const storage = describeStorageError(e);
+    if (storage) return NextResponse.json({ error: storage }, { status: 503 });
+    throw e;
   }
-  if (typeof projectId !== "string" || projectId.length === 0) {
-    return NextResponse.json({ error: "案件が指定されていません。" }, { status: 400 });
-  }
-  const project = await requireProject(projectId);
-  if (!project) {
-    return NextResponse.json({ error: "案件が見つかりません。" }, { status: 404 });
-  }
-  return { user, project };
 }
 
 export async function readJson<T>(request: Request): Promise<T | null> {
@@ -44,6 +52,8 @@ export function failure(e: unknown): NextResponse {
   if (e instanceof GenerationError) {
     return NextResponse.json({ error: e.message }, { status: e.status });
   }
+  const storage = describeStorageError(e);
+  if (storage) return NextResponse.json({ error: storage }, { status: 503 });
   const message = e instanceof Error ? e.message : String(e);
   return NextResponse.json({ error: `予期しないエラー: ${message}` }, { status: 500 });
 }

@@ -3,13 +3,20 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { createProject, listProjects } from "@/lib/store";
+import { describeStorageError } from "@/lib/storage-error";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await currentUser();
-  if (!user) return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
-  return NextResponse.json({ projects: await listProjects() });
+  try {
+    const user = await currentUser();
+    if (!user) return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
+    return NextResponse.json({ projects: await listProjects() });
+  } catch (e) {
+    const storage = describeStorageError(e);
+    if (storage) return NextResponse.json({ error: storage }, { status: 503 });
+    throw e;
+  }
 }
 
 export async function POST(request: Request) {

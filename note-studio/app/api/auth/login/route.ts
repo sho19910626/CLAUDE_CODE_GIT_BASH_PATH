@@ -9,6 +9,7 @@ import {
   isConfigured,
 } from "@/lib/auth";
 import { getAccounts } from "@/lib/accounts";
+import { describeStorageError } from "@/lib/storage-error";
 import {
   hashPassword,
   nameProblem,
@@ -57,6 +58,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  try {
+    return await handleLogin(request);
+  } catch (e) {
+    // データベースに繋がらないと、ここまで例外が上がってくる。
+    // そのまま 500 にすると画面に何も出ず、利用者は何を直せばよいか分からない。
+    const message = describeStorageError(e);
+    if (message) return NextResponse.json({ error: message }, { status: 503 });
+    throw e;
+  }
+}
+
+async function handleLogin(request: Request) {
   if (!isConfigured()) {
     return NextResponse.json(
       { error: "APP_PASSWORD が設定されていません。管理者に連絡してください。" },
