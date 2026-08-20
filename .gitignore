@@ -27,3 +27,6 @@ next-env.d.ts
 
 # 検証用の一時ファイル
 *.tmp.js
+
+# ローカル実行時のデータ保存先(DATABASE_URL 未設定のとき)
+/.data/

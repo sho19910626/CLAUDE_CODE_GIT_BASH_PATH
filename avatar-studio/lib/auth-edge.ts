@@ -1,21 +1,22 @@
-// middleware(Edge ランタイム)用の署名検証。
+// middleware(Edge ランタイム)用の入口チェック。
 //
-// Edge では node:crypto が使えないので、同じ HMAC-SHA256 を Web Crypto で行う。
-// lib/auth.ts の sign() と必ず同じ結果になる必要があるため、
-// 「メッセージは `名前:発行時刻`、出力は base64url」という取り決めを両方で守る。
+//   1. Cookie の署名を確かめる(Web Crypto。Edge では node:crypto が使えない)
+//   2. そのアカウントがまだ有効か、共有データベースに聞く
 //
-// ここで検証まで済ませるのが要点。Cookie の有無だけを見ていると、
-// それらしい値を手で作っただけで中身が見えてしまう。
+// 2 を入れているのは、退職者のアカウントを止めたら「その場で」見られなくなる
+// ようにするため。同じ実行インスタンスの中では 30 秒だけ結果を覚える。
+
+import { neon } from "@neondatabase/serverless";
 
 function secret(): string {
-  return process.env.APP_PASSWORD ?? process.env.BASIC_AUTH_PASSWORD ?? "";
+  return process.env.APP_PASSWORD ?? "";
 }
 
 export function isConfigured(): boolean {
   return secret().length > 0;
 }
 
-const MAX_AGE_MS = 60 * 60 * 24 * 30 * 1000; // 30日
+const MAX_AGE_MS = 60 * 60 * 12 * 1000; // auth.ts と揃える
 
 function toBase64Url(bytes: ArrayBuffer): string {
   let binary = "";
@@ -23,7 +24,6 @@ function toBase64Url(bytes: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** 長さや先頭一致で処理時間が変わらないようにする */
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -31,21 +31,11 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** トークンが正しければ表示名を返す。壊れていたり期限切れなら null */
-export async function verifyTokenEdge(
-  token: string | undefined
-): Promise<string | null> {
+async function verifySignature(token: string | undefined): Promise<string | null> {
   if (!token || !isConfigured()) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  const [encoded, issuedAtRaw, mac] = parts;
-
-  let name: string;
-  try {
-    name = decodeURIComponent(encoded);
-  } catch {
-    return null;
-  }
+  const [userId, issuedAtRaw, mac] = parts;
   const issuedAt = Number(issuedAtRaw);
   if (!Number.isFinite(issuedAt)) return null;
   if (Date.now() - issuedAt > MAX_AGE_MS) return null;
@@ -58,6 +48,44 @@ export async function verifyTokenEdge(
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`${name}:${issuedAt}`));
-  return safeEqual(mac, toBase64Url(sig)) ? name : null;
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`${userId}:${issuedAt}`));
+  return safeEqual(mac, toBase64Url(sig)) ? userId : null;
+}
+
+const CACHE_MS = 30 * 1000;
+const activeCache = new Map<string, { active: boolean; at: number }>();
+
+async function isAccountActive(userId: string): Promise<boolean> {
+  const now = Date.now();
+  const hit = activeCache.get(userId);
+  if (hit && now - hit.at < CACHE_MS) return hit.active;
+
+  const url = process.env.DATABASE_URL;
+  // ローカル開発(共有データベース無し)では、ここでは判定しない。
+  // サーバー側の currentUser() が改めて確認する。
+  if (!url) return true;
+
+  try {
+    const sql = neon(url);
+    const rows = (await sql.query(
+      `select active from avatar_users where id = $1`,
+      [userId]
+    )) as unknown as { active: boolean }[];
+    const active = rows.length > 0 && rows[0].active === true;
+    if (activeCache.size > 200) activeCache.clear();
+    activeCache.set(userId, { active, at: now });
+    return active;
+  } catch {
+    // 問い合わせに失敗したときは通さない(開いてしまうより止まるほうがまし)
+    return false;
+  }
+}
+
+/** 入ってよければ利用者IDを返す。だめなら null */
+export async function checkSessionEdge(
+  token: string | undefined
+): Promise<string | null> {
+  const userId = await verifySignature(token);
+  if (!userId) return null;
+  return (await isAccountActive(userId)) ? userId : null;
 }

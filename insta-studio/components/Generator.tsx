@@ -359,9 +359,13 @@ interface BrandKit {
   brandDescription?: string;
 }
 
-function loadBrandKit(): BrandKit {
+// ブランドキットはサーバー(共有データベース)に置く。
+// どの企業のロゴ・URL を扱っているかは顧客情報なので、各自のPCには残さない。
+async function loadBrandKit(): Promise<BrandKit> {
   try {
-    return JSON.parse(localStorage.getItem(BRAND_KIT_KEY) ?? "{}") as BrandKit;
+    const res = await fetch("/api/brandkit", { cache: "no-store" });
+    if (!res.ok) return {};
+    return ((await res.json()).kit ?? {}) as BrandKit;
   } catch {
     return {};
   }
@@ -389,27 +393,46 @@ export default function Generator() {
   const backgrounds = useBackgrounds(plan, refImages[0] ?? null);
   const broll = useBroll(plan);
 
-  // 保存済みブランドキットの復元
+  // 保存済みブランドキットの復元(サーバーから)。
+  // 併せて、移行前にこのPCへ残っていたぶんを消す。
   useEffect(() => {
-    const kit = loadBrandKit();
-    if (kit.logo) setLogo(kit.logo);
-    if (kit.url) setUrl(kit.url);
-    if (kit.brandDescription) setBrandDescription(kit.brandDescription);
+    try {
+      localStorage.removeItem(BRAND_KIT_KEY);
+    } catch {
+      // プライベートウィンドウなどで触れないときは何もしない
+    }
+    void (async () => {
+      const kit = await loadBrandKit();
+      if (kit.logo) setLogo(kit.logo);
+      if (kit.url) setUrl(kit.url);
+      if (kit.brandDescription) setBrandDescription(kit.brandDescription);
+    })();
   }, []);
 
   const saveBrandKit = useCallback(() => {
-    try {
+    void (async () => {
       const kit: BrandKit = {
         logo: logo ?? undefined,
         url: url || undefined,
         brandDescription: brandDescription || undefined,
       };
-      localStorage.setItem(BRAND_KIT_KEY, JSON.stringify(kit));
-      setKitSaved(true);
-      setTimeout(() => setKitSaved(false), 1800);
-    } catch {
-      setError("ブランドキットの保存に失敗しました(ロゴ画像が大きすぎる可能性があります)");
-    }
+      try {
+        const res = await fetch("/api/brandkit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kit }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? "ブランドキットの保存に失敗しました");
+          return;
+        }
+        setKitSaved(true);
+        setTimeout(() => setKitSaved(false), 1800);
+      } catch {
+        setError("ブランドキットの保存に失敗しました(通信を確認してください)");
+      }
+    })();
   }, [logo, url, brandDescription]);
 
   const addLogo = useCallback(async (files: FileList | null) => {

@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-// 共有パスワード + 表示名でログインする。
-// 表示名は「今このツールを誰が使っているか」の目印として画面右上に出る。
+// 1 人 1 アカウントでログインする。
+// アカウントがまだ 1 件も無いときだけ「最初の管理者を作る」画面に変わる。
+
 /**
  * ログイン後の飛び先。自サイト内のパスだけを許す。
- *
  * そのまま使うと /login?next=https://... で外部サイトへ送り込めてしまう。
- * 本物のURLのログイン画面を踏ませて偽サイトへ渡す、という使い方ができるため、
- * 「/ で始まり、// や /\\ ではないもの」だけを通す。
  */
 function safeNext(raw: string | null): string {
   if (!raw) return "/";
@@ -24,10 +22,24 @@ export default function LoginForm() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
 
+  const [firstAdmin, setFirstAdmin] = useState<boolean | null>(null);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/login", { cache: "no-store" });
+        const data = await res.json();
+        setFirstAdmin(Boolean(data.needsFirstAdmin));
+      } catch {
+        setFirstAdmin(false);
+      }
+    })();
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +49,9 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify(
+          firstAdmin ? { name, password, setupSecret } : { name, password }
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "ログインできませんでした");
@@ -54,12 +68,14 @@ export default function LoginForm() {
     <div className="container login-wrap">
       <div className="panel login-card">
         <div className="header">
-          <h1>アバタースタジオ</h1>
-          <span className="sub">台本を書くだけで、顔出し不要のSNS動画を作ります。</span>
+          <h1>{firstAdmin ? "最初の管理者を作る" : "アバタースタジオ"}</h1>
+          {!firstAdmin && <span className="sub">台本だけで、顔出し不要のSNS動画を。</span>}
         </div>
+
         <p className="login-note">
-          チームで共有しているツールです。お名前とパスワードを入れてください。
-          お名前は画面右上に出るだけで、誰でも自由に決められます。
+          {firstAdmin
+            ? "まだアカウントがありません。最初の管理者を 1 人つくります。以降のアカウントは、この管理者が画面から発行します。"
+            : "管理者から受け取ったお名前とパスワードでログインしてください。パスワードは自分だけのものです。他の人と共有しないでください。"}
         </p>
 
         <form onSubmit={submit}>
@@ -69,8 +85,8 @@ export default function LoginForm() {
               id="login-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="山田"
-              autoComplete="nickname"
+              placeholder="山田太郎"
+              autoComplete="username"
               required
             />
           </div>
@@ -81,19 +97,39 @@ export default function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={firstAdmin ? "new-password" : "current-password"}
               required
             />
+            {firstAdmin && <span className="hint">12文字以上で決めてください。</span>}
           </div>
+
+          {firstAdmin && (
+            <div className="field">
+              <label htmlFor="login-secret">初期設定の合言葉</label>
+              <input
+                id="login-secret"
+                type="password"
+                value={setupSecret}
+                onChange={(e) => setSetupSecret(e.target.value)}
+                autoComplete="off"
+                required
+              />
+              <span className="hint">
+                公開設定に入れた <code>APP_PASSWORD</code> の値です。ここでだけ使います。
+              </span>
+            </div>
+          )}
+
           {error && <div className="login-error">⚠ {error}</div>}
+
           <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? "確認中…" : "ログイン"}
+            {busy ? "確認中…" : firstAdmin ? "管理者を作ってはじめる" : "ログイン"}
           </button>
         </form>
 
         <p className="login-note">
-          パスワードが分からない場合は管理者に確認してください。
-          退職や異動があったときは、パスワードを変更する運用にしてください。
+          誰がいつ何をしたかは記録に残ります。パスワードを忘れた場合や、
+          退職・異動があった場合は管理者に連絡してください。
         </p>
       </div>
     </div>

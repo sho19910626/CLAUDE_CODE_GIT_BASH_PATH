@@ -12,3 +12,6 @@
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ローカル実行時のデータ保存先(DATABASE_URL 未設定のとき)
+/.data/

@@ -1,17 +1,12 @@
 // サイト全体の入口の鍵。
 //
-// URLを知っただけの第三者に生成APIを使われると、そのまま課金に直結する。
-// ページもAPIもまとめてログイン必須にする。
+// Cookie は署名を検証したうえで、そのアカウントがまだ有効かも確かめる。
+// 署名だけ見ていると、停止した人がセッションの残り時間だけ中を見られてしまう。
 //
-// Cookie は有無だけでなく署名まで検証する。有無しか見ないと、
-// それらしい値を手で作っただけで中を覗けてしまうため。
-//
-// APP_PASSWORD 未設定のローカル開発では素通しにする。合言葉が無いと
-// ログインのしようがなく、開発のたびに詰まるため。
-// 本番(NODE_ENV=production)ではこの抜け道は使えない。
+// APP_PASSWORD 未設定のローカル開発では素通しにする。本番では使えない。
 
 import { NextResponse, type NextRequest } from "next/server";
-import { isConfigured, verifyTokenEdge } from "@/lib/auth-edge";
+import { checkSessionEdge, isConfigured } from "@/lib/auth-edge";
 
 export const config = {
   matcher: [
@@ -24,8 +19,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const user = await verifyTokenEdge(request.cookies.get("account_session")?.value);
-  if (user) return NextResponse.next();
+  const userId = await checkSessionEdge(request.cookies.get("account_session")?.value);
+  if (userId) return NextResponse.next();
 
   // API はログイン画面に飛ばすと fetch 側で理由が分からなくなるので 401 で返す
   if (request.nextUrl.pathname.startsWith("/api/")) {

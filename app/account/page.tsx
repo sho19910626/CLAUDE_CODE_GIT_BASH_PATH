@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
 import type { Metadata } from "next";
 import AccountStudio from "@/components/AccountStudio";
 
@@ -8,6 +10,11 @@ export const metadata: Metadata = {
 };
 
 // トップページ (/) と同じ画面。以前のURLで開いた人のために残している。
-export default function AccountPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AccountPage() {
+  // 入口(middleware)でも見ているが、ここでも確かめる。
+  // 停止されたアカウントに画面を描かないための二重の確認。
+  if (!(await currentUser())) redirect("/login");
   return <AccountStudio />;
 }
