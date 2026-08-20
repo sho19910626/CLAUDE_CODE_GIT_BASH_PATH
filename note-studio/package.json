@@ -1,0 +1,25 @@
+{
+  "name": "note-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "note 収益化スタジオ — 競合リサーチ・ジャンル選定・アカウント設計・運用計画・記事作成を一気通貫で行い、有料記事の月商を積み上げるツール",
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start -p 3003",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.8.0"
+  }
+}
