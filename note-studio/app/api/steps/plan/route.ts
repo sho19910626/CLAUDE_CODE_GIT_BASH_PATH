@@ -5,6 +5,7 @@ import { failure, guard, isResponse, missingStep, readJson } from "@/lib/api";
 import { generateJson } from "@/lib/claude";
 import { BASE_SYSTEM, planPrompt } from "@/lib/prompts";
 import { PLAN_SCHEMA } from "@/lib/schemas";
+import { grossNeededFor } from "@/lib/revenue";
 import { saveProject } from "@/lib/store";
 import type { OperationPlan } from "@/lib/types";
 
@@ -29,14 +30,22 @@ export async function POST(request: Request) {
       maxTokens: 20000,
     });
 
-    // 算数はAIに任せきりにしない。合計が目標に届いているかをサーバー側でも確かめ、
-    // ずれていたら画面に警告を出す(数字が合わない計画で動くと目標に届かないため)
+    // 算数はAIに任せきりにしない。目標は【手取り】なので、
+    // 必要な【売上】をサーバー側で計算し直し、内訳の合計がそこに届くかを確かめる。
+    // ここを AI 任せにすると、手取りの額をそのまま売上として組んでしまい、
+    // 計画どおり売れても手数料のぶん目標に届かない計画ができあがる。
+    const netGoal = g.project.profile.monthlyGoalYen;
+    const grossNeeded = grossNeededFor(netGoal);
     const sum = result.revenueMath.breakdown.reduce((n, b) => n + (b.subtotalYen ?? 0), 0);
-    const goal = result.revenueMath.goalYen || g.project.profile.monthlyGoalYen;
     const warnings: string[] = [];
-    if (sum < goal) {
+
+    // AI が返した目標額は信用せず、こちらで確定させる
+    result.revenueMath.netGoalYen = netGoal;
+    result.revenueMath.goalYen = grossNeeded;
+
+    if (sum < grossNeeded) {
       warnings.push(
-        `内訳の合計が ${sum.toLocaleString()} 円で、目標の ${goal.toLocaleString()} 円に届いていません。価格か本数を見直してください。`
+        `内訳の合計が売上 ${sum.toLocaleString()} 円で、手取り ${netGoal.toLocaleString()} 円に必要な売上 ${grossNeeded.toLocaleString()} 円に届いていません。価格か本数を見直してください。`
       );
     }
     for (const b of result.revenueMath.breakdown) {

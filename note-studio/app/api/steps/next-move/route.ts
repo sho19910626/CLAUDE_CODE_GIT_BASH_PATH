@@ -42,6 +42,7 @@ export async function PUT(request: Request) {
     likes: numOrNull(e.likes),
     sales: numOrNull(e.sales),
     revenueYen: numOrNull(e.revenueYen),
+    netYen: numOrNull(e.netYen),
     followers: numOrNull(e.followers),
     members: numOrNull(e.members),
     memo: typeof e.memo === "string" ? e.memo.slice(0, 500) : "",
@@ -52,6 +53,7 @@ export async function PUT(request: Request) {
     entry.likes !== null ||
     entry.sales !== null ||
     entry.revenueYen !== null ||
+    entry.netYen !== null ||
     entry.followers !== null ||
     entry.members !== null;
   if (!hasAny) {

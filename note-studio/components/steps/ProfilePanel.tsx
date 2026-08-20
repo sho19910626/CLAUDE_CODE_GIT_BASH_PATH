@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PanelProps } from "../Workspace";
 import { REVENUE_MODEL_LABELS, type OwnerProfile, type RevenueModel } from "@/lib/types";
+import { GOAL_PRESETS, feeBreakdown, tierFor } from "@/lib/revenue";
 
 // ① 持ち札。ここの中身が、そのまま記事の質になる。
 //
@@ -155,8 +156,28 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
             />
             <span className="hint">計画の本数はこの時間から逆算されます</span>
           </div>
-          <div className="field">
-            <label htmlFor="gl">有料記事で狙う月商（円）</label>
+        </div>
+
+        <div className="field">
+          <label>
+            月の目標
+            <span className="hint">売上ではなく、手元に残る額で決めます</span>
+          </label>
+          <div className="ns-goal-presets">
+            {GOAL_PRESETS.map((g) => (
+              <button
+                key={g.netYen}
+                type="button"
+                className={`ns-goal-preset ${form.monthlyGoalYen === g.netYen ? "on" : ""}`}
+                onClick={() => set("monthlyGoalYen", g.netYen)}
+              >
+                <strong>{g.label}</strong>
+                <span>{g.shape}</span>
+              </button>
+            ))}
+          </div>
+          <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
+            <label htmlFor="gl">別の額にする（手取り・円）</label>
             <input
               id="gl"
               type="number"
@@ -165,8 +186,8 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
               value={form.monthlyGoalYen}
               onChange={(e) => set("monthlyGoalYen", Number(e.target.value))}
             />
-            <span className="hint">手数料で約15%引かれるため、手取りはこれより少なくなります</span>
           </div>
+          <FeeNote netGoalYen={form.monthlyGoalYen} />
         </div>
 
         <div className="field">
@@ -223,6 +244,54 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
           {busy ? "保存中…" : saved ? "保存しました" : "保存する"}
         </button>
       </form>
+    </div>
+  );
+}
+
+/** 手取りの目標から、必要な売上と手数料の内訳を出す。
+ *  ここを見せないと「売れたのに目標に届かない」が起きる。 */
+function FeeNote({ netGoalYen }: { netGoalYen: number }) {
+  if (!Number.isFinite(netGoalYen) || netGoalYen <= 0) return null;
+  const f = feeBreakdown(netGoalYen);
+  const tier = tierFor(netGoalYen);
+
+  return (
+    <div className="ns-feenote">
+      <div className="ns-feenote-head">
+        手取り <strong>{netGoalYen.toLocaleString()} 円</strong> のために必要な売上は{" "}
+        <strong>約 {f.grossYen.toLocaleString()} 円</strong>
+      </div>
+      <table className="ns-table">
+        <tbody>
+          <tr>
+            <td>売上</td>
+            <td className="ns-num">{f.grossYen.toLocaleString()} 円</td>
+          </tr>
+          <tr>
+            <td>− 決済手数料</td>
+            <td className="ns-num">{f.paymentFeeYen.toLocaleString()} 円</td>
+          </tr>
+          <tr>
+            <td>− プラットフォーム利用料</td>
+            <td className="ns-num">{f.platformFeeYen.toLocaleString()} 円</td>
+          </tr>
+          <tr>
+            <td>− 振込手数料</td>
+            <td className="ns-num">{f.transferFeeYen.toLocaleString()} 円</td>
+          </tr>
+          <tr className="ns-total">
+            <td>手元に残る</td>
+            <td className="ns-num">{f.netYen.toLocaleString()} 円</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="ns-dim">
+        手取りは売上の約 {f.netRatePercent}%。決済手段の構成で変わるため概算です。
+        最新の手数料は note の公式ヘルプで確認してください。
+      </p>
+      <p className="ns-body">
+        <strong>この額に届く形:</strong> {tier.shape}
+      </p>
     </div>
   );
 }

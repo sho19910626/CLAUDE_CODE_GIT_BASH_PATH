@@ -24,7 +24,13 @@ export interface OwnerProfile {
   ngTopics: string;
   /** 週に note に使える時間(時間) */
   hoursPerWeek: number;
-  /** 有料記事で狙う月商(円) */
+  /**
+   * 狙う月の【手取り】(円)。
+   *
+   * 売上ではなく手取りで持つ。note の売上は手数料で 2 割近く引かれるため、
+   * 売上で目標を置くと、計画どおり売れても手元の額が目標に届かない。
+   * 必要な売上は lib/revenue.ts の grossNeededFor() で逆算する。
+   */
   monthlyGoalYen: number;
   /** 使う収益モデル */
   revenueModels: RevenueModel[];
@@ -239,7 +245,9 @@ export interface OperationPlan {
   plannedAt: string;
   /** 月商目標に到達する筋道の説明 */
   revenueMath: {
-    /** 目標(円) */
+    /** 目標の手取り(円) */
+    netGoalYen: number;
+    /** その手取りに必要な売上(円)。手数料を戻した額 */
     goalYen: number;
     /** 内訳。「3,000円 × 20本 = 60,000円」など */
     breakdown: { source: string; unitYen: number; unitsPerMonth: number; subtotalYen: number }[];
@@ -304,8 +312,14 @@ export interface MetricEntry {
   likes: number | null;
   /** 販売数 */
   sales: number | null;
-  /** 売上(円) */
+  /** 売上(円)。note の管理画面に出る額 */
   revenueYen: number | null;
+  /**
+   * 手取り(円)。振込で実際に入った額。
+   * 分かるときだけ入れる。入っていれば、進捗の判定はこちらを優先する
+   * (手数料の概算より、実額のほうが正しいため)。
+   */
+  netYen: number | null;
   /** フォロワー数(その時点) */
   followers: number | null;
   /** メンバーシップ会員数 */
@@ -317,7 +331,14 @@ export interface MetricEntry {
 export interface NextMove {
   judgedAt: string;
   /** 月商目標に対して今どこにいるか */
-  standing: { currentMonthlyYen: number; goalYen: number; gapYen: number; verdict: string };
+  standing: {
+    /** 直近1か月の手取り(円) */
+    currentMonthlyYen: number;
+    /** 目標の手取り(円) */
+    goalYen: number;
+    gapYen: number;
+    verdict: string;
+  };
   /** どこが詰まっているか。読まれていない / 読まれるが買われない など */
   bottleneck: { stage: string; evidence: string };
   /** 次にやること。上から順に */
@@ -355,8 +376,9 @@ export interface ProjectSummary {
   createdBy: string;
   /** どこまで進んだか */
   steps: { research: boolean; genre: boolean; account: boolean; plan: boolean; articles: number };
-  /** 直近の月商(円) */
+  /** 直近1か月の手取り(円) */
   latestMonthlyYen: number;
+  /** 目標の手取り(円) */
   goalYen: number;
 }
 

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { PanelProps } from "../Workspace";
 import { Empty, Section, yen } from "../ui";
+import { monthlyNetFrom, netFromGross } from "@/lib/revenue";
 
 // ⑦ 実績と次の一手。
 //
@@ -18,6 +19,7 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
     likes: "",
     sales: "",
     revenueYen: "",
+    netYen: "",
     followers: "",
     members: "",
     memo: "",
@@ -26,12 +28,10 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
   const published = project.articles.filter((a) => a.published);
   const n = project.nextMove;
 
-  const monthly = useMemo(() => {
-    const since = Date.now() - 31 * 24 * 60 * 60 * 1000;
-    return project.metrics
-      .filter((m) => Date.parse(m.recordedAt) >= since)
-      .reduce((sum, m) => sum + (m.revenueYen ?? 0), 0);
-  }, [project.metrics]);
+  const { netYen: monthly, estimated } = useMemo(
+    () => monthlyNetFrom(project.metrics),
+    [project.metrics]
+  );
 
   const num = (v: string) => (v.trim() === "" ? undefined : Number(v));
 
@@ -47,6 +47,7 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
           likes: num(form.likes),
           sales: num(form.sales),
           revenueYen: num(form.revenueYen),
+          netYen: num(form.netYen),
           followers: num(form.followers),
           members: num(form.members),
           memo: form.memo,
@@ -54,7 +55,16 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
       },
       "PUT"
     );
-    setForm({ views: "", likes: "", sales: "", revenueYen: "", followers: "", members: "", memo: "" });
+    setForm({
+      views: "",
+      likes: "",
+      sales: "",
+      revenueYen: "",
+      netYen: "",
+      followers: "",
+      members: "",
+      memo: "",
+    });
   };
 
   return (
@@ -63,14 +73,18 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
         note の数字を写して入れます。週に 1 回で十分です。
         入れた数字から、<strong>売れる流れのどこで止まっているか</strong>を判定し、次にやることを出します。
       </p>
+      <p className="ns-hint">
+        目標は手取りで置いているので、進捗も手取りで見ます。売上だけ入れた場合は手数料を引いた
+        <strong>概算</strong>で計算し、振込の実額を入れればそちらを優先します。
+      </p>
 
       <div className="ns-goalbox">
         <div>
-          <span className="ns-dim">直近1か月の売上</span>
+          <span className="ns-dim">直近1か月の手取り{estimated && "（概算）"}</span>
           <strong>{monthly.toLocaleString()} 円</strong>
         </div>
         <div>
-          <span className="ns-dim">目標</span>
+          <span className="ns-dim">目標（手取り）</span>
           <strong>{project.profile.monthlyGoalYen.toLocaleString()} 円</strong>
         </div>
         <div>
@@ -105,6 +119,7 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
                 ["likes", "スキ"],
                 ["sales", "販売数"],
                 ["revenueYen", "売上（円）"],
+                ["netYen", "手取り（円・分かれば）"],
                 ["followers", "フォロワー"],
                 ["members", "メンバー数"],
               ] as const
@@ -150,6 +165,7 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
                 <th>スキ</th>
                 <th>販売</th>
                 <th>売上</th>
+                <th>手取り</th>
                 <th>フォロワー</th>
                 <th></th>
               </tr>
@@ -170,6 +186,15 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
                     <td>{m.likes ?? "—"}</td>
                     <td>{m.sales ?? "—"}</td>
                     <td>{m.revenueYen !== null ? yen(m.revenueYen) : "—"}</td>
+                    <td>
+                      {m.netYen !== null ? (
+                        yen(m.netYen)
+                      ) : m.revenueYen !== null ? (
+                        <span className="ns-dim">{yen(netFromGross(m.revenueYen))}（概算）</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>{m.followers ?? "—"}</td>
                     <td>
                       <button

@@ -62,7 +62,8 @@ export default function ProjectList() {
         <span className="sub">リサーチ → ジャンル → アカウント設計 → 運用計画 → 記事 → 実績</span>
       </div>
       <p className="lede">
-        note アカウント 1 つにつき 1 案件を作ります。調べたことも書いた記事も売上の記録も、
+        note アカウント 1 つにつき 1 案件を作ります。目標は<strong>手取り</strong>で置きます。
+        調べたことも書いた記事も売上の記録も、
         すべてこの中に残ります。データはクラウドにあり、このパソコンには保存されません。
       </p>
 
@@ -102,7 +103,7 @@ export default function ProjectList() {
               <Link key={p.id} href={`/p/${p.id}`} className="ns-card">
                 <div className="ns-card-name">{p.name}</div>
                 <div className="ns-card-goal">
-                  直近1か月 <strong>{p.latestMonthlyYen.toLocaleString()} 円</strong>
+                  手取り <strong>{p.latestMonthlyYen.toLocaleString()} 円</strong>
                   <span className="ns-card-of"> / 目標 {p.goalYen.toLocaleString()} 円</span>
                 </div>
                 <div className="ns-bar">

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Project } from "@/lib/types";
+import { monthlyNetFrom } from "@/lib/revenue";
 import ProfilePanel from "./steps/ProfilePanel";
 import ResearchPanel from "./steps/ResearchPanel";
 import GenrePanel from "./steps/GenrePanel";
@@ -91,12 +92,12 @@ export default function Workspace({
 
   const props: PanelProps = { project, setProject, api, busy, isAdmin };
 
-  const monthly = useMemo(() => {
-    const since = Date.now() - 31 * 24 * 60 * 60 * 1000;
-    return project.metrics
-      .filter((m) => Date.parse(m.recordedAt) >= since)
-      .reduce((sum, m) => sum + (m.revenueYen ?? 0), 0);
-  }, [project.metrics]);
+  // 目標は手取りなので、進捗も手取りで見る。
+  // 振込の実額が入っていればそれを、無ければ売上から手数料を引いた概算を使う。
+  const { netYen: monthly, estimated } = useMemo(
+    () => monthlyNetFrom(project.metrics),
+    [project.metrics]
+  );
 
   const goal = project.profile.monthlyGoalYen;
   const pct = goal > 0 ? Math.min(Math.round((monthly / goal) * 100), 100) : 0;
@@ -109,7 +110,8 @@ export default function Workspace({
         </Link>
         <div className="ns-goal">
           <span>
-            直近1か月 <strong>{monthly.toLocaleString()} 円</strong> / 目標{" "}
+            直近1か月の手取り <strong>{monthly.toLocaleString()} 円</strong>
+            {estimated && <span className="ns-dim">（概算）</span>} / 目標{" "}
             {goal.toLocaleString()} 円
           </span>
           <div className="ns-bar">

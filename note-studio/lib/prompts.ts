@@ -26,6 +26,7 @@ import {
   type ResearchResult,
 } from "./types";
 import type { RawResearch } from "./research";
+import { grossNeededFor, netFromGross, netRate, tierFor, tierGuidance } from "./revenue";
 
 // ===== 全工程に共通する土台 =====
 
@@ -63,11 +64,13 @@ export const BASE_SYSTEM = `あなたは note で有料記事を売って生計�
 - 有料記事の価格は 100 円から設定できる。上限は利用プランによって違うため、
   推奨は 100〜10,000 円の範囲で出し、それを超える提案はしない。
 - 有料ラインは 1 記事に 1 か所だけ。ラインより前は全文が誰にでも読める。
-- 売上からは手数料が引かれる。決済手数料とプラットフォーム利用料で
-  おおよそ 15% 前後(決済手段により変動)。振込にも手数料がかかる。
-  よって「売上 10 万円」と「手取り 10 万円」は違う。逆算するときは
-  どちらの話かを必ず明示する。手数料率は概算であり、
-  最新の正確な数字は note の公式ヘルプで確認するよう添える。
+- 売上からは手数料が引かれる。決済手数料を引いた残りにプラットフォーム利用料がかかり、
+  振込にも手数料がかかる。手元に残るのは売上のおよそ 8 割。
+  **このツールの目標は常に「手取り」で置かれている。**
+  逆算するときは、まず手取り目標から必要な売上を出し、その売上の額で
+  単価 × 本数を組む。手取りの額をそのまま売上として計算しないこと。
+  手数料率は概算であり、最新の正確な数字は note の公式ヘルプで
+  確認するよう添える。
 - 流入は note 内の検索よりも、Google 検索・X などの SNS・note のおすすめ経由が主。
   よってタイトルは「note 内で探している人」ではなく
   「検索する人」と「タイムラインで見かけた人」の両方に効く必要がある。
@@ -102,7 +105,9 @@ export function profileBlock(p: OwnerProfile): string {
     `- 届けたい人: ${p.targetReader || "(未入力)"}`,
     `- 書けないこと(禁止事項): ${p.ngTopics || "(なし)"}`,
     `- 週に使える時間: ${p.hoursPerWeek} 時間`,
-    `- 有料記事で狙う月商: ${p.monthlyGoalYen.toLocaleString()} 円`,
+    `- 狙う月の【手取り】: ${p.monthlyGoalYen.toLocaleString()} 円`,
+    `- そのために必要な【売上】: 約 ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円(手数料で約 ${100 - Math.round(netRate() * 100)}% 引かれるため)`,
+    `- 目標の段階: ${tierFor(p.monthlyGoalYen).label} — ${tierFor(p.monthlyGoalYen).shape}`,
     `- 使う収益モデル: ${models || "(未指定)"}`,
     `- 本業の商品・サービス: ${p.backendOffer || "(なし)"}`,
     p.existingUrlname ? `- 既存の note アカウント: ${p.existingUrlname}` : "- 既存の note アカウント: なし(ゼロから)",
@@ -255,8 +260,10 @@ ${research.stats
 
 # やること
 
-この人が note で **月 ${p.monthlyGoalYen.toLocaleString()} 円** を有料記事で作るための
-ジャンル候補を 3〜5 個出し、点数をつけて 1 つ推奨してください。
+この人が note で **月の手取り ${p.monthlyGoalYen.toLocaleString()} 円**(売上で約 ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円)を
+作るためのジャンル候補を 3〜5 個出し、点数をつけて 1 つ推奨してください。
+
+${tierGuidance(p.monthlyGoalYen)}
 
 ## 点数の付け方(各 25 点、合計 100 点)
 
@@ -268,6 +275,8 @@ ${research.stats
   10 本書いたらネタが尽きるジャンルは低く付ける。
 - monetization(単価と発展性): 単価を上げやすいか。
   ${p.backendOffer ? `本業(${p.backendOffer})に繋がるか。` : ""}メンバーシップに発展させられるか。
+  **この目標の段階で必要な形(上に書いた指針)に、そのジャンルが対応できるかで採点すること。**
+  目標が大きいほど、単品の記事だけで終わるジャンルは低く付ける。
 
 total は 4 項目の合計と一致させること。計算を間違えないこと。
 
@@ -277,8 +286,9 @@ total は 4 項目の合計と一致させること。計算を間違えない�
 合計点が高くても推奨しないでください。書けないジャンルで戦っても続きません。
 
 reasoning には、選んだ理由だけでなく **他を選ばなかった理由** も書いてください。
-pathToGoal には「単価 ◯ 円 × 月 ◯ 本 × 購入率 ◯% で月 ◯ 円」という
+pathToGoal には「単価 ◯ 円 × 月 ◯ 本 = 売上 ◯ 円 → 手取り ◯ 円」という
 具体的な算数を、リサーチの価格データを使って書いてください。
+売上と手取りを取り違えないこと。目標は手取りの額です。
 
 firstThemes は、推奨ジャンルで最初に書く記事のテーマを 3〜8 個。
 1 本目は「この人が何者か」が伝わり、かつ持ち札の実績が必ず入るものにしてください。`;
@@ -382,25 +392,35 @@ ${genre.firstThemes.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
 # やること
 
-**アカウント開設ゼロの状態から、有料記事の売上で月 ${p.monthlyGoalYen.toLocaleString()} 円**に到達する
+**アカウント開設ゼロの状態から、月の手取り ${p.monthlyGoalYen.toLocaleString()} 円**に到達する
 90 日の運用計画を作ってください。
+
+${tierGuidance(p.monthlyGoalYen)}
 
 ## revenueMath — 先に算数を確定させる
 
-goalYen は ${p.monthlyGoalYen} です。
-breakdown で、何をいくらで何本売れば届くのかを分解してください。
+- netGoalYen は ${p.monthlyGoalYen}(手取りの目標)です。
+- goalYen は ${grossNeededFor(p.monthlyGoalYen)}(その手取りに必要な売上)です。
+
+breakdown は【売上】で分解してください。何をいくらで何本売れば ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円の
+売上になるかを書きます。
 subtotalYen = unitYen × unitsPerMonth になるようにし、
-breakdown の subtotalYen の合計が goalYen 以上になるようにしてください。計算を間違えないこと。
+breakdown の subtotalYen の合計が goalYen(${grossNeededFor(p.monthlyGoalYen)})以上になるようにしてください。
+計算を間違えないこと。手取りの額(${p.monthlyGoalYen})で組むと、手数料のぶん足りなくなります。
 
 assumptions には前提を正直に書いてください。最低限、次を含めること:
 - 記事の閲覧数のうち何%が買うと見込んでいるか(note の有料記事は 1〜3% 程度が一つの目安。
   ただしこれはリサーチで確かめた数字ではないので、目安であることを明記する)
 - その購入率で必要な閲覧数はどれだけか
-- 手数料でおよそ 15% 引かれるため、手取りは売上より少ないこと
+- 手数料でおよそ ${100 - Math.round(netRate() * 100)}% 引かれるため、
+  売上 ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円で手取りが ${p.monthlyGoalYen.toLocaleString()} 円になること
+  (手数料率は概算。最新は note の公式ヘルプで確認するよう添えること)
 - ゼロから始めるため、最初の 1〜2 か月は売上が立たない前提であること
 
 monthsToGoal は、上の前提で正直に見積もった月数。
 90 日で届かないなら、届かないと書いてください。楽観的な数字を作らないこと。
+週 ${p.hoursPerWeek} 時間でこの目標が現実的でないなら、
+assumptions に「この時間では届かない。◯時間必要」と正直に書いてください。
 
 ## phases — 3 期に分ける
 
@@ -581,7 +601,8 @@ export function nextMovePrompt(args: {
       const latest = ms[ms.length - 1];
       const kind = a.kind === "free" ? "無料" : a.kind === "members" ? "メンバー限定" : `有料 ${a.priceYen ?? "?"}円`;
       if (!latest) return `- 「${a.title}」(${kind}) — 実績の記録なし`;
-      return `- 「${a.title}」(${kind}) — 閲覧 ${latest.views ?? "?"} / スキ ${latest.likes ?? "?"} / 販売 ${latest.sales ?? "?"} 件 / 売上 ${latest.revenueYen ?? "?"} 円`;
+      const net = latest.netYen !== null ? `${latest.netYen} 円(実額)` : latest.revenueYen !== null ? `${netFromGross(latest.revenueYen)} 円(概算)` : "?";
+      return `- 「${a.title}」(${kind}) — 閲覧 ${latest.views ?? "?"} / スキ ${latest.likes ?? "?"} / 販売 ${latest.sales ?? "?"} 件 / 売上 ${latest.revenueYen ?? "?"} 円 / 手取り ${net}`;
     })
     .join("\n");
 
@@ -589,7 +610,7 @@ export function nextMovePrompt(args: {
   const overallLines = overall
     .map(
       (m) =>
-        `- ${m.recordedAt.slice(0, 10)}: フォロワー ${m.followers ?? "?"} / 会員 ${m.members ?? "?"} / 売上 ${m.revenueYen ?? "?"} 円 ${m.memo ? `(${m.memo})` : ""}`
+        `- ${m.recordedAt.slice(0, 10)}: フォロワー ${m.followers ?? "?"} / 会員 ${m.members ?? "?"} / 売上 ${m.revenueYen ?? "?"} 円 / 手取り ${m.netYen ?? "(記録なし)"} 円 ${m.memo ? `(${m.memo})` : ""}`
     )
     .join("\n");
 
@@ -599,7 +620,7 @@ export function nextMovePrompt(args: {
 
 ${
   plan
-    ? `目標 ${plan.revenueMath.goalYen.toLocaleString()} 円 / 想定 ${plan.revenueMath.monthsToGoal} か月
+    ? `目標 手取り ${plan.revenueMath.netGoalYen.toLocaleString()} 円(必要な売上 ${plan.revenueMath.goalYen.toLocaleString()} 円) / 想定 ${plan.revenueMath.monthsToGoal} か月
 内訳: ${plan.revenueMath.breakdown.map((b) => `${b.source} ${b.unitYen}円 × ${b.unitsPerMonth}本 = ${b.subtotalYen}円`).join(" / ")}`
     : "(まだ計画がありません)"
 }
@@ -618,9 +639,12 @@ ${overallLines || "(記録がありません)"}
 
 数字を見て、次に何をすべきかを決めてください。励ましは要りません。
 
+${tierGuidance(p.monthlyGoalYen)}
+
 ## standing
 
-currentMonthlyYen は、直近 1 か月の売上として妥当な数字を、上の実績から計算して入れてください。
+currentMonthlyYen は、直近 1 か月の【手取り】です。上の実績から計算して入れてください。
+goalYen も【手取り】の目標です。売上と取り違えないこと。
 記録が足りず計算できないなら 0 にし、verdict にその旨を書いてください。
 gapYen = goalYen − currentMonthlyYen。
 

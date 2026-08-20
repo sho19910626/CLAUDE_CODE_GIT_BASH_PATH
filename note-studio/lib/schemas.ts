@@ -68,6 +68,7 @@ export const ACCOUNT_SCHEMA = obj({
 
 export const PLAN_SCHEMA = obj({
   revenueMath: obj({
+    netGoalYen: N,
     goalYen: N,
     breakdown: arr(
       obj({ source: S, unitYen: N, unitsPerMonth: N, subtotalYen: N }),

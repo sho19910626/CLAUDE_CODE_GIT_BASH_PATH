@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PanelProps } from "../Workspace";
 import { Empty, Section, Warnings, yen } from "../ui";
+import { netFromGross } from "@/lib/revenue";
 
 // ⑤ 運用計画。
 //
@@ -28,7 +29,7 @@ export default function PlanPanel({ project, api, busy }: PanelProps) {
   return (
     <div className="panel">
       <p className="lede">
-        目標の月商から逆算して、90 日の計画を作ります。
+        目標の<strong>手取り</strong>から必要な売上を逆算して、90 日の計画を作ります。
         週に使える時間（{project.profile.hoursPerWeek} 時間）で書ける本数しか入りません。
       </p>
 
@@ -44,7 +45,20 @@ export default function PlanPanel({ project, api, busy }: PanelProps) {
         <Empty>まだ計画がありません。</Empty>
       ) : (
         <>
-          <Section title="目標に届く算数" hint="ここが合っていないと、その先の計画も合いません">
+          <Section
+            title="目標に届く算数"
+            hint="内訳は売上の額です。手数料を引いた手取りが目標になります"
+          >
+            <div className="ns-goalbox">
+              <div>
+                <span className="ns-dim">目標（手取り）</span>
+                <strong>{p.revenueMath.netGoalYen.toLocaleString()} 円</strong>
+              </div>
+              <div>
+                <span className="ns-dim">必要な売上</span>
+                <strong>{p.revenueMath.goalYen.toLocaleString()} 円</strong>
+              </div>
+            </div>
             <table className="ns-table">
               <thead>
                 <tr>
@@ -64,14 +78,24 @@ export default function PlanPanel({ project, api, busy }: PanelProps) {
                   </tr>
                 ))}
                 <tr className="ns-total">
-                  <td colSpan={3}>合計</td>
+                  <td colSpan={3}>売上の合計</td>
                   <td>
                     {yen(p.revenueMath.breakdown.reduce((n, b) => n + b.subtotalYen, 0))}
                   </td>
                 </tr>
                 <tr>
-                  <td colSpan={3}>目標</td>
-                  <td>{yen(p.revenueMath.goalYen)}</td>
+                  <td colSpan={3}>手数料を引いた手取り（概算）</td>
+                  <td>
+                    {yen(
+                      netFromGross(
+                        p.revenueMath.breakdown.reduce((n, b) => n + b.subtotalYen, 0)
+                      )
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={3}>目標（手取り）</td>
+                  <td>{yen(p.revenueMath.netGoalYen)}</td>
                 </tr>
               </tbody>
             </table>

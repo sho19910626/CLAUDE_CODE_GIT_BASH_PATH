@@ -9,17 +9,16 @@
 //   少人数で使う前提の割り切りです。人数が増えたら案件ごとの行に分ける。
 
 import { getAccounts } from "./accounts";
+import { monthlyNetFrom } from "./revenue";
 import { emptyProfile, type Project, type ProjectSummary } from "./types";
 
 const INDEX_KEY = "projects";
 const projectKey = (id: string) => `project:${id}`;
 
 function summarize(p: Project): ProjectSummary {
-  // 直近 31 日の売上を月商とみなす
-  const since = Date.now() - 31 * 24 * 60 * 60 * 1000;
-  const latestMonthlyYen = p.metrics
-    .filter((m) => Date.parse(m.recordedAt) >= since)
-    .reduce((sum, m) => sum + (m.revenueYen ?? 0), 0);
+  // 目標は手取りで持っているので、進捗も手取りで見る
+  const { netYen } = monthlyNetFrom(p.metrics);
+  const latestMonthlyYen = netYen;
 
   return {
     id: p.id,

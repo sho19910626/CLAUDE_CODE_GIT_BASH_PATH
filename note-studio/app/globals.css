@@ -1906,3 +1906,60 @@ body {
     flex: none;
   }
 }
+
+/* ===== 目標(手取り)の設定 ===== */
+
+.ns-goal-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.ns-goal-preset {
+  text-align: left;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ns-goal-preset:hover {
+  border-color: var(--brand);
+}
+.ns-goal-preset.on {
+  border-color: var(--brand);
+  background: rgba(124, 108, 246, 0.1);
+}
+.ns-goal-preset strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.ns-goal-preset span {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.ns-feenote {
+  margin-top: 16px;
+  background: var(--bg-panel-2);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.ns-feenote-head {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.ns-feenote .ns-table {
+  margin: 0 0 10px;
+}
+.ns-feenote .ns-table td {
+  padding: 6px 0;
+}
+.ns-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
