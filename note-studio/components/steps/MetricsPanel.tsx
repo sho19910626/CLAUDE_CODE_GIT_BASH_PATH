@@ -148,9 +148,11 @@ export default function MetricsPanel({ project, api, busy, isAdmin }: PanelProps
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={busy !== null}>
-            記録する
-          </button>
+          <div className="ns-actions">
+            <button type="submit" className="btn btn-primary" disabled={busy !== null}>
+              記録する
+            </button>
+          </div>
         </form>
       </Section>
 

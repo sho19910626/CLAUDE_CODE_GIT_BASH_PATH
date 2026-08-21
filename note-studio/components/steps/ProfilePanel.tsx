@@ -240,9 +240,11 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
           />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={busy !== null}>
-          {busy ? "保存中…" : saved ? "保存しました" : "保存する"}
-        </button>
+        <div className="ns-actions">
+          <button type="submit" className="btn btn-primary" disabled={busy !== null}>
+            {busy ? "保存中…" : saved ? "保存しました" : "保存する"}
+          </button>
+        </div>
       </form>
     </div>
   );

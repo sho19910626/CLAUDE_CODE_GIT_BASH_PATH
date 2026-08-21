@@ -1963,3 +1963,33 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* ===== 横並びの中のボタン =====
+   共通の .btn-primary は width:100%(フォームの送信ボタン向け)。
+   そのまま横並びに置くと、ボタンが全幅を要求して隣の入力欄を潰す。
+   note 収益化スタジオの横並びでは、中身の幅に戻す。 */
+
+.ns-create-form .btn,
+.ns-actions .btn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ns-create-form .field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ===== 画面右上の重なり対策 =====
+   .session-bar は position:fixed で右上に浮いている。
+   案件ページの目標表示を同じ高さに置くと、その下に潜って読めなくなる。
+   目標表示は帯の下から始める。 */
+
+.ns-top {
+  padding-top: 44px;
+}
+@media (max-width: 900px) {
+  .ns-top {
+    padding-top: 52px;
+  }
+}
