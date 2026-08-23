@@ -127,6 +127,19 @@ export const NEXT_MOVE_SCHEMA = obj({
   rewriteTargets: arr(obj({ articleTitle: S, problem: S, fix: S }), { max: 5 }),
 });
 
+// ===== ① 持ち札の書き起こし =====
+
+export const PROFILE_DRAFT_SCHEMA = obj({
+  background: S,
+  achievements: S,
+  experiences: S,
+  skills: S,
+  targetReader: S,
+  askBack: arr(obj({ question: S, why: S }), { min: 2, max: 6 }),
+  suggestedShapes: arr(enumOf("process", "research", "tool", "translate"), { max: 4 }),
+  stageReason: S,
+});
+
 // ===== リサーチのキーワード提案 =====
 
 export const KEYWORD_SCHEMA = obj({

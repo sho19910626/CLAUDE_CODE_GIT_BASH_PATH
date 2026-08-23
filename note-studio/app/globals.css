@@ -1993,3 +1993,122 @@ body {
     padding-top: 52px;
   }
 }
+
+/* ===== 持ち札の書き起こし ===== */
+
+.ns-gen {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 24px;
+  background: var(--bg-panel-2);
+}
+.ns-gen-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.ns-gen-head strong {
+  font-size: 14px;
+}
+.ns-gen-head p {
+  margin-top: 4px;
+  line-height: 1.7;
+}
+.ns-gen-head .btn {
+  flex: 0 0 auto;
+}
+.ns-gen-body {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.ns-gen-body .field textarea {
+  min-height: 60px;
+}
+
+.ns-draft {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--brand);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+.ns-draft-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ns-draft-item:last-of-type {
+  border-bottom: none;
+}
+.ns-draft-item > span {
+  display: block;
+  margin-bottom: 4px;
+}
+.ns-draft-item p {
+  font-size: 14px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+/* ===== 実績の状態 ===== */
+
+.ns-stage-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.ns-stage-opt,
+.ns-shape {
+  text-align: left;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ns-stage-opt:hover,
+.ns-shape:hover {
+  border-color: var(--brand);
+}
+.ns-stage-opt.on,
+.ns-shape.on {
+  border-color: var(--brand);
+  background: rgba(124, 108, 246, 0.1);
+}
+.ns-stage-opt strong,
+.ns-shape strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.ns-stage-opt span {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.ns-shapes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+}
+.ns-shape-sum {
+  display: block;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.ns-shape-meta {
+  display: block;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}

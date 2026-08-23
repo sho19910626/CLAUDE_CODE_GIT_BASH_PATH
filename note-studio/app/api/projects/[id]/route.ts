@@ -68,6 +68,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (typeof p.monthlyGoalYen === "number" && Number.isFinite(p.monthlyGoalYen)) {
       next.monthlyGoalYen = Math.min(Math.max(Math.round(p.monthlyGoalYen), 0), 10_000_000);
     }
+    if (p.experienceStage === "has-record" || p.experienceStage === "starting-out") {
+      next.experienceStage = p.experienceStage;
+    }
+    if (Array.isArray(p.starterShapes)) {
+      const shapes = new Set(["process", "research", "tool", "translate"]);
+      next.starterShapes = p.starterShapes.filter((x) =>
+        shapes.has(x as string)
+      ) as OwnerProfile["starterShapes"];
+    }
     if (Array.isArray(p.revenueModels)) {
       const allowed = new Set(["single", "membership", "backend", "template"]);
       next.revenueModels = p.revenueModels.filter((m) => allowed.has(m as string)) as OwnerProfile["revenueModels"];

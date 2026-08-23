@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import type { PanelProps } from "../Workspace";
-import { REVENUE_MODEL_LABELS, type OwnerProfile, type RevenueModel } from "@/lib/types";
+import {
+  REVENUE_MODEL_LABELS,
+  emptySeed,
+  type OwnerProfile,
+  type ProfileDraft,
+  type ProfileSeed,
+  type RevenueModel,
+} from "@/lib/types";
 import { GOAL_PRESETS, feeBreakdown, tierFor } from "@/lib/revenue";
+import { STARTER_PLAYBOOKS, type StarterShape } from "@/lib/starter";
+import { Warnings } from "../ui";
 
 // ① 持ち札。ここの中身が、そのまま記事の質になる。
 //
@@ -17,6 +26,12 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
   const [name, setName] = useState(project.name);
   const [saved, setSaved] = useState(false);
 
+  // 書き起こし機能の状態
+  const [seedOpen, setSeedOpen] = useState(false);
+  const [seed, setSeed] = useState<ProfileSeed>(emptySeed());
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [draftWarnings, setDraftWarnings] = useState<string[]>([]);
+
   const set = <K extends keyof OwnerProfile>(key: K, value: OwnerProfile[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setSaved(false);
@@ -28,9 +43,38 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
     setSaved(true);
   };
 
+  /** 雑なメモから 5 項目を書き起こす */
+  const generate = async () => {
+    const data = await api("/api/steps/profile", { projectId: project.id, seed });
+    setDraft(data.draft as ProfileDraft);
+    setDraftWarnings((data.warnings as string[]) ?? []);
+  };
+
+  /** 書き起こした結果を、上の入力欄に取り込む */
+  const applyDraft = () => {
+    if (!draft) return;
+    setForm((f) => ({
+      ...f,
+      background: draft.background,
+      achievements: draft.achievements,
+      experiences: draft.experiences,
+      skills: draft.skills,
+      targetReader: draft.targetReader,
+      ...(draft.suggestedShapes.length > 0
+        ? { experienceStage: "starting-out" as const, starterShapes: draft.suggestedShapes }
+        : {}),
+    }));
+    setSaved(false);
+    setDraft(null);
+    setSeedOpen(false);
+  };
+
+  // 実績ゼロの設計で進む人に「実績が空です」と出すのは筋違いなので出さない
   const weak: string[] = [];
-  if (!form.achievements.trim()) weak.push("実績(数字)");
-  if (!form.experiences.trim()) weak.push("現場のエピソード");
+  if (form.experienceStage === "has-record") {
+    if (!form.achievements.trim()) weak.push("実績(数字)");
+    if (!form.experiences.trim()) weak.push("現場のエピソード");
+  }
 
   return (
     <div className="panel">
@@ -50,6 +94,168 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
           </p>
         </div>
       )}
+
+      {/* ===== 書き起こし ===== */}
+      <div className="ns-gen">
+        <div className="ns-gen-head">
+          <div>
+            <strong>うまく書けないときは、書き起こさせる</strong>
+            <p className="ns-dim">
+              思いついたことを雑に並べるだけで、下の5つの欄に整えます。
+              <strong>入力に無い数字や経験は足しません。</strong>足りないところは質問が返ります。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-small btn-ghost"
+            onClick={() => setSeedOpen(!seedOpen)}
+          >
+            {seedOpen ? "閉じる" : "開く"}
+          </button>
+        </div>
+
+        {seedOpen && (
+          <div className="ns-gen-body">
+            <p className="ns-hint">
+              全部埋める必要はありません。書けるものだけで大丈夫です。文章にしなくて構いません。
+            </p>
+            <div className="field">
+              <label htmlFor="seed-work">今やっている仕事・過去にやったこと</label>
+              <textarea
+                id="seed-work"
+                value={seed.work}
+                onChange={(e) => setSeed({ ...seed, work: e.target.value })}
+                rows={2}
+                placeholder="例: 人材会社で採用支援。前は飲食店の店長を5年"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="seed-strengths">人より詳しいこと・得意なこと</label>
+              <textarea
+                id="seed-strengths"
+                value={seed.strengths}
+                onChange={(e) => setSeed({ ...seed, strengths: e.target.value })}
+                rows={2}
+                placeholder="例: 求人票を書くのが速い。Excelの関数。工場のシフト組み"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="seed-struggles">最近つまずいて、自分で解決したこと</label>
+              <textarea
+                id="seed-struggles"
+                value={seed.struggles}
+                onChange={(e) => setSeed({ ...seed, struggles: e.target.value })}
+                rows={2}
+                placeholder="例: Indeedの応募が急に止まった。原因は掲載順位だった"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="seed-thanked">感謝された・頼られたこと</label>
+              <textarea
+                id="seed-thanked"
+                value={seed.thanked}
+                onChange={(e) => setSeed({ ...seed, thanked: e.target.value })}
+                rows={2}
+                placeholder="例: 社長に「求人の文章を見てほしい」とよく頼まれる"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="seed-tools">使っている道具・環境・持っているデータ</label>
+              <textarea
+                id="seed-tools"
+                value={seed.tools}
+                onChange={(e) => setSeed({ ...seed, tools: e.target.value })}
+                rows={2}
+                placeholder="例: Indeed管理画面、過去3年の応募データ、Claude"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="seed-wants">これからやってみたいこと</label>
+              <textarea
+                id="seed-wants"
+                value={seed.wants}
+                onChange={(e) => setSeed({ ...seed, wants: e.target.value })}
+                rows={2}
+                placeholder="例: AIで求人票を自動で書く仕組みを作りたい"
+              />
+            </div>
+            <div className="ns-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={generate}
+                disabled={busy !== null || Object.values(seed).every((v) => !v.trim())}
+              >
+                {busy === "/api/steps/profile" ? "書き起こしています…" : "5つの欄に書き起こす"}
+              </button>
+            </div>
+
+            <Warnings items={draftWarnings} />
+
+            {draft && (
+              <div className="ns-draft">
+                <h4 className="ns-h4">書き起こした内容</h4>
+                {(
+                  [
+                    ["経歴・肩書き", draft.background],
+                    ["実績", draft.achievements],
+                    ["現場のエピソード", draft.experiences],
+                    ["できること・道具", draft.skills],
+                    ["届けたい人", draft.targetReader],
+                  ] as [string, string][]
+                ).map(([label, value]) => (
+                  <div key={label} className="ns-draft-item">
+                    <span className="ns-dim">{label}</span>
+                    <p>{value}</p>
+                  </div>
+                ))}
+
+                {draft.askBack.length > 0 && (
+                  <div className="ns-warn">
+                    <strong>これに答えると、持ち札が強くなります</strong>
+                    <ul>
+                      {draft.askBack.map((a, i) => (
+                        <li key={i}>
+                          {a.question}
+                          <span className="ns-dim">（{a.why}）</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="ns-dim">
+                      上の素材に書き足して、もう一度「書き起こす」を押すと反映されます。
+                    </p>
+                  </div>
+                )}
+
+                {draft.suggestedShapes.length > 0 && (
+                  <div className="ns-ok">
+                    <strong>語れる実績は、まだ無いと判定しました</strong>
+                    <p>{draft.stageReason}</p>
+                    <p>
+                      取り込むと「実績の状態」が
+                      <strong>これから作る</strong>
+                      に切り替わり、実績を使わない売り方で設計します。
+                    </p>
+                  </div>
+                )}
+
+                <div className="ns-actions">
+                  <button type="button" className="btn btn-primary" onClick={applyDraft}>
+                    この内容を下の欄に取り込む
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-small btn-ghost"
+                    onClick={() => setDraft(null)}
+                  >
+                    捨てる
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <form onSubmit={save}>
         <div className="field">
@@ -78,10 +284,88 @@ export default function ProfilePanel({ project, api, busy }: PanelProps) {
           />
         </div>
 
+
+        {/* ===== 実績の状態 ===== */}
+        <div className="field">
+          <label>
+            実績の状態
+            <span className="hint">ここで、ジャンル選定から記事までの設計が変わります</span>
+          </label>
+          <div className="ns-stage-pick">
+            <button
+              type="button"
+              className={`ns-stage-opt ${form.experienceStage === "has-record" ? "on" : ""}`}
+              onClick={() => set("experienceStage", "has-record")}
+            >
+              <strong>数字で言える実績がある</strong>
+              <span>実績を軸に設計します。上の「実績」欄を必ず埋めてください。</span>
+            </button>
+            <button
+              type="button"
+              className={`ns-stage-opt ${form.experienceStage === "starting-out" ? "on" : ""}`}
+              onClick={() => set("experienceStage", "starting-out")}
+            >
+              <strong>まだ無い／これから作る</strong>
+              <span>実績を語らずに売れる型で設計します。嘘の実績は作りません。</span>
+            </button>
+          </div>
+        </div>
+
+        {form.experienceStage === "starting-out" && (
+          <div className="field">
+            <label>
+              使う売り方
+              <span className="hint">1〜2個に絞ってください。選ばないと全部を検討します</span>
+            </label>
+            <div className="ns-shapes">
+              {STARTER_PLAYBOOKS.map((pb) => {
+                const on = form.starterShapes.includes(pb.shape);
+                return (
+                  <button
+                    key={pb.shape}
+                    type="button"
+                    className={`ns-shape ${on ? "on" : ""}`}
+                    onClick={() =>
+                      set(
+                        "starterShapes",
+                        on
+                          ? form.starterShapes.filter((x) => x !== pb.shape)
+                          : [...form.starterShapes, pb.shape as StarterShape]
+                      )
+                    }
+                  >
+                    <strong>{pb.label}</strong>
+                    <span className="ns-shape-sum">{pb.summary}</span>
+                    <span className="ns-shape-meta">
+                      売るもの: {pb.sellables.slice(0, 2).join(" / ")}
+                      <br />
+                      価格帯: {pb.priceRange}
+                      <br />
+                      向く人: {pb.fitsWho}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="ns-warn">
+              <strong>この設計で守ること</strong>
+              <ul>
+                <li>実績があるかのように書きません（数字・肩書き・経験を作らない）</li>
+                <li>「専門家」「プロ」を名乗りません</li>
+                <li>実績が無いことを隠さず、同じ立場だから書けることに変えます</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div className="field">
           <label htmlFor="ac">
-            ★ 実績（必ず数字で）
-            <span className="hint">ここが記事の説得力になります</span>
+            {form.experienceStage === "has-record" ? "★ 実績（必ず数字で）" : "実績（今は空でも進めます）"}
+            <span className="hint">
+              {form.experienceStage === "has-record"
+                ? "ここが記事の説得力になります"
+                : "作れたら書き足してください。書けた時点で設計を切り替えられます"}
+            </span>
           </label>
           <textarea
             id="ac"

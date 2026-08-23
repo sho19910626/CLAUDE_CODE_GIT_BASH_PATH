@@ -38,6 +38,53 @@ export interface OwnerProfile {
   backendOffer: string;
   /** すでに note アカウントがある場合の urlname。無ければ空 */
   existingUrlname: string;
+
+  /**
+   * 語れる実績があるかどうか。
+   *
+   * "starting-out" のときは、実績を使った設計ができない。
+   * 実績を作らせる(捏造する)のではなく、実績を語らずに売れる型
+   * (lib/starter.ts)に、ジャンル選定・運用計画・記事の設計ごと切り替える。
+   */
+  experienceStage: "has-record" | "starting-out";
+
+  /** 実績ゼロのときに使う売り方の型。has-record のときは空 */
+  starterShapes: StarterShape[];
+}
+
+/** 持ち札を書き起こすための、雑な素材。整った文章でなくてよい */
+export interface ProfileSeed {
+  /** 今やっている仕事・過去にやったこと */
+  work: string;
+  /** 人より詳しいこと・得意なこと */
+  strengths: string;
+  /** 最近つまずいて、自分で解決したこと */
+  struggles: string;
+  /** 誰かに感謝された・頼られたこと */
+  thanked: string;
+  /** 使っている道具・環境・持っているデータ */
+  tools: string;
+  /** これからやってみたいこと */
+  wants: string;
+}
+
+export function emptySeed(): ProfileSeed {
+  return { work: "", strengths: "", struggles: "", thanked: "", tools: "", wants: "" };
+}
+
+/** 素材から書き起こした持ち札と、埋めるために必要な追加の質問 */
+export interface ProfileDraft {
+  background: string;
+  achievements: string;
+  experiences: string;
+  skills: string;
+  targetReader: string;
+  /** 素材だけでは書けなかったこと。これに答えると持ち札が強くなる */
+  askBack: { question: string; why: string }[];
+  /** 実績が無いと判断した場合の、推奨する売り方の型 */
+  suggestedShapes: StarterShape[];
+  /** その判断の理由 */
+  stageReason: string;
 }
 
 export type RevenueModel = "single" | "membership" | "backend" | "template";
@@ -382,6 +429,9 @@ export interface ProjectSummary {
   goalYen: number;
 }
 
+import type { StarterShape } from "./starter";
+export type { StarterShape };
+
 export function emptyProfile(): OwnerProfile {
   return {
     displayName: "",
@@ -396,5 +446,7 @@ export function emptyProfile(): OwnerProfile {
     revenueModels: ["single", "membership", "backend"],
     backendOffer: "",
     existingUrlname: "",
+    experienceStage: "has-record",
+    starterShapes: [],
   };
 }

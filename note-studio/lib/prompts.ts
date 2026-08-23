@@ -26,6 +26,8 @@ import {
   type ResearchResult,
 } from "./types";
 import type { RawResearch } from "./research";
+import { starterGuidance } from "./starter";
+import type { ProfileSeed } from "./types";
 import { grossNeededFor, netFromGross, netRate, tierFor, tierGuidance } from "./revenue";
 
 // ===== 全工程に共通する土台 =====
@@ -113,6 +115,12 @@ export function profileBlock(p: OwnerProfile): string {
     p.existingUrlname ? `- 既存の note アカウント: ${p.existingUrlname}` : "- 既存の note アカウント: なし(ゼロから)",
   ];
 
+  // 実績ゼロを選んでいる場合は、実績を使った設計そのものを禁じる
+  if (p.experienceStage === "starting-out") {
+    lines.push("", starterGuidance(p.starterShapes));
+    return lines.join("\n");
+  }
+
   const missing: string[] = [];
   if (!p.achievements.trim()) missing.push("実績(数字)");
   if (!p.experiences.trim()) missing.push("現場のエピソード");
@@ -124,6 +132,89 @@ export function profileBlock(p: OwnerProfile): string {
     );
   }
   return lines.join("\n");
+}
+
+// ===== ① 持ち札の書き起こし =====
+//
+// 利用者が書いた雑なメモを、5つの欄に整形する。
+// ここで一番やってはいけないのが「無い実績を作ること」。
+// 出来上がった文章はそのまま note の記事の根拠になるので、
+// 素材に無い数字が1つ混ざるだけで、記事全体が嘘になる。
+
+export function profileDraftPrompt(seed: ProfileSeed, goalYen: number): string {
+  const filled = Object.entries({
+    "今やっている仕事・過去にやったこと": seed.work,
+    "人より詳しいこと・得意なこと": seed.strengths,
+    "最近つまずいて、自分で解決したこと": seed.struggles,
+    "感謝された・頼られたこと": seed.thanked,
+    "使っている道具・環境・持っているデータ": seed.tools,
+    "これからやってみたいこと": seed.wants,
+  })
+    .filter(([, v]) => v.trim())
+    .map(([k, v]) => `### ${k}\n${v.trim()}`)
+    .join("\n\n");
+
+  return `# 利用者が書いた素材
+
+${filled || "(何も入力されていません)"}
+
+---
+
+# やること
+
+この素材だけを使って、note の持ち札を 5 つの欄に書き起こしてください。
+目標は手取り月 ${goalYen.toLocaleString()} 円です。
+
+## 絶対に守ること
+
+1. **素材に無いことを足さない。**
+   数字・肩書き・経験・エピソードを、それらしく作らない。
+   「たぶんこうだろう」で埋めない。素材に書いてあることだけを使う。
+
+2. **数字が必要な箇所は空欄にする。**
+   実績は数字が入って初めて力を持つ。素材に数字が無ければ、
+   本文に \u3010ここに実際の数字を入れる: 何を、どれだけ\u3011 と書き、
+   askBack でその数字を聞き返してください。勝手に埋めないこと。
+
+3. **盛らない。** 素材が「3年やっている」なら「3年」。「ベテラン」にしない。
+
+4. **常套句を使わない。**
+   「情熱を持って」「日々研鑽」「お客様第一」などは書かない。
+
+## 各欄の書き方
+
+- background: 「何をしてきた人か」が伝わる 2〜4 文。肩書きの羅列にしない。
+- achievements: 数字で言えることを箇条書き。素材に数字が無ければ、
+  空欄(\u3010\u3011)を並べて「ここを埋めれば強くなる」と分かる形にする。
+  無理に文章で埋めないこと。
+- experiences: 場面が浮かぶ具体的なエピソード。素材の出来事をそのまま使う。
+  会話・失敗・その時の判断が入っていると強い。
+- skills: できること・持っている道具・使えるデータ。事実だけ。
+- targetReader: 誰の、どんな困りごとを解決するか。
+  素材の「感謝されたこと」「つまずいたこと」から逆算する。
+  「みんな」「多くの人」にしない。1 人の顔が浮かぶ粒度で書く。
+
+## askBack — 聞き返す質問
+
+素材だけでは書けなかったことを 2〜6 個、質問の形で挙げてください。
+**答えると持ち札が明確に強くなる質問**に絞ります。
+why には「その答えが何に使われるか」を書きます。
+数字を引き出す質問を必ず 1 つは入れてください。
+
+## suggestedShapes と stageReason — 実績の有無の判定
+
+素材を読んで、**いま語れる実績があるか**を判定してください。
+
+- 数字で示せる結果が素材にある → suggestedShapes は空配列にする
+- 数字で示せる結果が無い、または経験そのものが浅い →
+  次から向いているものを 1〜3 個選ぶ:
+    process   … これからやることを記録して売る(まだ結果が無い人)
+    research  … 調べてまとめて売る(調べるのが苦にならない人)
+    tool      … テンプレ・道具を作って売る(手を動かせる人)
+    translate … 難しいものを噛み砕いて売る(最近学んだ人)
+
+stageReason には、そう判断した理由を素材の記述を引用して書いてください。
+**実績が無いことを否定的に書かないこと。** 別の売り方があるだけです。`;
 }
 
 // ===== ① リサーチのキーワード提案 =====
