@@ -1,0 +1,95 @@
+// middleware(Edge ランタイム)用の入口チェック。
+//
+//   1. Cookie の署名を確かめる(Web Crypto。Edge では node:crypto が使えない)
+//   2. そのアカウントと会社がまだ有効か、共有データベースに聞く
+//
+// 1 を省いて「Cookie があるかどうか」だけ見る実装にすると、それらしい値を
+// 手で作っただけで中身が見えてしまう。ここは省略しない。
+//
+// 2 を入れているのは、退職者のアカウントを止めたら「その場で」見られなくなる
+// ようにするため。同じ実行インスタンスの中では 30 秒だけ結果を覚える。
+
+import { neon } from "@neondatabase/serverless";
+
+function secret(): string {
+  return process.env.APP_PASSWORD || "";
+}
+
+export function isConfigured(): boolean {
+  return secret().length > 0;
+}
+
+const MAX_AGE_MS = 60 * 60 * 12 * 1000; // auth.ts と揃える
+
+function toBase64Url(bytes: ArrayBuffer): string {
+  let binary = "";
+  for (const b of new Uint8Array(bytes)) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function verifySignature(token: string | undefined): Promise<string | null> {
+  if (!token || !isConfigured()) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [userId, issuedAtRaw, mac] = parts;
+  const issuedAt = Number(issuedAtRaw);
+  if (!Number.isFinite(issuedAt)) return null;
+  if (Date.now() - issuedAt > MAX_AGE_MS) return null;
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret()),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`${userId}:${issuedAt}`));
+  return safeEqual(mac, toBase64Url(sig)) ? userId : null;
+}
+
+const CACHE_MS = 30 * 1000;
+const activeCache = new Map<string, { active: boolean; at: number }>();
+
+async function isAccountActive(userId: string): Promise<boolean> {
+  const now = Date.now();
+  const hit = activeCache.get(userId);
+  if (hit && now - hit.at < CACHE_MS) return hit.active;
+
+  const url = process.env.DATABASE_URL;
+  // このツールはデータベースが無いと成り立たない。無いなら通さない。
+  if (!url) return false;
+
+  try {
+    const sql = neon(url);
+    const result = (await sql.query(
+      `select u.active and o.active as ok
+       from crm_users u join crm_orgs o on o.id = u.org_id
+       where u.id = $1`,
+      [userId]
+    )) as unknown as { ok: boolean }[];
+    const active = result.length > 0 && result[0].ok === true;
+    if (activeCache.size > 200) activeCache.clear();
+    activeCache.set(userId, { active, at: now });
+    return active;
+  } catch {
+    // 問い合わせに失敗したときは通さない(開いてしまうより止まるほうがまし)
+    return false;
+  }
+}
+
+/** 入ってよければ利用者IDを返す。だめなら null */
+export async function checkSessionEdge(
+  token: string | undefined
+): Promise<string | null> {
+  const userId = await verifySignature(token);
+  if (!userId) return null;
+  return (await isAccountActive(userId)) ? userId : null;
+}

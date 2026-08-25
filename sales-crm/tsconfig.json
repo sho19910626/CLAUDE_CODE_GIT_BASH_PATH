@@ -17,17 +17,5 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  // include が **/*.ts のため、フォルダの中に別プロジェクトを置くと
-  // そちらのファイルまで型チェックされ、無関係なエラーでビルドが止まる。
-  // (既存のフォルダの中に git clone してしまったときに起こる)
-  "exclude": [
-    "node_modules",
-    "CLAUDE_CODE_GIT_BASH_PATH",
-    "avatar-studio",
-    "insta-studio",
-    "sales-crm",
-    "**/node_modules",
-    "_backup",
-    "_stray-backup"
-  ]
+  "exclude": ["node_modules", "**/node_modules"]
 }

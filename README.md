@@ -16,6 +16,7 @@ AIで企業のマーケティング・採用コンテンツを設計するWebア
 |---|---|---|---|
 | **Insta Studio** | [`insta-studio/`](insta-studio/README.md) | 3002 | 単発のInstagram投稿(フィード / ストーリー / リール)を1本ずつ生成。納品後の運用で投稿を足すとき用 |
 | **アバタースタジオ** | [`avatar-studio/`](avatar-studio/README.md) | 3001 | 顔出し不要のAIアバターSNS運用を設計 |
+| **営業・売上管理** | [`sales-crm/`](sales-crm/README.md) | 3003 | 取引先・商談・活動・売上・目標を1か所で管理。単発/月額継続/成果報酬/広告費立替の4形態に対応 |
 
 セットアップと起動方法は各フォルダの README を参照してください。
 
