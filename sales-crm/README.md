@@ -102,6 +102,25 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 以降のアカウントは、管理者が `/admin` から発行します。**共有アカウントは作らないでください**
 （誰が何をしたか辿れなくなります）。
 
+### Windows でダブルクリック起動する
+
+`.env` を用意したら、`sales-crm` フォルダの **`start-sales.bat`** をダブルクリックするだけで
+起動し、ブラウザが自動で開きます（初回は依存関係の取得に数分かかります）。
+デスクトップにショートカットを置いておくと楽です。
+
+`.env` の書き忘れやポートの重複は、起動前に理由つきで止まります。
+
+> **PowerShell を使うときの注意**
+> Windows PowerShell では `&&` が使えません。`cd sales-crm && npm install` はエラーになり、
+> **フォルダも移動しません**。行を分けるか `;` を使ってください。
+>
+> ```powershell
+> cd sales-crm
+> npm install
+> copy .env.example .env
+> npm run dev
+> ```
+
 ### 4. インターネットに公開する
 
 Vercel でこの `sales-crm/` フォルダをルートに指定してデプロイし、Environment Variables に
