@@ -285,9 +285,11 @@ export default function Dashboard() {
               label="平均受注単価"
               value={man(d.activity.avgDealSize)}
               foot={
-                d.activity.avgDaysToClose > 0
-                  ? `受注まで平均 ${d.activity.avgDaysToClose} 日`
-                  : "—"
+                d.activity.won90 === 0
+                  ? "直近90日の受注なし"
+                  : d.activity.avgDaysToClose > 0
+                    ? `受注まで平均 ${d.activity.avgDaysToClose} 日`
+                    : "受注まで平均 1 日未満"
               }
             />
           </div>

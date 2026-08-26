@@ -91,6 +91,9 @@ export async function POST(request: Request) {
       case "create": {
         const input = readCompany(action.company);
         if (!input.name) throw new Error("会社名を入れてください。");
+        // 担当が選ばれていなければ、登録した人を担当にする。
+        // 空のままだと「誰の取引先か分からない行」が積み上がる
+        if (!input.ownerUserId) input.ownerUserId = user.id;
         const dup = await findCompanyByName(org.id, input.name);
         if (dup) {
           throw new Error(`「${input.name}」はすでに登録されています。`);

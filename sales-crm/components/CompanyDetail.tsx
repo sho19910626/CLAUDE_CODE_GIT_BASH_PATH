@@ -174,7 +174,7 @@ export default function CompanyDetail({ companyId }: { companyId: string }) {
                 </tr>
                 <tr>
                   <th>メモ</th>
-                  <td className="wrap">{c.note || "—"}</td>
+                  <td className="wrap pre">{c.note || "—"}</td>
                 </tr>
               </tbody>
             </table>

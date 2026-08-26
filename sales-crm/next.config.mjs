@@ -6,6 +6,10 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  // 開発中に出る Next.js の丸いバッジは、既定だと左下に置かれ、
+  // サイドバー下の「◯◯ さん / ログアウト」に重なって読めなくなる。右下へ寄せる。
+  devIndicators: { position: "bottom-right" },
   // 上位に別のプロジェクト(package-lock.json)があると Next.js がルートを
   // 取り違えて警告を出す。このフォルダを明示して迷わせない。
   outputFileTracingRoot: projectRoot,

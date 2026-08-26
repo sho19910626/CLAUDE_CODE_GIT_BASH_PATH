@@ -184,6 +184,14 @@ function blankItem(): DealItem {
   };
 }
 
+/** 単価の後ろに出す単位。形態によって「1件あたり」だったり「月額」だったりする */
+function unitSuffix(type: RevenueType): string {
+  if (type === "recurring") return "円 / 月";
+  if (type === "performance") return "円 / 件";
+  if (type === "passthrough") return "円 / 月（手数料）";
+  return "円";
+}
+
 function ItemsEditor({
   deal,
   products,
@@ -272,19 +280,48 @@ function ItemsEditor({
         商材を選ぶと単価と契約月数が入ります。契約月数を空にすると「解約するまで継続」になり、
         売上予定は常に 12 か月先まで自動で用意されます。
       </p>
+
+      {/* 形態の説明は行の中に置かない。置くと 1 行が 3 行ぶんの高さになり、
+          明細が 4 つ並んだだけで画面が埋まってしまう */}
+      <details className="help">
+        <summary>売上の形態の選び方</summary>
+        <ul>
+          {REVENUE_TYPES.map((r) => (
+            <li key={r.value}>
+              <b>{r.label}</b> — {r.hint}
+            </li>
+          ))}
+        </ul>
+      </details>
+
       <ErrorBox error={error} />
 
       <div className="table-wrap">
-        <table className="t">
+        <table className="t t-items">
+          <colgroup>
+            <col style={{ width: "23%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "5%" }} />
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ minWidth: 150 }}>商材</th>
+              <th>商材 / 内容</th>
               <th>売上の形態</th>
               <th className="num">単価</th>
               <th className="num">数量</th>
-              <th className="num">契約月数</th>
-              <th>開始月</th>
-              <th className="num">預かり広告費/月</th>
+              <th className="num" title="空にすると解約するまで継続します">
+                契約月数
+              </th>
+              <th title="単発の場合はここが計上月になります">開始月</th>
+              <th className="num" title="預かる広告費。売上には含めません">
+                預かり/月
+              </th>
               <th className="num">この明細の売上</th>
               <th />
             </tr>
@@ -310,7 +347,7 @@ function ItemsEditor({
                     </select>
                     <input
                       value={it.name}
-                      placeholder="内容"
+                      placeholder="内容（見積書に出る名前）"
                       onChange={(e) => patch(it.id, { name: e.target.value })}
                       style={{ marginTop: 4 }}
                     />
@@ -318,6 +355,7 @@ function ItemsEditor({
                   <td>
                     <select
                       value={it.revenueType}
+                      title={REVENUE_TYPES.find((r) => r.value === it.revenueType)?.hint}
                       onChange={(e) =>
                         patch(it.id, { revenueType: e.target.value as RevenueType })
                       }
@@ -328,9 +366,6 @@ function ItemsEditor({
                         </option>
                       ))}
                     </select>
-                    <div className="hint" style={{ maxWidth: 190, whiteSpace: "normal" }}>
-                      {REVENUE_TYPES.find((r) => r.value === it.revenueType)?.hint}
-                    </div>
                   </td>
                   <td className="num">
                     <input
@@ -338,8 +373,8 @@ function ItemsEditor({
                       inputMode="numeric"
                       value={it.unitPrice}
                       onChange={(e) => patch(it.id, { unitPrice: Number(e.target.value) || 0 })}
-                      style={{ width: 100 }}
                     />
+                    <div className="unit">{unitSuffix(it.revenueType)}</div>
                   </td>
                   <td className="num">
                     <input
@@ -347,7 +382,6 @@ function ItemsEditor({
                       inputMode="numeric"
                       value={it.quantity}
                       onChange={(e) => patch(it.id, { quantity: Number(e.target.value) || 0 })}
-                      style={{ width: 64 }}
                     />
                   </td>
                   <td className="num">
@@ -364,7 +398,6 @@ function ItemsEditor({
                             months: e.target.value === "" ? null : Number(e.target.value) || null,
                           })
                         }
-                        style={{ width: 64 }}
                       />
                     )}
                   </td>
@@ -375,10 +408,9 @@ function ItemsEditor({
                       onChange={(e) =>
                         patch(it.id, { startOn: e.target.value ? `${e.target.value}-01` : null })
                       }
-                      style={{ width: 130 }}
                     />
                     {it.endOn && (
-                      <div className="hint">{monthLabel(toMonthKey(it.endOn))} で終了</div>
+                      <div className="unit">{monthLabel(toMonthKey(it.endOn))}で終了</div>
                     )}
                   </td>
                   <td className="num">
@@ -390,7 +422,6 @@ function ItemsEditor({
                         onChange={(e) =>
                           patch(it.id, { passthroughAmount: Number(e.target.value) || 0 })
                         }
-                        style={{ width: 100 }}
                       />
                     ) : (
                       <span className="muted">—</span>
@@ -419,7 +450,7 @@ function ItemsEditor({
                             onClick={() => void endItem(it)}
                             disabled={busy}
                           >
-                            解約する
+                            解約
                           </button>
                         )}
                     </div>
@@ -595,7 +626,7 @@ function DealFacts({
             )}
             <tr>
               <th>メモ</th>
-              <td className="wrap">{deal.note || "—"}</td>
+              <td className="wrap pre">{deal.note || "—"}</td>
             </tr>
             <tr>
               <th>作成</th>

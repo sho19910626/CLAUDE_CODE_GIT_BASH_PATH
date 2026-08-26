@@ -111,6 +111,8 @@ export async function POST(request: Request) {
           const stages = await listStages(org.id);
           input.stageId = stages.find((s) => s.kind === "open")?.id ?? "";
         }
+        // 担当が選ばれていなければ、作った人を担当にする
+        if (!input.ownerUserId) input.ownerUserId = user.id;
         const deal = await createDeal(org.id, input, user.name);
         const items = readItems(action.items);
         if (items.length > 0) await saveDealItems(org.id, deal.id, items);
