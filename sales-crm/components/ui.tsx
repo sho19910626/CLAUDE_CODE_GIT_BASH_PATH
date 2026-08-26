@@ -136,112 +136,125 @@ export function Delta({ value, format }: { value: number; format: (n: number) =>
 
 export interface SeriesPoint {
   label: string;
-  bars: { value: number; color: string }[];
+  bars: { value: number; color: string; name: string }[];
   line?: number;
+  /** 今月など、目立たせたい月 */
+  strong?: boolean;
 }
 
 /**
- * 月別の推移。棒(売上の実績と見込み)と折れ線(MRR や目標)を重ねる。
- * 外部のグラフ部品を入れずに SVG で描いているのは、
- * このツールに必要な形が 1 種類しかないため。
+ * 月別の推移。棒(売上の実績と見込み)に折れ線(MRR)を重ねる。
+ *
+ * 棒とラベルは HTML、折れ線だけ SVG で描いている。
+ * 全部を SVG にして preserveAspectRatio="none" で横に伸ばすと、
+ * 中の文字まで一緒に引き伸ばされて、月のラベルが潰れて読めなくなる。
+ * 文字を SVG の外に出すと、幅がいくつでも普通の文字として読める。
  */
 export function TrendChart({
   points,
-  lineColor = "var(--accent)",
+  lineColor = "var(--mrr)",
+  lineLabel = "MRR",
   format,
-  height = 150,
+  height = 170,
 }: {
   points: SeriesPoint[];
   lineColor?: string;
+  lineLabel?: string;
   format: (n: number) => string;
   height?: number;
 }) {
-  if (points.length === 0) return <Empty>まだ数字がありません</Empty>;
+  const totals = points.map((p) => p.bars.reduce((s, b) => s + b.value, 0));
+  const max = Math.max(0, ...totals, ...points.map((p) => p.line ?? 0));
 
-  const pad = { top: 10, right: 6, bottom: 20, left: 6 };
-  const w = 100; // viewBox 上の幅。実際の幅は CSS が決める
-  const innerW = w - pad.left - pad.right;
-  const innerH = height - pad.top - pad.bottom;
-  const max = Math.max(
-    1,
-    ...points.map((p) => p.bars.reduce((s, b) => s + b.value, 0)),
-    ...points.map((p) => p.line ?? 0)
-  );
-  const step = innerW / points.length;
-  const barW = Math.min(step * 0.6, 9);
+  if (points.length === 0 || max <= 0) {
+    return (
+      <Empty>
+        まだ売上の記録がありません。
+        <br />
+        商談を「受注」のステージに動かすと、ここに積み上がっていきます。
+      </Empty>
+    );
+  }
 
-  const linePts = points
+  // 目盛りは切りのいい数にする。1.7 万円のような半端な上限だと読みにくい
+  const nice = niceCeil(max);
+  const linePoints = points
     .map((p, i) =>
       p.line === undefined
         ? null
-        : `${pad.left + step * (i + 0.5)},${pad.top + innerH - (p.line / max) * innerH}`
+        : `${((i + 0.5) / points.length) * 100},${100 - (p.line / nice) * 100}`
     )
     .filter(Boolean)
     .join(" ");
 
   return (
-    <svg
-      className="chart"
-      viewBox={`0 0 ${w} ${height}`}
-      preserveAspectRatio="none"
-      style={{ height }}
-      role="img"
-      aria-label={`推移。最大 ${format(max)}`}
-    >
-      {[0, 0.5, 1].map((r) => (
-        <line
-          key={r}
-          x1={pad.left}
-          x2={w - pad.right}
-          y1={pad.top + innerH * r}
-          y2={pad.top + innerH * r}
-          stroke="var(--line-2)"
-          strokeWidth={0.4}
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
-      {points.map((p, i) => {
-        let y = pad.top + innerH;
-        return (
-          <g key={i}>
-            {p.bars.map((b, j) => {
-              const h = (b.value / max) * innerH;
-              y -= h;
-              return (
-                <rect
-                  key={j}
-                  x={pad.left + step * (i + 0.5) - barW / 2}
-                  y={y}
-                  width={barW}
-                  height={Math.max(0, h)}
-                  fill={b.color}
-                  rx={0.6}
-                />
-              );
-            })}
-            <text
-              x={pad.left + step * (i + 0.5)}
-              y={height - 6}
-              textAnchor="middle"
-              fontSize={6}
-              fill="var(--muted)"
-            >
-              {p.label}
-            </text>
-          </g>
-        );
-      })}
-      {linePts && (
-        <polyline
-          points={linePts}
-          fill="none"
-          stroke={lineColor}
-          strokeWidth={1.2}
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
-    </svg>
+    <>
+      <div className="chart2" style={{ height }}>
+        <div className="chart2-grid">
+          {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+            <i key={r} style={{ top: `${r * 100}%` }} />
+          ))}
+        </div>
+        <span className="chart2-max">{format(nice)}</span>
+
+        <div className="chart2-cols">
+          {points.map((p, i) => {
+            const total = totals[i];
+            const detail = [
+              ...p.bars.filter((b) => b.value > 0).map((b) => `${b.name} ${format(b.value)}`),
+              p.line !== undefined ? `${lineLabel} ${format(p.line)}` : "",
+            ]
+              .filter(Boolean)
+              .join(" / ");
+            return (
+              <div key={i} className="chart2-col" title={`${p.label}｜${detail || "記録なし"}`}>
+                <div className="chart2-stack" style={{ height: `${(total / nice) * 100}%` }}>
+                  {p.bars.map((b, j) => (
+                    <span key={j} style={{ flex: b.value, background: b.color }} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {linePoints && (
+          <svg
+            className="chart2-line"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke={lineColor}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
+      </div>
+
+      <div className="chart2-labels">
+        {points.map((p, i) => (
+          <span key={i} className={p.strong ? "on" : undefined}>
+            {p.label}
+          </span>
+        ))}
+      </div>
+    </>
   );
+}
+
+/** 目盛りの上限を、切りのいい数に丸める(1 / 2 / 2.5 / 5 の刻み) */
+function niceCeil(v: number): number {
+  if (v <= 0) return 1;
+  const digits = Math.pow(10, Math.floor(Math.log10(v)));
+  const rest = v / digits;
+  const step = rest <= 1 ? 1 : rest <= 2 ? 2 : rest <= 2.5 ? 2.5 : rest <= 5 ? 5 : 10;
+  return step * digits;
 }
 
 /* ---------- 日付 ---------- */

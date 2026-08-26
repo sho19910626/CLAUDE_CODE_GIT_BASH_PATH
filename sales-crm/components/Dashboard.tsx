@@ -134,9 +134,10 @@ export default function Dashboard() {
         <TrendChart
           points={d.trend.map((t) => ({
             label: shortMonthLabel(t.month),
+            strong: t.month === month,
             bars: [
-              { value: t.confirmed, color: "var(--accent)" },
-              { value: t.planned, color: "var(--accent-soft)" },
+              { value: t.confirmed, color: "var(--bar-1)", name: "確定" },
+              { value: t.planned, color: "var(--bar-2)", name: "見込み" },
             ],
             line: t.mrr,
           }))}
@@ -144,17 +145,18 @@ export default function Dashboard() {
         />
         <div className="legend">
           <span>
-            <i style={{ background: "var(--accent)" }} />
+            <i style={{ background: "var(--bar-1)" }} />
             確定した売上
           </span>
           <span>
-            <i style={{ background: "var(--accent-soft)" }} />
+            <i style={{ background: "var(--bar-2)" }} />
             まだ見込みの売上
           </span>
           <span>
-            <i style={{ background: "var(--accent)", height: 2, width: 14, borderRadius: 0 }} />
-            MRR
+            <i style={{ background: "var(--mrr)", height: 3, width: 14, borderRadius: 0 }} />
+            MRR（毎月の継続売上）
           </span>
+          <span className="muted">棒にカーソルを合わせると、その月の内訳が出ます</span>
         </div>
       </div>
 

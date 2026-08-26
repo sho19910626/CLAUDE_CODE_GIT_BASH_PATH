@@ -18,6 +18,10 @@
   --warn-soft: #fdf3e2;
   --bad: #c02b2b;
   --bad-soft: #fdecec;
+  /* グラフの色。棒(確定/見込み)と折れ線(MRR)を別系統にする */
+  --bar-1: #2f5fe0;
+  --bar-2: #a8c0f4;
+  --mrr: #0d8f7d;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(20, 24, 29, 0.06), 0 4px 14px rgba(20, 24, 29, 0.05);
   --font: "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
@@ -43,6 +47,9 @@
     --warn-soft: #33280f;
     --bad: #f08585;
     --bad-soft: #34191c;
+    --bar-1: #6f9bff;
+    --bar-2: #3d5687;
+    --mrr: #45cdb8;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   }
 }
@@ -433,9 +440,70 @@ label.inline input { width: auto; }
   flex-wrap: wrap;
 }
 
-/* ===== 折れ線・棒 ===== */
+/* ===== 折れ線・棒 =====
+   棒とラベルは HTML、折れ線だけ SVG。
+   全部を SVG にして横に引き伸ばすと、中の文字まで潰れて読めなくなる。 */
 
-.chart { width: 100%; height: 150px; display: block; }
+.chart2 {
+  position: relative;
+  width: 100%;
+  margin-top: 20px;
+}
+.chart2-grid { position: absolute; inset: 0; }
+.chart2-grid i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--line-2);
+}
+.chart2-max {
+  position: absolute;
+  top: -15px;
+  right: 0;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.chart2-cols { position: absolute; inset: 0; display: flex; }
+.chart2-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 1px;
+}
+.chart2-col:hover { background: var(--panel-2); }
+.chart2-stack {
+  width: 62%;
+  max-width: 30px;
+  min-height: 1px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+.chart2-stack > span { display: block; width: 100%; min-height: 0; }
+.chart2-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.chart2-labels { display: flex; margin-top: 7px; }
+.chart2-labels > span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.chart2-labels > span.on { color: var(--ink); font-weight: 700; }
 .legend {
   display: flex;
   gap: 14px;
