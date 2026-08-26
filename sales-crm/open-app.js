@@ -3,7 +3,7 @@
 
 const { exec } = require("child_process");
 
-const PORT = process.env.PORT || 3003;
+const PORT = process.env.PORT || 3004;
 const ROOT = `http://localhost:${PORT}`;
 const TARGET = process.argv[2] || ROOT;
 const GIVE_UP_MS = 180_000;

@@ -51,10 +51,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem Another server on port 3003 breaks this one. Stop before that happens.
-netstat -ano | findstr ":3003" | findstr "LISTENING" >nul
+rem Another server on port 3004 breaks this one. Stop before that happens.
+netstat -ano | findstr ":3004" | findstr "LISTENING" >nul
 if not errorlevel 1 (
-  echo [ERROR] Port 3003 is already in use.
+  echo [ERROR] Port 3004 is already in use.
   echo.
   echo   Another black window is still running the app.
   echo   Close ALL other black windows, then run this file again.

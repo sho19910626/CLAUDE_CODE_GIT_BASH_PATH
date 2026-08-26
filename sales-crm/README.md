@@ -2,14 +2,22 @@
 
 営業の進捗と売上を 1 か所で管理するツールです。取引先・商談・活動の記録・やること・売上・目標を扱います。
 
-`insta-studio/` や `avatar-studio/` と同じく、**コードを共有しない独立アプリ**です。ポートは 3003、
+`insta-studio/` や `avatar-studio/` と同じく、**コードを共有しない独立アプリ**です。ポートは 3004、
 データベースのテーブル接頭辞は `crm_`、ログインの Cookie 名は `sales_session` なので、
 他のツールと同時に動かしても、同じ Neon データベースを使い回してもぶつかりません。
+
+| アプリ | ポート |
+|---|---|
+| 採用アカウント構築スタジオ（ルート） | 3000 |
+| アバタースタジオ | 3001 |
+| Insta Studio | 3002 |
+| note 収益化スタジオ | 3003 |
+| **営業・売上管理** | **3004** |
 
 ```
 npm install
 cp .env.example .env    # APP_PASSWORD と DATABASE_URL を書く
-npm run dev             # http://localhost:3003
+npm run dev             # http://localhost:3004
 ```
 
 ---
@@ -96,7 +104,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 ### 3. 最初のログイン
 
-`http://localhost:3003` を開くと「最初のセットアップ」が出ます。会社名・お名前・パスワード・
+`http://localhost:3004` を開くと「最初のセットアップ」が出ます。会社名・お名前・パスワード・
 合言葉（`APP_PASSWORD` の値）を入れると、会社と最初の管理者ができ、ステージ 8 種と商材 4 種が入ります。
 
 以降のアカウントは、管理者が `/admin` から発行します。**共有アカウントは作らないでください**
