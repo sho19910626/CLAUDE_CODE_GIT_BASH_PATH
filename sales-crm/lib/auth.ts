@@ -8,7 +8,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { findOrgById, findUserById } from "./store";
+import { findSessionUser } from "./store";
 import type { Org } from "./types";
 import type { Role, User } from "./users";
 
@@ -72,11 +72,10 @@ export async function currentSession(): Promise<Session | null> {
   const jar = await cookies();
   const userId = verifyToken(jar.get(COOKIE)?.value);
   if (!userId) return null;
-  const user = await findUserById(userId);
-  if (!user || !user.active) return null;
-  const org = await findOrgById(user.orgId);
-  if (!org || !org.active) return null;
-  return { user, org };
+  const found = await findSessionUser(userId);
+  if (!found) return null;
+  if (!found.user.active || !found.org.active) return null;
+  return found;
 }
 
 /** 管理者だけに許す操作の入口。管理者でなければ null */

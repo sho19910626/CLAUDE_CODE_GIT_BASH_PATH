@@ -209,6 +209,45 @@ export async function findUserInOrg(orgId: string, name: string): Promise<User |
   return r ? toUser(r) : null;
 }
 
+/**
+ * ログイン中の人と、その会社を 1 回の問い合わせで取る。
+ *
+ * Neon は 1 問い合わせごとに 1 往復するので、画面を開くたびに
+ * 「利用者を引く」「会社を引く」と 2 回に分けていると、そのぶん待ち時間が増える。
+ */
+export async function findSessionUser(
+  id: string
+): Promise<{ user: User; org: Org } | null> {
+  const r = await one<UserRow & OrgRow & { org_active: boolean; org_created_at: string }>(
+    `select u.id, u.org_id, u.name, u.role, u.active, u.created_at, u.created_by,
+            u.last_login_at,
+            o.code, o.name as org_name, o.is_owner, o.active as org_active,
+            o.created_at as org_created_at
+     from crm_users u join crm_orgs o on o.id = u.org_id
+     where u.id = $1`,
+    [id]
+  );
+  if (!r) return null;
+  const row = r as unknown as UserRow & {
+    code: string;
+    org_name: string;
+    is_owner: boolean;
+    org_active: boolean;
+    org_created_at: string;
+  };
+  return {
+    user: toUser(row),
+    org: {
+      id: row.org_id,
+      code: row.code,
+      name: row.org_name,
+      isOwner: row.is_owner,
+      active: row.org_active,
+      createdAt: iso(row.org_created_at),
+    },
+  };
+}
+
 export async function findUserById(id: string): Promise<User | null> {
   const r = await one<UserRow>(`select ${USER_COLS} from crm_users where id = $1`, [id]);
   return r ? toUser(r) : null;

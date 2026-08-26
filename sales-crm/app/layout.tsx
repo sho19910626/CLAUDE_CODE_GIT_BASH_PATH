@@ -4,7 +4,7 @@ import "./globals.css";
 import Nav, { type NavItem } from "@/components/Nav";
 import LogoutButton from "@/components/LogoutButton";
 import { currentSession } from "@/lib/auth";
-import { listTasks } from "@/lib/crm";
+import { countDueTasks } from "@/lib/crm";
 
 export const metadata: Metadata = {
   title: "営業・売上管理",
@@ -22,11 +22,7 @@ export default async function RootLayout({
   let overdue = 0;
   try {
     session = await currentSession();
-    if (session) {
-      const today = new Date().toISOString().slice(0, 10);
-      const tasks = await listTasks(session.org.id, { limit: 300 });
-      overdue = tasks.filter((t) => t.dueOn && t.dueOn <= today).length;
-    }
+    if (session) overdue = await countDueTasks(session.org.id);
   } catch {
     session = null;
   }
@@ -41,14 +37,6 @@ export default async function RootLayout({
 
   return (
     <html lang="ja">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>
         {session ? (
           <div className="shell">

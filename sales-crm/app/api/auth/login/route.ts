@@ -35,12 +35,32 @@ function sameSecret(input: string): boolean {
   return s.length > 0 && a.length === b.length && timingSafeEqual(a, b);
 }
 
-function session(userId: string, name: string, extra: Record<string, unknown> = {}) {
+/**
+ * Cookie に Secure を付けるか。実際に暗号化された通信のときだけ付ける。
+ *
+ * NODE_ENV で決めていると、自分のパソコンで本番モード(npm start)を動かしたときや
+ * 社内LANで共有したときに、http へ Secure 付きの Cookie が出てしまう。
+ * ブラウザはそれを捨てるので、ログインしたのに弾かれ続ける状態になる。
+ *
+ * Vercel は x-forwarded-proto に https を入れて渡すので、公開時は Secure が付く。
+ */
+function needsSecure(request: Request): boolean {
+  const proto = request.headers.get("x-forwarded-proto");
+  if (proto) return proto.split(",")[0].trim() === "https";
+  return request.url.startsWith("https://");
+}
+
+function session(
+  request: Request,
+  userId: string,
+  name: string,
+  extra: Record<string, unknown> = {}
+) {
   const res = NextResponse.json({ name, ...extra });
   res.cookies.set(SESSION_COOKIE, createToken(userId), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: needsSecure(request),
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
@@ -130,7 +150,7 @@ export async function POST(request: Request) {
       await touchLogin(id);
       await log(org.id, name, "ログイン", "最初の管理者として");
       recordSuccess(key);
-      return session(id, name, { orgCode: org.code });
+      return session(request, id, name, { orgCode: org.code });
     }
 
     // ===== 通常のログイン =====
@@ -184,7 +204,7 @@ export async function POST(request: Request) {
     recordSuccess(key);
     await touchLogin(user.id);
     await log(user.orgId, user.name, "ログイン", "");
-    return session(user.id, user.name, { orgCode: user.orgCode });
+    return session(request, user.id, user.name, { orgCode: user.orgCode });
   } catch (e) {
     return failFrom(e);
   }

@@ -5,7 +5,7 @@ import type { Product, RevenueType, Stage, StageKind, Target } from "@/lib/types
 import { REVENUE_TYPES, revenueTypeLabel } from "@/lib/types";
 import { addMonths, monthKeyOf, monthLabel, toMonthKey, yen } from "@/lib/money";
 import type { User } from "@/lib/types";
-import { ErrorBox, Loading, api, post, useLoader } from "./ui";
+import { ErrorBox, Loading, api, clearBootstrapCache, post, useLoader } from "./ui";
 
 // 設定。ステージ・商材・売上目標。
 //
@@ -40,6 +40,8 @@ export default function SettingsPanel() {
     try {
       const res = await post<Partial<Payload>>("/api/settings", body);
       setData({ ...data, ...res });
+      // ステージや商材は他の画面でも使う。覚えていたものを捨てて取り直させる
+      clearBootstrapCache();
       setMessage(done);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));

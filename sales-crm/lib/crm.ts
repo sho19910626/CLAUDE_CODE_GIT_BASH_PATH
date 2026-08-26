@@ -1046,15 +1046,22 @@ export async function extendOpenEndedRevenues(orgId: string): Promise<number> {
   if (items.length === 0) return 0;
 
   const horizon = addMonths(monthKeyOf(), 11);
+
+  // どこまで作ってあるかを 1 回で調べる。
+  // 明細ごとに問い合わせると、契約が増えるほど画面を開くのが遅くなる
+  const lasts = await rows<{ item_id: string; m: string }>(
+    `select item_id, max(month) as m from crm_revenues
+     where org_id = $1 and item_id = any($2::text[]) group by item_id`,
+    [orgId, items.map((i) => i.id)]
+  );
+  const lastByItem = new Map(lasts.map((r) => [r.item_id, ymd(r.m)]));
+
   let added = 0;
   for (const raw of items) {
     const item = toItem(raw);
-    const last = await one<{ m: string | null }>(
-      `select max(month) as m from crm_revenues where org_id = $1 and item_id = $2`,
-      [orgId, item.id]
-    );
-    if (!last?.m) continue; // 受注処理で 1 件も作られていないものは触らない
-    let month = addMonths(toMonthKey(ymd(last.m)), 1);
+    const last = lastByItem.get(item.id);
+    if (!last) continue; // 受注処理で 1 件も作られていないものは触らない
+    let month = addMonths(toMonthKey(last), 1);
     while (month <= horizon) {
       await exec(
         `insert into crm_revenues
@@ -1266,6 +1273,20 @@ export async function listTasks(
     params
   );
   return r.map(toTask);
+}
+
+/**
+ * 期限が来ている「やること」の件数。左の行き先に付ける丸い数字にだけ使う。
+ * 画面を開くたびに一覧を丸ごと取ってくるのは、その数字ひとつには重すぎる。
+ */
+export async function countDueTasks(orgId: string): Promise<number> {
+  const r = await one<{ n: number }>(
+    `select count(*)::int as n from crm_tasks
+     where org_id = $1 and done_at is null and due_on is not null
+       and due_on <= current_date`,
+    [orgId]
+  );
+  return num(r?.n);
 }
 
 export async function createTask(

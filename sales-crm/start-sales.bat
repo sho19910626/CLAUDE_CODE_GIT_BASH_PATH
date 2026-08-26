@@ -68,13 +68,25 @@ if not exist "node_modules" (
   call npm install
 )
 
+rem Build for production. Development mode re-compiles every page on the
+rem first visit, which makes the app feel 6 to 9 times slower.
+rem The build is cached, so runs after the first one finish in seconds.
+echo Preparing. The first run takes a few minutes, later runs are quick...
+call npm run build
+if errorlevel 1 (
+  echo.
+  echo [ERROR] Build failed. See the messages above.
+  pause
+  exit /b 1
+)
+
 echo.
 echo Starting server. Your browser will open automatically.
 echo Close this window to stop the app.
 echo.
 
 start "" /b node open-app.js
-call npm run dev
+call npm start
 
 echo.
 echo Server stopped.

@@ -36,17 +36,43 @@ export interface Bootstrap {
   users: { id: string; name: string; role: Role }[];
 }
 
+// 共通データ(自分・会社・ステージ・商材・担当者)は、画面を移るたびに
+// 取り直すと、そのつどサーバーへの往復が 1 回増える。ほとんど変わらないので、
+// タブを開いている間は覚えておく。設定を変えたときだけ捨てる。
+let bootCache: Bootstrap | null = null;
+let bootInFlight: Promise<Bootstrap> | null = null;
+
+/** 設定(ステージ・商材・アカウント)を変えたら呼ぶ。次の画面で取り直す */
+export function clearBootstrapCache() {
+  bootCache = null;
+  bootInFlight = null;
+}
+
 export function useBootstrap() {
-  const [data, setData] = useState<Bootstrap | null>(null);
+  const [data, setData] = useState<Bootstrap | null>(bootCache);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (bootCache) {
+      setData(bootCache);
+      return;
+    }
+    let alive = true;
     void (async () => {
       try {
-        setData(await api<Bootstrap>("/api/bootstrap"));
+        // 同じ画面から同時に呼ばれても、往復は 1 回で済ませる
+        bootInFlight = bootInFlight ?? api<Bootstrap>("/api/bootstrap");
+        const result = await bootInFlight;
+        bootCache = result;
+        bootInFlight = null;
+        if (alive) setData(result);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        bootInFlight = null;
+        if (alive) setError(e instanceof Error ? e.message : String(e));
       }
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
   return { boot: data, bootError: error };
 }

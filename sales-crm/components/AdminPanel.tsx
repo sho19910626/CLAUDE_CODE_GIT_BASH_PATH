@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { AuditEntry } from "@/lib/store";
 import type { Org } from "@/lib/types";
 import { roleLabel, type Role, type User } from "@/lib/types";
-import { ErrorBox, Loading, api, fmtDateTime, post, useLoader } from "./ui";
+import { ErrorBox, Loading, api, clearBootstrapCache, fmtDateTime, post, useLoader } from "./ui";
 
 // アカウント管理の画面。管理者だけが開ける。
 //
@@ -37,6 +37,7 @@ export default function AdminPanel() {
     setActionError(null);
     try {
       setData(await post<Payload>("/api/admin/users", action));
+      clearBootstrapCache(); // 担当者の一覧が変わる
       setToast(done);
       return true;
     } catch (e) {
