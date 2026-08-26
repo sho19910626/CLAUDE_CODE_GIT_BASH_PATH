@@ -1409,8 +1409,10 @@ export async function listRevenues(
   }
   params.push(Math.min(filter.limit ?? 500, 2000));
   const r = await rows<RevenueRow>(
+    // id まで並び順に入れているのは、同じ月・同じ会社の行が
+    // 保存のたびに入れ替わって、直している行を見失わないようにするため
     `${REVENUE_SELECT} where ${where.join(" and ")}
-     order by r.month, c.name limit $${params.length}`,
+     order by r.month, c.name, r.name, r.id limit $${params.length}`,
     params
   );
   return r.map(toRevenue);

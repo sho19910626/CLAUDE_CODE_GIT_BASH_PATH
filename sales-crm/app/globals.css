@@ -269,9 +269,14 @@ table.t th {
   font-weight: 700;
   color: var(--muted);
   border-bottom: 1px solid var(--line);
+}
+/* 固定するのは見出し行だけ。「会社の情報」のような縦並びの表では
+   tbody の中に th があり、そこまで固定するとラベルが飛んで消える */
+table.t thead th {
   position: sticky;
   top: 0;
   background: var(--panel);
+  z-index: 1;
 }
 table.t td.wrap { white-space: normal; min-width: 200px; }
 
@@ -293,6 +298,8 @@ table.t td.num, table.t th.num {
   font-variant-numeric: tabular-nums;
 }
 table.t tr:hover td { background: var(--panel-2); }
+/* 月の変わり目に線を入れて、長い一覧でも月の切れ目が分かるようにする */
+table.t tr.month-start td { border-top: 2px solid var(--line); }
 table.t tr.is-off td { opacity: 0.5; }
 table.t tfoot td {
   font-weight: 700;

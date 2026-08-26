@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { Company, Revenue, RevenueType, Target } from "@/lib/types";
-import { REVENUE_TYPES, revenueTypeLabel } from "@/lib/types";
+import { REVENUE_TYPES } from "@/lib/types";
 import {
   addMonths,
   man,
@@ -14,6 +14,7 @@ import {
   yen,
 } from "@/lib/money";
 import { Empty, ErrorBox, Loading, api, post, useBootstrap, useLoader } from "./ui";
+import RevenueRow from "./RevenueRow";
 
 // 売上の画面。
 //
@@ -240,151 +241,6 @@ export default function RevenueTable() {
         )}
       </div>
     </>
-  );
-}
-
-function RevenueRow({
-  revenue,
-  canDelete,
-  onChanged,
-  onError,
-}: {
-  revenue: Revenue;
-  canDelete: boolean;
-  onChanged: () => void | Promise<void>;
-  onError: (m: string) => void;
-}) {
-  const [amount, setAmount] = useState(String(revenue.amount));
-  const [units, setUnits] = useState(String(revenue.units));
-  const [passthrough, setPassthrough] = useState(String(revenue.passthroughAmount));
-  const [busy, setBusy] = useState(false);
-
-  const dirty =
-    Number(amount) !== revenue.amount ||
-    Number(units) !== revenue.units ||
-    Number(passthrough) !== revenue.passthroughAmount;
-
-  const save = async (status?: "planned" | "confirmed") => {
-    setBusy(true);
-    try {
-      await post("/api/revenues", {
-        type: "save",
-        revenue: {
-          id: revenue.id,
-          month: revenue.month,
-          companyId: revenue.companyId,
-          name: revenue.name,
-          amount: Number(amount) || 0,
-          units: Number(units) || 0,
-          passthroughAmount: Number(passthrough) || 0,
-          status: status ?? revenue.status,
-          note: revenue.note,
-        },
-      });
-      await onChanged();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <tr>
-      <td className="wrap">
-        <Link href={`/companies/${revenue.companyId}`}>{revenue.companyName}</Link>
-        <div className="small muted">
-          {revenue.name}
-          {revenue.dealName && ` ／ ${revenue.dealName}`}
-        </div>
-      </td>
-      <td>
-        <span className="tag">{revenueTypeLabel(revenue.revenueType)}</span>
-      </td>
-      <td className="num">
-        <input
-          className="num"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          style={{ width: 110 }}
-        />
-      </td>
-      <td className="num">
-        {revenue.revenueType === "performance" ? (
-          <input
-            className="num"
-            inputMode="numeric"
-            value={units}
-            onChange={(e) => setUnits(e.target.value)}
-            style={{ width: 64 }}
-          />
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-      <td className="num">
-        {revenue.revenueType === "passthrough" ? (
-          <input
-            className="num"
-            inputMode="numeric"
-            value={passthrough}
-            onChange={(e) => setPassthrough(e.target.value)}
-            style={{ width: 110 }}
-          />
-        ) : (
-          <span className="muted">—</span>
-        )}
-      </td>
-      <td>
-        <span className={`tag${revenue.status === "confirmed" ? " ok" : ""}`}>
-          {revenue.status === "confirmed" ? "確定" : "見込み"}
-        </span>
-      </td>
-      <td>
-        <div className="row tight">
-          {dirty && (
-            <button className="btn btn-sm" onClick={() => void save()} disabled={busy}>
-              保存
-            </button>
-          )}
-          {revenue.status === "planned" && (
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => void save("confirmed")}
-              disabled={busy}
-            >
-              確定にする
-            </button>
-          )}
-          {revenue.status === "confirmed" && (
-            <button className="btn btn-ghost btn-sm" onClick={() => void save("planned")} disabled={busy}>
-              見込みに戻す
-            </button>
-          )}
-          {canDelete && (
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={busy}
-              onClick={async () => {
-                if (!window.confirm("この売上の行を消します。よろしいですか？")) return;
-                setBusy(true);
-                try {
-                  await post("/api/revenues", { type: "delete", id: revenue.id });
-                  await onChanged();
-                } catch (e) {
-                  onError(e instanceof Error ? e.message : String(e));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              消す
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
   );
 }
 

@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type {
   Activity,
+  RevenueType,
   Company,
   CompanyStatus,
   Contact,
@@ -12,9 +13,10 @@ import type {
   Revenue,
   TodoTask,
 } from "@/lib/types";
-import { COMPANY_STATUSES, companyStatusLabel } from "@/lib/types";
-import { dealTotals, man, monthLabel, toMonthKey, yen } from "@/lib/money";
+import { COMPANY_STATUSES, REVENUE_TYPES, companyStatusLabel } from "@/lib/types";
+import { dealTotals, man, monthKeyOf, toMonthKey, yen } from "@/lib/money";
 import { ActivityBox, TaskBox } from "./DealDetail";
+import RevenueRow from "./RevenueRow";
 import { Empty, ErrorBox, Loading, api, fmtDate, post, useBootstrap, useLoader } from "./ui";
 
 interface Payload {
@@ -184,76 +186,60 @@ export default function CompanyDetail({ companyId }: { companyId: string }) {
         </div>
       )}
 
-      <div className="grid g2">
-        <div className="panel">
-          <h2>商談</h2>
-          {data.deals.length === 0 ? (
-            <Empty>
-              まだありません。<Link href="/deals">商談</Link> の画面から作れます。
-            </Empty>
-          ) : (
-            <table className="t">
-              <thead>
-                <tr>
-                  <th>商談</th>
-                  <th>ステージ</th>
-                  <th className="num">金額</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.deals.map((d) => {
-                  const stage = boot.stages.find((s) => s.id === d.stageId);
-                  return (
-                    <tr key={d.id}>
-                      <td className="wrap">
-                        <Link href={`/deals/${d.id}`}>{d.name}</Link>
-                      </td>
-                      <td>
-                        <span
-                          className={`tag${
-                            stage?.kind === "won" ? " ok" : stage?.kind === "lost" ? " bad" : ""
-                          }`}
-                        >
-                          {stage?.name ?? "—"}
-                        </span>
-                      </td>
-                      <td className="num">{yen(dealTotals(d.items).contractValue)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div className="panel">
-          <h2>売上</h2>
-          {data.revenues.length === 0 ? (
-            <Empty>まだありません。</Empty>
-          ) : (
-            <div className="scroll-y">
-              <table className="t">
-                <thead>
-                  <tr>
-                    <th>月</th>
-                    <th>内容</th>
-                    <th className="num">金額</th>
+      <div className="panel">
+        <h2>商談</h2>
+        {data.deals.length === 0 ? (
+          <Empty>
+            まだありません。<Link href="/deals">商談</Link> の画面から作れます。
+          </Empty>
+        ) : (
+          <table className="t">
+            <thead>
+              <tr>
+                <th>商談</th>
+                <th>ステージ</th>
+                <th>担当</th>
+                <th>決着</th>
+                <th className="num">契約金額</th>
+                <th className="num">うち月額</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.deals.map((d) => {
+                const stage = boot.stages.find((s) => s.id === d.stageId);
+                const t = dealTotals(d.items);
+                return (
+                  <tr key={d.id}>
+                    <td className="wrap">
+                      <Link href={`/deals/${d.id}`}>{d.name}</Link>
+                    </td>
+                    <td>
+                      <span
+                        className={`tag${
+                          stage?.kind === "won" ? " ok" : stage?.kind === "lost" ? " bad" : ""
+                        }`}
+                      >
+                        {stage?.name ?? "—"}
+                      </span>
+                    </td>
+                    <td>{d.ownerName || "—"}</td>
+                    <td>{fmtDate(d.closedOn ?? d.expectedCloseOn)}</td>
+                    <td className="num">{yen(t.contractValue)}</td>
+                    <td className="num">{t.recurringMonthly ? yen(t.recurringMonthly) : "—"}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.revenues.map((r) => (
-                    <tr key={r.id} className={r.status === "confirmed" ? "" : "is-off"}>
-                      <td className="nowrap">{monthLabel(toMonthKey(r.month))}</td>
-                      <td className="wrap">{r.name}</td>
-                      <td className="num">{yen(r.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      <RevenuePanel
+        revenues={data.revenues}
+        companyId={c.id}
+        canDelete={boot.me.role === "admin"}
+        onChanged={reload}
+      />
 
       <TaskBox
         tasks={data.tasks}
@@ -470,5 +456,235 @@ function ContactBox({
         </button>
       </form>
     </div>
+  );
+}
+
+/* ================= 売上（その場で直せる） ================= */
+
+/**
+ * この会社の売上。金額・実績件数・預かり額・計上月・内容をその場で直せる。
+ *
+ * 成果報酬と広告費の立替は「毎月、実績が出てから数字が決まる」ものなので、
+ * 売上画面まで移動しないと直せないと、月末の作業が回らない。
+ */
+function RevenuePanel({
+  revenues,
+  companyId,
+  canDelete,
+  onChanged,
+}: {
+  revenues: Revenue[];
+  companyId: string;
+  canDelete: boolean;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [onlyConfirmed, setOnlyConfirmed] = useState(false);
+
+  const shown = onlyConfirmed ? revenues.filter((r) => r.status === "confirmed") : revenues;
+  const confirmed = revenues
+    .filter((r) => r.status === "confirmed")
+    .reduce((s, r) => s + r.amount, 0);
+  const planned = revenues
+    .filter((r) => r.status === "planned")
+    .reduce((s, r) => s + r.amount, 0);
+  const passthrough = revenues.reduce((s, r) => s + r.passthroughAmount, 0);
+
+  return (
+    <div className="panel">
+      <div className="row">
+        <h2>売上</h2>
+        <div className="right row tight">
+          <label className="inline">
+            <input
+              type="checkbox"
+              checked={onlyConfirmed}
+              onChange={(e) => setOnlyConfirmed(e.target.checked)}
+            />
+            確定だけ
+          </label>
+          <button className="btn btn-sm" onClick={() => setAdding((v) => !v)}>
+            {adding ? "閉じる" : "＋ 売上を足す"}
+          </button>
+        </div>
+      </div>
+      <p className="note">
+        金額を直したら「確定にする」を押してください。確定したぶんだけが実績として集計されます。
+        商談から自動で作られた行も、ここで直せます。
+      </p>
+
+      <ErrorBox error={error} />
+
+      {adding && (
+        <AddRevenueForm
+          companyId={companyId}
+          onDone={async () => {
+            setAdding(false);
+            await onChanged();
+          }}
+          onError={setError}
+        />
+      )}
+
+      {shown.length === 0 ? (
+        <Empty>
+          {revenues.length === 0
+            ? "まだありません。商談を「受注」のステージに動かすと自動で作られます。"
+            : "確定した売上はまだありません。"}
+        </Empty>
+      ) : (
+        <div className="table-wrap">
+          <table className="t">
+            <thead>
+              <tr>
+                <th>計上月</th>
+                <th style={{ minWidth: 220 }}>内容</th>
+                <th>形態</th>
+                <th className="num">売上</th>
+                <th className="num">実績件数</th>
+                <th className="num">預かり広告費</th>
+                <th>状態</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <RevenueRow
+                  key={r.id}
+                  revenue={r}
+                  variant="company"
+                  monthStart={i > 0 && toMonthKey(r.month) !== toMonthKey(shown[i - 1].month)}
+                  canDelete={canDelete}
+                  onChanged={onChanged}
+                  onError={setError}
+                />
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3}>
+                  確定 {yen(confirmed)}／見込み {yen(planned)}
+                </td>
+                <td className="num">{yen(confirmed + planned)}</td>
+                <td />
+                <td className="num">{passthrough ? yen(passthrough) : "—"}</td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 商談を通さない売上（スポットの依頼など）をこの会社に足す */
+function AddRevenueForm({
+  companyId,
+  onDone,
+  onError,
+}: {
+  companyId: string;
+  onDone: () => void | Promise<void>;
+  onError: (m: string) => void;
+}) {
+  const [form, setForm] = useState({
+    name: "",
+    month: monthKeyOf(),
+    amount: "0",
+    passthroughAmount: "0",
+    revenueType: "onetime" as RevenueType,
+  });
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      onError("内容を入れてください。");
+      return;
+    }
+    setBusy(true);
+    try {
+      await post("/api/revenues", {
+        type: "save",
+        revenue: {
+          companyId,
+          name: form.name.trim(),
+          month: `${form.month}-01`,
+          amount: Number(form.amount) || 0,
+          passthroughAmount: Number(form.passthroughAmount) || 0,
+          revenueType: form.revenueType,
+          status: "confirmed",
+        },
+      });
+      setForm({ ...form, name: "", amount: "0", passthroughAmount: "0" });
+      await onDone();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} style={{ marginBottom: 12 }}>
+      <div className="grid g4">
+        <div className="field">
+          <label>内容</label>
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="スポットの原稿作成"
+            required
+          />
+        </div>
+        <div className="field">
+          <label>計上月</label>
+          <input
+            type="month"
+            value={form.month}
+            onChange={(e) => setForm({ ...form, month: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label>形態</label>
+          <select
+            value={form.revenueType}
+            onChange={(e) => setForm({ ...form, revenueType: e.target.value as RevenueType })}
+          >
+            {REVENUE_TYPES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>売上（自社のぶん）</label>
+          <input
+            className="num"
+            inputMode="numeric"
+            value={form.amount}
+            onChange={(e) => setForm({ ...form, amount: e.target.value })}
+          />
+        </div>
+        {form.revenueType === "passthrough" && (
+          <div className="field">
+            <label>預かる広告費</label>
+            <input
+              className="num"
+              inputMode="numeric"
+              value={form.passthroughAmount}
+              onChange={(e) => setForm({ ...form, passthroughAmount: e.target.value })}
+            />
+            <span className="hint">売上には足されません</span>
+          </div>
+        )}
+      </div>
+      <button className="btn btn-primary btn-sm" disabled={busy}>
+        {busy ? "登録中…" : "確定した売上として足す"}
+      </button>
+    </form>
   );
 }
