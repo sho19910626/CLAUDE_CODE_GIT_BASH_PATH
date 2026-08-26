@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Channel, Company, Metric, MetricValue } from "@/lib/types";
 import { MetricTable, delta, formatMetric, lowerIsBetter } from "@/lib/metrics";
@@ -24,7 +25,9 @@ interface Payload {
 const cellKey = (channelId: string, metricId: string) => `${channelId}|${metricId}`;
 
 export default function ReportPanel() {
-  const [month, setMonth] = useState(monthKeyOf());
+  // 報告シートから「数字を直す」で戻ってきたとき、同じ月を開く
+  const params = useSearchParams();
+  const [month, setMonth] = useState(toMonthKey(params.get("month") ?? monthKeyOf()));
   const [companyId, setCompanyId] = useState("");
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
@@ -154,13 +157,17 @@ export default function ReportPanel() {
             ● はこの月の実績が入っている取引先です
           </span>
           {companyId && (
-            <Link
-              href={`/companies/${companyId}`}
-              className="btn btn-sm right"
-              style={{ alignSelf: "flex-end" }}
-            >
-              取引先を開く
-            </Link>
+            <div className="right row tight" style={{ alignSelf: "flex-end" }}>
+              <Link href={`/companies/${companyId}`} className="btn btn-sm">
+                取引先を開く
+              </Link>
+              <Link
+                href={`/reports/sheet?company=${companyId}&month=${month}`}
+                className="btn btn-primary btn-sm"
+              >
+                報告シートを作る
+              </Link>
+            </div>
           )}
         </div>
       </div>

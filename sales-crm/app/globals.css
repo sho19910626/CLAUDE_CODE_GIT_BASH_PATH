@@ -644,6 +644,66 @@ table.t td.pre { white-space: pre-wrap; }
 .stack { display: flex; flex-direction: column; gap: 4px; }
 .scroll-y { max-height: 380px; overflow-y: auto; }
 
+/* ===== 報告シート ===== */
+
+.sheet-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.sheet-title { font-size: 21px; font-weight: 800; margin: 2px 0 2px; }
+.sheet-by { text-align: right; font-size: 13px; }
+.sheet-head { border-top: 3px solid var(--accent); }
+.sheet-text { min-height: 92px; }
+/* 画面では入力欄、紙では文章。同じ内容を二度書かずに切り替える */
+.sheet-print { display: none; white-space: pre-wrap; line-height: 1.9; }
+.sheet-foot {
+  display: none;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* 紙に出すときは、道具の部分を消して白地に組み直す。
+   画面の暗い配色のまま印刷すると、インクを大量に使ううえに読めない */
+@media print {
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f7f8fa;
+    --ink: #101317;
+    --ink-2: #3b424c;
+    --muted: #667080;
+    --line: #c9cfd8;
+    --line-2: #e2e6ec;
+    --shadow: none;
+    --bar-1: #2f5fe0;
+    --bar-2: #a8c0f4;
+    --mrr: #0d8f7d;
+  }
+  .side,
+  .no-print,
+  .session-bar { display: none !important; }
+  .main { padding: 0 !important; }
+  body { background: #fff; font-size: 12px; }
+  .panel {
+    box-shadow: none;
+    border: 1px solid var(--line);
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+  }
+  .sheet-text { display: none; }
+  .sheet-print { display: block; }
+  .sheet-foot { display: block; }
+  table.t th { position: static; }
+  a { color: var(--ink); text-decoration: none; }
+  @page { margin: 12mm; }
+}
+
 @media (max-width: 780px) {
   .shell { flex-direction: column; }
   .side {

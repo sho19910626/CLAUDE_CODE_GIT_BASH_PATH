@@ -246,6 +246,23 @@ const M2 = money.addMonths(M, 2);
   a.equal(await seed.seedReports(org.id), false);
   console.log("✓ 運用実績（媒体・項目・実績値・守り）");
 
+  // ---- 報告に添える文章 ----
+  a.deepEqual(
+    { s: (await crm.getReportNote(org.id, M, co2.id)).summary, p: (await crm.getReportNote(org.id, M, co2.id)).plan },
+    { s: "", p: "" },
+    "まだ書いていなければ空で返る"
+  );
+  await crm.saveReportNote(org.id, M, co2.id, { summary: "応募が12件増えた", plan: "Indeedへ寄せる" }, "山田太郎");
+  let note = await crm.getReportNote(org.id, M, co2.id);
+  a.equal(note.summary, "応募が12件増えた");
+  a.equal(note.updatedBy, "山田太郎");
+  await crm.saveReportNote(org.id, M, co2.id, { summary: "書き直し", plan: "" }, "山田太郎");
+  note = await crm.getReportNote(org.id, M, co2.id);
+  a.equal(note.summary, "書き直し", "同じ月に書き直せる");
+  a.equal(note.plan, "");
+  a.equal((await crm.getReportNote(org.id, money.addMonths(M, 1), co2.id)).summary, "", "月ごとに分かれている");
+  console.log("✓ 報告に添える文章（月ごと・取引先ごと）");
+
   // ---- 記録 ----
   const audit = await store.recentAudit(org.id, 100);
   const actions = audit.map((x) => x.action);

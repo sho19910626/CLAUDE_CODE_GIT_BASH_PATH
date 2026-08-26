@@ -267,6 +267,19 @@ create unique index if not exists crm_metric_values_key
 create index if not exists crm_metric_values_month
   on crm_metric_values (org_id, month, company_id);
 
+-- クライアントへの報告に添える文章。数字だけ渡しても伝わらないので、
+-- 「今月どうだったか」「来月どうするか」を月ごとに残せるようにする。
+create table if not exists crm_report_notes (
+  org_id text not null,
+  month date not null,
+  company_id text not null,
+  summary text not null default '',
+  plan text not null default '',
+  updated_at timestamptz not null default now(),
+  updated_by text not null default '',
+  primary key (org_id, month, company_id)
+);
+
 -- すでに動いているデータベースにも足りない列を入れる。
 -- create table if not exists は、テーブルがある場合は何もしないため、
 -- あとから増やした列はここで足す必要がある。

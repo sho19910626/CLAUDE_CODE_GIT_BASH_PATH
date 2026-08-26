@@ -298,3 +298,11 @@ export interface MetricValue {
   month: string;
   value: number;
 }
+
+/** 報告に添える文章。月ごと・取引先ごとに1つ */
+export interface ReportNote {
+  summary: string;
+  plan: string;
+  updatedAt: string | null;
+  updatedBy: string;
+}

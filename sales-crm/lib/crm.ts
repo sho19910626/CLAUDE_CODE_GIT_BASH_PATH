@@ -30,6 +30,7 @@ import type {
   Deal,
   DealItem,
   Product,
+  ReportNote,
   Revenue,
   RevenueStatus,
   RevenueType,
@@ -1846,4 +1847,46 @@ export async function companiesWithMetrics(
     [orgId, monthStart(monthKey)]
   );
   return r.map((x) => x.company_id);
+}
+
+/* ---------- 報告に添える文章 ---------- */
+
+export async function getReportNote(
+  orgId: string,
+  monthKey: string,
+  companyId: string
+): Promise<ReportNote> {
+  const r = await one<{
+    summary: string;
+    plan: string;
+    updated_at: string;
+    updated_by: string;
+  }>(
+    `select summary, plan, updated_at, updated_by from crm_report_notes
+     where org_id = $1 and month = $2 and company_id = $3`,
+    [orgId, monthStart(monthKey), companyId]
+  );
+  return {
+    summary: r?.summary ?? "",
+    plan: r?.plan ?? "",
+    updatedAt: iso(r?.updated_at),
+    updatedBy: r?.updated_by ?? "",
+  };
+}
+
+export async function saveReportNote(
+  orgId: string,
+  monthKey: string,
+  companyId: string,
+  note: { summary: string; plan: string },
+  actor: string
+): Promise<void> {
+  await exec(
+    `insert into crm_report_notes (org_id, month, company_id, summary, plan, updated_by)
+     values ($1,$2,$3,$4,$5,$6)
+     on conflict (org_id, month, company_id) do update
+       set summary = excluded.summary, plan = excluded.plan,
+           updated_at = now(), updated_by = excluded.updated_by`,
+    [orgId, monthStart(monthKey), companyId, note.summary, note.plan, actor]
+  );
 }

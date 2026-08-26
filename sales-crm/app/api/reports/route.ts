@@ -3,11 +3,13 @@
 import { fail, readJson, toNumber, toText, withSession } from "@/lib/api";
 import {
   companiesWithMetrics,
+  getReportNote,
   listChannels,
   listCompanies,
   listMetricValues,
   listMetrics,
   saveMetricValues,
+  saveReportNote,
 } from "@/lib/crm";
 import { addMonths, monthKeyOf, toMonthKey } from "@/lib/money";
 import { seedReports } from "@/lib/seed";
@@ -32,26 +34,47 @@ export async function GET(request: Request) {
       listCompanies(org.id, { limit: 500 }),
       companiesWithMetrics(org.id, month),
     ]);
-    const values = companyId
-      ? await listMetricValues(org.id, from, month, companyId)
-      : [];
+    const [values, note] = companyId
+      ? await Promise.all([
+          listMetricValues(org.id, from, month, companyId),
+          getReportNote(org.id, month, companyId),
+        ])
+      : [[], { summary: "", plan: "", updatedAt: null, updatedBy: "" }];
 
-    return { month, channels, metrics, companies, entered, values };
+    return { month, channels, metrics, companies, entered, values, note };
   });
 }
 
-interface SaveBody {
-  type: "save";
-  month: string;
-  companyId: string;
-  values: { channelId: string; metricId: string; value: number | string }[];
-}
+type Body =
+  | {
+      type: "save";
+      month: string;
+      companyId: string;
+      values: { channelId: string; metricId: string; value: number | string }[];
+    }
+  | { type: "saveNote"; month: string; companyId: string; summary: string; plan: string };
 
 export async function POST(request: Request) {
-  const body = await readJson<SaveBody>(request);
-  if (!body || body.type !== "save") return fail("入力が不正です。");
+  const body = await readJson<Body>(request);
+  if (!body) return fail("入力が不正です。");
   const companyId = toText(body.companyId, 60);
   if (!companyId) return fail("取引先を選んでください。");
+
+  if (body.type === "saveNote") {
+    return withSession(async ({ user, org }) => {
+      const month = toMonthKey(toText(body.month, 10) || monthKeyOf());
+      await saveReportNote(
+        org.id,
+        month,
+        companyId,
+        { summary: toText(body.summary, 4000), plan: toText(body.plan, 4000) },
+        user.name
+      );
+      return { note: await getReportNote(org.id, month, companyId) };
+    });
+  }
+
+  if (body.type !== "save") return fail("不明な操作です。");
 
   return withSession(async ({ user, org }) => {
     const month = toMonthKey(toText(body.month, 10) || monthKeyOf());
