@@ -25,7 +25,7 @@ console.log("lib/ を変換しています…");
 mkdirSync(build, { recursive: true });
 const tsc = run("npx", [
   "tsc",
-  "lib/crm.ts", "lib/dashboard.ts", "lib/seed.ts", "lib/store.ts", "lib/csv.ts", "lib/users.ts",
+  "lib/crm.ts", "lib/dashboard.ts", "lib/seed.ts", "lib/store.ts", "lib/csv.ts", "lib/users.ts", "lib/metrics.ts",
   "--module", "commonjs", "--target", "es2020", "--moduleResolution", "node",
   "--rootDir", "lib", "--outDir", build, "--skipLibCheck",
 ]);

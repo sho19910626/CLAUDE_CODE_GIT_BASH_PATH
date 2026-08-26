@@ -254,3 +254,47 @@ export interface Org {
   createdAt: string | null;
   userCount?: number;
 }
+
+/* ---------- 運用実績（月次のKPI） ---------- */
+
+/** 求人媒体。Indeed / スタートジョブ / はたらくぞドットコム など */
+export interface Channel {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+/**
+ * 記録する数字の定義。会社によって追いたい数字が違うので、
+ * 項目そのものを作れるようにしてある。
+ *
+ *   input … 手で入れる数字（応募数、出稿費 など）
+ *   ratio … 2つの指標の割り算で自動で出る数字（応募単価 ＝ 出稿費 ÷ 応募数）
+ */
+export type MetricKind = "input" | "ratio";
+export type MetricFormat = "number" | "money" | "percent";
+
+export interface Metric {
+  id: string;
+  name: string;
+  /** 「件」「名」「円」など。表示のときに数字の後ろに付く */
+  unit: string;
+  kind: MetricKind;
+  format: MetricFormat;
+  /** ratio のとき: 割られるほうの指標 */
+  numeratorId: string | null;
+  /** ratio のとき: 割るほうの指標 */
+  denominatorId: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+/** 取引先 × 媒体 × 月 の実績。metricId ごとに1件 */
+export interface MetricValue {
+  companyId: string;
+  channelId: string;
+  metricId: string;
+  month: string;
+  value: number;
+}

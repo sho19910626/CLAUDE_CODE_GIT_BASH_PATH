@@ -19,6 +19,11 @@ import { log } from "./store";
 import type {
   Activity,
   ActivityKind,
+  Channel,
+  Metric,
+  MetricFormat,
+  MetricKind,
+  MetricValue,
   Company,
   CompanyStatus,
   Contact,
@@ -1561,4 +1566,284 @@ export async function setTarget(
     [newId(), orgId, monthStart(monthKey), userId, amount]
   );
   await log(orgId, actor, "売上目標を設定", `${monthKey} → ${amount.toLocaleString("ja-JP")}円`);
+}
+
+/* ================= 運用実績（月次のKPI） ================= */
+
+interface ChannelRow {
+  id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export async function listChannels(orgId: string): Promise<Channel[]> {
+  const r = await rows<ChannelRow>(
+    `select id, name, sort_order, active from crm_channels
+     where org_id = $1 order by sort_order, name`,
+    [orgId]
+  );
+  return r.map((x) => ({
+    id: x.id,
+    name: x.name,
+    sortOrder: x.sort_order,
+    active: x.active,
+  }));
+}
+
+export async function saveChannel(
+  orgId: string,
+  c: Partial<Channel> & { name: string },
+  actor: string
+): Promise<void> {
+  if (c.id) {
+    await exec(
+      `update crm_channels set name = $1, sort_order = $2, active = $3
+       where id = $4 and org_id = $5`,
+      [c.name, c.sortOrder ?? 0, c.active !== false, c.id, orgId]
+    );
+    await log(orgId, actor, "媒体を変更", c.name);
+    return;
+  }
+  await exec(
+    `insert into crm_channels (id, org_id, name, sort_order) values ($1,$2,$3,$4)`,
+    [newId(), orgId, c.name, c.sortOrder ?? 99]
+  );
+  await log(orgId, actor, "媒体を追加", c.name);
+}
+
+/**
+ * 媒体を消す。実績が入っているものは消さずに「使わない」印にする。
+ * 消すと去年の数字がどの媒体のものか分からなくなる。
+ */
+export async function deleteChannel(
+  orgId: string,
+  id: string,
+  actor: string
+): Promise<{ archived: boolean }> {
+  const used = await one<{ n: number }>(
+    `select count(*)::int as n from crm_metric_values where org_id = $1 and channel_id = $2`,
+    [orgId, id]
+  );
+  const name = (
+    await one<{ name: string }>(`select name from crm_channels where id = $1 and org_id = $2`, [
+      id,
+      orgId,
+    ])
+  )?.name;
+  if (num(used?.n) > 0) {
+    await exec(`update crm_channels set active = false where id = $1 and org_id = $2`, [
+      id,
+      orgId,
+    ]);
+    await log(orgId, actor, "媒体を使用停止", name ?? id);
+    return { archived: true };
+  }
+  await exec(`delete from crm_channels where id = $1 and org_id = $2`, [id, orgId]);
+  await log(orgId, actor, "媒体を削除", name ?? id);
+  return { archived: false };
+}
+
+interface MetricRow {
+  id: string;
+  name: string;
+  unit: string;
+  kind: string;
+  format: string;
+  numerator_id: string | null;
+  denominator_id: string | null;
+  sort_order: number;
+  active: boolean;
+}
+
+function toMetric(r: MetricRow): Metric {
+  return {
+    id: r.id,
+    name: r.name,
+    unit: r.unit,
+    kind: r.kind === "ratio" ? "ratio" : "input",
+    format: (["number", "money", "percent"] as const).includes(r.format as MetricFormat)
+      ? (r.format as MetricFormat)
+      : "number",
+    numeratorId: r.numerator_id,
+    denominatorId: r.denominator_id,
+    sortOrder: r.sort_order,
+    active: r.active,
+  };
+}
+
+export async function listMetrics(orgId: string): Promise<Metric[]> {
+  const r = await rows<MetricRow>(
+    `select id, name, unit, kind, format, numerator_id, denominator_id, sort_order, active
+     from crm_metrics where org_id = $1 order by sort_order, name`,
+    [orgId]
+  );
+  return r.map(toMetric);
+}
+
+export async function saveMetric(
+  orgId: string,
+  m: Partial<Metric> & { name: string },
+  actor: string
+): Promise<void> {
+  const kind: MetricKind = m.kind === "ratio" ? "ratio" : "input";
+  const format: MetricFormat = (["number", "money", "percent"] as const).includes(
+    m.format as MetricFormat
+  )
+    ? (m.format as MetricFormat)
+    : "number";
+  // 割り算で出す指標は、割られるほうと割るほうが両方そろっていないと数字が出ない
+  const numerator = kind === "ratio" ? m.numeratorId || null : null;
+  const denominator = kind === "ratio" ? m.denominatorId || null : null;
+  if (kind === "ratio" && (!numerator || !denominator)) {
+    throw new Error("自動で出す項目は、割られる項目と割る項目の両方を選んでください。");
+  }
+
+  if (m.id) {
+    await exec(
+      `update crm_metrics set name = $1, unit = $2, kind = $3, format = $4,
+              numerator_id = $5, denominator_id = $6, sort_order = $7, active = $8
+       where id = $9 and org_id = $10`,
+      [
+        m.name,
+        m.unit ?? "",
+        kind,
+        format,
+        numerator,
+        denominator,
+        m.sortOrder ?? 0,
+        m.active !== false,
+        m.id,
+        orgId,
+      ]
+    );
+    await log(orgId, actor, "指標を変更", m.name);
+    return;
+  }
+  await exec(
+    `insert into crm_metrics
+       (id, org_id, name, unit, kind, format, numerator_id, denominator_id, sort_order)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [newId(), orgId, m.name, m.unit ?? "", kind, format, numerator, denominator, m.sortOrder ?? 99]
+  );
+  await log(orgId, actor, "指標を追加", m.name);
+}
+
+export async function deleteMetric(
+  orgId: string,
+  id: string,
+  actor: string
+): Promise<{ archived: boolean; error?: string }> {
+  // ほかの指標の計算に使われているものは、消すと相手が計算できなくなる
+  const usedBy = await one<{ n: number }>(
+    `select count(*)::int as n from crm_metrics
+     where org_id = $1 and (numerator_id = $2 or denominator_id = $2)`,
+    [orgId, id]
+  );
+  if (num(usedBy?.n) > 0) {
+    return {
+      archived: false,
+      error: "ほかの項目の計算に使われています。先にそちらを直してください。",
+    };
+  }
+  const used = await one<{ n: number }>(
+    `select count(*)::int as n from crm_metric_values where org_id = $1 and metric_id = $2`,
+    [orgId, id]
+  );
+  const name = (
+    await one<{ name: string }>(`select name from crm_metrics where id = $1 and org_id = $2`, [
+      id,
+      orgId,
+    ])
+  )?.name;
+  if (num(used?.n) > 0) {
+    await exec(`update crm_metrics set active = false where id = $1 and org_id = $2`, [id, orgId]);
+    await log(orgId, actor, "指標を使用停止", name ?? id);
+    return { archived: true };
+  }
+  await exec(`delete from crm_metrics where id = $1 and org_id = $2`, [id, orgId]);
+  await log(orgId, actor, "指標を削除", name ?? id);
+  return { archived: false };
+}
+
+/** ある月の実績。取引先で絞ることもできる */
+export async function listMetricValues(
+  orgId: string,
+  fromMonth: string,
+  toMonth: string,
+  companyId?: string
+): Promise<MetricValue[]> {
+  const params: unknown[] = [orgId, monthStart(fromMonth), monthStart(toMonth)];
+  let where = `org_id = $1 and month >= $2 and month <= $3`;
+  if (companyId) {
+    params.push(companyId);
+    where += ` and company_id = $${params.length}`;
+  }
+  const r = await rows<{
+    month: string;
+    company_id: string;
+    channel_id: string;
+    metric_id: string;
+    value: string;
+  }>(
+    `select month, company_id, channel_id, metric_id, value
+     from crm_metric_values where ${where}`,
+    params
+  );
+  return r.map((x) => ({
+    month: ymd(x.month) ?? "",
+    companyId: x.company_id,
+    channelId: x.channel_id,
+    metricId: x.metric_id,
+    value: num(x.value),
+  }));
+}
+
+/**
+ * 実績をまとめて保存する。0 のものは行ごと消す。
+ * 入れ直すたびに 0 の行が増えていくと、表が重くなるだけで意味がない。
+ */
+export async function saveMetricValues(
+  orgId: string,
+  monthKey: string,
+  companyId: string,
+  values: { channelId: string; metricId: string; value: number }[],
+  actor: string
+): Promise<number> {
+  let saved = 0;
+  for (const v of values) {
+    if (!v.channelId || !v.metricId) continue;
+    if (v.value === 0) {
+      await exec(
+        `delete from crm_metric_values
+         where org_id = $1 and month = $2 and company_id = $3
+           and channel_id = $4 and metric_id = $5`,
+        [orgId, monthStart(monthKey), companyId, v.channelId, v.metricId]
+      );
+      continue;
+    }
+    await exec(
+      `insert into crm_metric_values
+         (id, org_id, month, company_id, channel_id, metric_id, value, updated_by)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
+       on conflict (org_id, month, company_id, channel_id, metric_id)
+       do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by`,
+      [newId(), orgId, monthStart(monthKey), companyId, v.channelId, v.metricId, v.value, actor]
+    );
+    saved++;
+  }
+  await log(orgId, actor, "運用実績を保存", `${monthKey}（${saved} 件）`);
+  return saved;
+}
+
+/** その月に実績が入っている取引先。入力する会社を選ぶときの目印に使う */
+export async function companiesWithMetrics(
+  orgId: string,
+  monthKey: string
+): Promise<string[]> {
+  const r = await rows<{ company_id: string }>(
+    `select distinct company_id from crm_metric_values where org_id = $1 and month = $2`,
+    [orgId, monthStart(monthKey)]
+  );
+  return r.map((x) => x.company_id);
 }

@@ -206,10 +206,50 @@ const M2 = money.addMonths(M, 2);
   a.equal((await crm.listDeals(org.id)).length, 0);
   console.log("✓ 取引先の削除（商談・活動・売上ごと）");
 
+  // ---- 運用実績 ----
+  a.equal((await crm.listChannels(org.id)).length, 6, "初期の媒体");
+  const allMetrics = await crm.listMetrics(org.id);
+  a.equal(allMetrics.length, 9, "初期の項目");
+  a.equal(allMetrics.filter((m) => m.kind === "ratio").length, 3);
+  const cpaMetric = allMetrics.find((m) => m.name === "応募単価");
+  a.ok(cpaMetric.numeratorId && cpaMetric.denominatorId, "自動の項目は分子と分母を持つ");
+
+  const chs = await crm.listChannels(org.id);
+  const spendM = allMetrics.find((m) => m.name === "出稿費");
+  const applyM = allMetrics.find((m) => m.name === "応募数");
+  const co2 = await crm.createCompany(org.id, { name: "株式会社ホットスタッフ徳島" }, "山田太郎");
+  await crm.saveMetricValues(org.id, M, co2.id, [
+    { channelId: chs[0].id, metricId: spendM.id, value: 300000 },
+    { channelId: chs[0].id, metricId: applyM.id, value: 20 },
+    { channelId: chs[1].id, metricId: spendM.id, value: 100000 },
+    { channelId: chs[1].id, metricId: applyM.id, value: 5 },
+  ], "山田太郎");
+  const mv = await crm.listMetricValues(org.id, M, M, co2.id);
+  a.equal(mv.length, 4);
+  a.equal(mv.find((v) => v.channelId === chs[0].id && v.metricId === applyM.id).value, 20);
+  a.deepEqual(await crm.companiesWithMetrics(org.id, M), [co2.id]);
+
+  // 0 を入れたら行ごと消す（0 の行が積み上がっても意味がない）
+  await crm.saveMetricValues(org.id, M, co2.id, [
+    { channelId: chs[1].id, metricId: applyM.id, value: 0 },
+  ], "山田太郎");
+  a.equal((await crm.listMetricValues(org.id, M, M, co2.id)).length, 3);
+
+  // 他の項目の計算に使われている項目は消せない
+  const delUsed = await crm.deleteMetric(org.id, applyM.id, "山田太郎");
+  a.equal(delUsed.archived, false);
+  a.ok(delUsed.error.includes("ほかの項目"), delUsed.error);
+  // 実績が入っている媒体は消さずに停止する
+  a.equal((await crm.deleteChannel(org.id, chs[0].id, "山田太郎")).archived, true);
+  a.equal((await crm.listChannels(org.id)).find((c) => c.id === chs[0].id).active, false);
+  // 一度入れたら二度目は入れ直さない
+  a.equal(await seed.seedReports(org.id), false);
+  console.log("✓ 運用実績（媒体・項目・実績値・守り）");
+
   // ---- 記録 ----
   const audit = await store.recentAudit(org.id, 100);
   const actions = audit.map((x) => x.action);
-  for (const need of ["受注", "取引先を削除", "商談を削除", "売上を確定", "月額契約を解約", "アカウントを作成", "売上目標を設定"]) {
+  for (const need of ["受注", "取引先を削除", "商談を削除", "売上を確定", "月額契約を解約", "アカウントを作成", "売上目標を設定", "運用実績を保存"]) {
     a.ok(actions.includes(need), `記録に「${need}」が無い`);
   }
   a.equal((await store.recentAudit(org2.id, 100)).length, 1, "記録も会社ごとに分かれる");

@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { Product, RevenueType, Stage, StageKind, Target } from "@/lib/types";
+import type {
+  Channel,
+  Metric,
+  MetricFormat,
+  MetricKind,
+  Product,
+  RevenueType,
+  Stage,
+  StageKind,
+  Target,
+} from "@/lib/types";
 import { REVENUE_TYPES, revenueTypeLabel } from "@/lib/types";
 import { addMonths, monthKeyOf, monthLabel, toMonthKey, yen } from "@/lib/money";
 import type { User } from "@/lib/types";
@@ -17,6 +27,8 @@ interface Payload {
   products: Product[];
   targets: Target[];
   users: User[];
+  channels: Channel[];
+  metrics: Metric[];
   me: { role: string };
   org: { name: string; code: string; isOwner: boolean };
 }
@@ -69,6 +81,8 @@ export default function SettingsPanel() {
       <StageSettings stages={data.stages} readOnly={!isAdmin} onSend={send} />
       <ProductSettings products={data.products} readOnly={!isAdmin} onSend={send} />
       <TargetSettings targets={data.targets} readOnly={!isAdmin} onSend={send} />
+      <ChannelSettings channels={data.channels ?? []} readOnly={!isAdmin} onSend={send} />
+      <MetricSettings metrics={data.metrics ?? []} readOnly={!isAdmin} onSend={send} />
     </>
   );
 }
@@ -537,6 +551,349 @@ function TargetSettings({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/* ================= 媒体 ================= */
+
+function ChannelSettings({
+  channels,
+  readOnly,
+  onSend,
+}: {
+  channels: Channel[];
+  readOnly: boolean;
+  onSend: (body: unknown, done: string) => Promise<void>;
+}) {
+  const [newName, setNewName] = useState("");
+
+  return (
+    <div className="panel">
+      <h2>媒体</h2>
+      <p className="note">
+        運用実績を記録する単位です。Indeed・スタートジョブ・はたらくぞドットコムのように、
+        回している求人媒体を並べてください。実績が入っている媒体は、消すのではなく
+        「使用停止」になります（過去の数字がどの媒体のものか分からなくならないようにするため）。
+      </p>
+      <div className="table-wrap">
+        <table className="t">
+          <thead>
+            <tr>
+              <th>並び</th>
+              <th>名前</th>
+              <th>状態</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {channels.map((ch, i) => (
+              <tr key={ch.id} className={ch.active ? "" : "is-off"}>
+                <td className="num muted">{i + 1}</td>
+                <td>
+                  <input
+                    defaultValue={ch.name}
+                    disabled={readOnly}
+                    onBlur={(e) =>
+                      e.target.value !== ch.name &&
+                      void onSend(
+                        { type: "saveChannel", channel: { ...ch, name: e.target.value } },
+                        "媒体名を変えました。"
+                      )
+                    }
+                    style={{ width: 240 }}
+                  />
+                </td>
+                <td>
+                  <span className={`tag${ch.active ? " ok" : ""}`}>
+                    {ch.active ? "使う" : "停止中"}
+                  </span>
+                </td>
+                <td>
+                  {!readOnly && ch.active && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        if (!window.confirm(`「${ch.name}」を使わないようにします。`)) return;
+                        void onSend({ type: "deleteChannel", id: ch.id }, "媒体を止めました。");
+                      }}
+                    >
+                      使用停止
+                    </button>
+                  )}
+                  {!readOnly && !ch.active && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() =>
+                        void onSend(
+                          { type: "saveChannel", channel: { ...ch, active: true } },
+                          "媒体を再開しました。"
+                        )
+                      }
+                    >
+                      再開
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!readOnly && (
+        <form
+          className="row tight"
+          style={{ marginTop: 10 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!newName.trim()) return;
+            void onSend(
+              { type: "saveChannel", channel: { name: newName.trim(), sortOrder: channels.length } },
+              "媒体を足しました。"
+            );
+            setNewName("");
+          }}
+        >
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="新しい媒体の名前"
+            style={{ width: 240 }}
+          />
+          <button className="btn btn-sm">足す</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/* ================= 記録する項目 ================= */
+
+function MetricSettings({
+  metrics,
+  readOnly,
+  onSend,
+}: {
+  metrics: Metric[];
+  readOnly: boolean;
+  onSend: (body: unknown, done: string) => Promise<void>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    unit: "件",
+    kind: "input" as MetricKind,
+    format: "number" as MetricFormat,
+    numeratorId: "",
+    denominatorId: "",
+  });
+
+  const inputs = metrics.filter((m) => m.kind === "input");
+  const nameOf = (id: string | null) => metrics.find((m) => m.id === id)?.name ?? "—";
+
+  return (
+    <div className="panel">
+      <h2>記録する項目</h2>
+      <p className="note">
+        運用実績で毎月入れる数字です。会社によって追いたい数字は違うので、自由に足せます。
+        <b>自動</b> の項目は、ほかの 2 つの項目の割り算で出します（例: 応募単価 ＝ 出稿費 ÷ 応募数）。
+        保存はせずそのつど計算するので、もとの数字を直せば単価も一緒に直ります。
+      </p>
+      <div className="table-wrap">
+        <table className="t">
+          <thead>
+            <tr>
+              <th>名前</th>
+              <th>単位</th>
+              <th>種類</th>
+              <th>計算のしかた</th>
+              <th>状態</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((m) => (
+              <tr key={m.id} className={m.active ? "" : "is-off"}>
+                <td>
+                  <input
+                    defaultValue={m.name}
+                    disabled={readOnly}
+                    onBlur={(e) =>
+                      e.target.value !== m.name &&
+                      void onSend(
+                        { type: "saveMetric", metric: { ...m, name: e.target.value } },
+                        "項目名を変えました。"
+                      )
+                    }
+                    style={{ width: 160 }}
+                  />
+                </td>
+                <td>
+                  <input
+                    defaultValue={m.unit}
+                    disabled={readOnly}
+                    onBlur={(e) =>
+                      e.target.value !== m.unit &&
+                      void onSend(
+                        { type: "saveMetric", metric: { ...m, unit: e.target.value } },
+                        "単位を変えました。"
+                      )
+                    }
+                    style={{ width: 60 }}
+                  />
+                </td>
+                <td>
+                  <span className={`tag${m.kind === "ratio" ? " accent" : ""}`}>
+                    {m.kind === "ratio" ? "自動" : "入力"}
+                  </span>
+                </td>
+                <td className="small muted">
+                  {m.kind === "ratio"
+                    ? `${nameOf(m.numeratorId)} ÷ ${nameOf(m.denominatorId)}`
+                    : m.format === "money"
+                      ? "金額として入れる"
+                      : "数として入れる"}
+                </td>
+                <td>
+                  <span className={`tag${m.active ? " ok" : ""}`}>
+                    {m.active ? "使う" : "停止中"}
+                  </span>
+                </td>
+                <td>
+                  {!readOnly && m.active && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => {
+                        if (!window.confirm(`「${m.name}」を使わないようにします。`)) return;
+                        void onSend({ type: "deleteMetric", id: m.id }, "項目を止めました。");
+                      }}
+                    >
+                      使用停止
+                    </button>
+                  )}
+                  {!readOnly && !m.active && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() =>
+                        void onSend(
+                          { type: "saveMetric", metric: { ...m, active: true } },
+                          "項目を再開しました。"
+                        )
+                      }
+                    >
+                      再開
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {!readOnly && (
+        <>
+          <button
+            className="btn btn-sm"
+            style={{ marginTop: 10 }}
+            onClick={() => setAdding((v) => !v)}
+          >
+            {adding ? "閉じる" : "＋ 項目を足す"}
+          </button>
+          {adding && (
+            <form
+              style={{ marginTop: 10 }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!form.name.trim()) return;
+                void onSend(
+                  {
+                    type: "saveMetric",
+                    metric: { ...form, name: form.name.trim(), sortOrder: metrics.length },
+                  },
+                  "項目を足しました。"
+                );
+                setAdding(false);
+                setForm({ ...form, name: "" });
+              }}
+            >
+              <div className="grid g4">
+                <div className="field">
+                  <label>名前</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="内定承諾数"
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>単位</label>
+                  <input
+                    value={form.unit}
+                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    placeholder="件"
+                  />
+                </div>
+                <div className="field">
+                  <label>種類</label>
+                  <select
+                    value={form.kind}
+                    onChange={(e) => setForm({ ...form, kind: e.target.value as MetricKind })}
+                  >
+                    <option value="input">入力する</option>
+                    <option value="ratio">自動で出す（割り算）</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>数字の見せ方</label>
+                  <select
+                    value={form.format}
+                    onChange={(e) => setForm({ ...form, format: e.target.value as MetricFormat })}
+                  >
+                    <option value="number">数（1,234 件）</option>
+                    <option value="money">金額（￥1,234）</option>
+                    <option value="percent">率（12.3%）</option>
+                  </select>
+                </div>
+                {form.kind === "ratio" && (
+                  <>
+                    <div className="field">
+                      <label>割られるほう</label>
+                      <select
+                        value={form.numeratorId}
+                        onChange={(e) => setForm({ ...form, numeratorId: e.target.value })}
+                      >
+                        <option value="">選んでください</option>
+                        {inputs.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>割るほう</label>
+                      <select
+                        value={form.denominatorId}
+                        onChange={(e) => setForm({ ...form, denominatorId: e.target.value })}
+                      >
+                        <option value="">選んでください</option>
+                        {inputs.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button className="btn btn-primary btn-sm">足す</button>
+            </form>
+          )}
+        </>
+      )}
     </div>
   );
 }

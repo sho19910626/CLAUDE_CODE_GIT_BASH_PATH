@@ -5,31 +5,42 @@
 
 import { fail, readJson, toNumber, toText, withAdmin, withSession } from "@/lib/api";
 import {
+  deleteChannel,
+  deleteMetric,
   deleteProduct,
   deleteStage,
+  listChannels,
+  listMetrics,
   listProducts,
   listStages,
   listTargets,
+  saveChannel,
+  saveMetric,
   saveProduct,
   saveStage,
   setTarget,
 } from "@/lib/crm";
 import { addMonths, monthKeyOf, toMonthKey } from "@/lib/money";
 import { listUsers } from "@/lib/store";
-import type { RevenueType, StageKind } from "@/lib/types";
+import { seedReports } from "@/lib/seed";
+import type { MetricFormat, MetricKind, RevenueType, StageKind } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   return withSession(async ({ user, org }) => {
     const now = monthKeyOf();
-    const [stages, products, targets, users] = await Promise.all([
+    // 先に使い始めていた会社には媒体と指標がまだ無いので、ここでも一度だけ入れる
+    await seedReports(org.id);
+    const [stages, products, targets, users, channels, metrics] = await Promise.all([
       listStages(org.id),
       listProducts(org.id),
       listTargets(org.id, addMonths(now, -3), addMonths(now, 11)),
       listUsers(org.id),
+      listChannels(org.id),
+      listMetrics(org.id),
     ]);
-    return { stages, products, targets, users, me: user, org };
+    return { stages, products, targets, users, channels, metrics, me: user, org };
   });
 }
 
@@ -39,7 +50,11 @@ type Action =
   | { type: "reorderStages"; ids: string[] }
   | { type: "saveProduct"; product: Record<string, unknown> }
   | { type: "deleteProduct"; id: string }
-  | { type: "setTarget"; month: string; userId?: string; amount: number };
+  | { type: "setTarget"; month: string; userId?: string; amount: number }
+  | { type: "saveChannel"; channel: Record<string, unknown> }
+  | { type: "deleteChannel"; id: string }
+  | { type: "saveMetric"; metric: Record<string, unknown> }
+  | { type: "deleteMetric"; id: string };
 
 export async function POST(request: Request) {
   const action = await readJson<Action>(request);
@@ -120,16 +135,62 @@ export async function POST(request: Request) {
         );
         break;
       }
+      case "saveChannel": {
+        const name = toText(action.channel.name, 60);
+        if (!name) throw new Error("媒体名を入れてください。");
+        await saveChannel(
+          org.id,
+          {
+            id: toText(action.channel.id, 60) || undefined,
+            name,
+            sortOrder: toNumber(action.channel.sortOrder, 99),
+            active: action.channel.active !== false,
+          },
+          user.name
+        );
+        break;
+      }
+      case "deleteChannel":
+        await deleteChannel(org.id, action.id, user.name);
+        break;
+      case "saveMetric": {
+        const m = action.metric;
+        const name = toText(m.name, 60);
+        if (!name) throw new Error("項目名を入れてください。");
+        await saveMetric(
+          org.id,
+          {
+            id: toText(m.id, 60) || undefined,
+            name,
+            unit: toText(m.unit, 10),
+            kind: (toText(m.kind, 10) || "input") as MetricKind,
+            format: (toText(m.format, 10) || "number") as MetricFormat,
+            numeratorId: toText(m.numeratorId, 60) || null,
+            denominatorId: toText(m.denominatorId, 60) || null,
+            sortOrder: toNumber(m.sortOrder, 99),
+            active: m.active !== false,
+          },
+          user.name
+        );
+        break;
+      }
+      case "deleteMetric": {
+        const result = await deleteMetric(org.id, action.id, user.name);
+        if (result.error) throw new Error(result.error);
+        break;
+      }
       default:
         throw new Error("不明な操作です。");
     }
 
     const now = monthKeyOf();
-    const [stages, products, targets] = await Promise.all([
+    const [stages, products, targets, channels, metrics] = await Promise.all([
       listStages(org.id),
       listProducts(org.id),
       listTargets(org.id, addMonths(now, -3), addMonths(now, 11)),
+      listChannels(org.id),
+      listMetrics(org.id),
     ]);
-    return { stages, products, targets };
+    return { stages, products, targets, channels, metrics };
   });
 }

@@ -109,4 +109,45 @@ a.equal(guessField("HP_URL"), "website");
 a.equal(guessField("主要エリア"), "city");
 a.equal(guessField("スコア"), null);
 
+/* ---- 運用実績の計算 ---- */
+const { MetricTable, formatMetric, delta, lowerIsBetter } = require("../.test-build/metrics.js");
+
+const metric = (o) => ({ id: o.id, name: o.id, unit: o.unit ?? "件", kind: o.kind ?? "input",
+  format: o.format ?? "number", numeratorId: o.num ?? null, denominatorId: o.den ?? null,
+  sortOrder: 0, active: true });
+
+const applies = metric({ id: "applies" });
+const views = metric({ id: "views", unit: "回" });
+const spend = metric({ id: "spend", unit: "円", format: "money" });
+const hires = metric({ id: "hires", unit: "名" });
+const cpa = metric({ id: "cpa", unit: "円", kind: "ratio", format: "money", num: "spend", den: "applies" });
+const rate = metric({ id: "rate", unit: "%", kind: "ratio", format: "percent", num: "applies", den: "views" });
+const cph = metric({ id: "cph", unit: "円", kind: "ratio", format: "money", num: "spend", den: "hires" });
+
+const mt = new MetricTable([
+  { channelId: "indeed", metricId: "spend", value: 300000, month: "2026-08-01", companyId: "c" },
+  { channelId: "indeed", metricId: "applies", value: 20, month: "2026-08-01", companyId: "c" },
+  { channelId: "indeed", metricId: "views", value: 1000, month: "2026-08-01", companyId: "c" },
+  { channelId: "startjob", metricId: "spend", value: 100000, month: "2026-08-01", companyId: "c" },
+  { channelId: "startjob", metricId: "applies", value: 5, month: "2026-08-01", companyId: "c" },
+  { channelId: "startjob", metricId: "views", value: 400, month: "2026-08-01", companyId: "c" },
+]);
+
+a.equal(mt.raw("indeed", "applies"), 20);
+a.equal(mt.rawTotal("applies"), 25, "媒体をまたいで足せる");
+a.equal(mt.value(cpa, "indeed"), 15000, "媒体ごとの応募単価");
+a.equal(mt.value(cpa, "startjob"), 20000);
+a.equal(mt.value(cpa, null), 16000, "合計の単価は「合計÷合計」。媒体ごとの単価の平均ではない");
+a.equal(mt.value(rate, "indeed"), 2, "応募率は %");
+a.equal(mt.value(cph, null), null, "割る数が0のときは null（0と書くと嘘になる）");
+a.equal(formatMetric(null, cph), "—");
+a.equal(formatMetric(16000, cpa), "￥16,000");
+a.equal(formatMetric(2, rate), "2%");
+a.equal(formatMetric(25, applies), "25 件");
+a.equal(delta(120, 100), 20);
+a.equal(delta(100, 0), null, "前月が0なら増減は出さない");
+a.equal(lowerIsBetter(cpa), true, "単価は下がったほうがよい");
+a.equal(lowerIsBetter(applies), false, "応募数は増えたほうがよい");
+console.log("✓ 運用実績の計算（媒体ごと・合計・単価・率）");
+
 console.log("すべて通りました");

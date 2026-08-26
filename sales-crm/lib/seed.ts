@@ -4,7 +4,7 @@
 // ステージと商材は最初から入っている状態にする。
 // どちらも設定画面から名前・金額・並び順を変えられる。
 
-import { exec, newId } from "./db";
+import { exec, newId, rows } from "./db";
 import type { RevenueType } from "./types";
 
 interface SeedStage {
@@ -70,7 +70,122 @@ export const DEFAULT_PRODUCTS: SeedProduct[] = [
   },
 ];
 
+/** 初期の媒体。求人媒体は会社ごとに違うので、設定画面で足し引きできる */
+export const DEFAULT_CHANNELS = [
+  "Indeed",
+  "スタートジョブ",
+  "はたらくぞドットコム",
+  "求人ボックス",
+  "Airワーク",
+  "自社採用サイト",
+];
+
+/**
+ * 初期の指標。
+ *
+ * 単価や率は、入力する数字から自動で出す(ratio)。
+ * 出稿費と応募数を入れれば応募単価が出る、という形にしておくと、
+ * 毎月入れる数字が減り、計算違いも起きない。
+ */
+interface SeedMetric {
+  key: string;
+  name: string;
+  unit: string;
+  kind: "input" | "ratio";
+  format: "number" | "money" | "percent";
+  numerator?: string;
+  denominator?: string;
+}
+
+export const DEFAULT_METRICS: SeedMetric[] = [
+  { key: "posts", name: "掲載件数", unit: "件", kind: "input", format: "number" },
+  { key: "views", name: "閲覧数", unit: "回", kind: "input", format: "number" },
+  { key: "applies", name: "応募数", unit: "件", kind: "input", format: "number" },
+  { key: "interviews", name: "面接設定数", unit: "件", kind: "input", format: "number" },
+  { key: "hires", name: "採用決定数", unit: "名", kind: "input", format: "number" },
+  { key: "spend", name: "出稿費", unit: "円", kind: "input", format: "money" },
+  {
+    key: "cpa",
+    name: "応募単価",
+    unit: "円",
+    kind: "ratio",
+    format: "money",
+    numerator: "spend",
+    denominator: "applies",
+  },
+  {
+    key: "apply_rate",
+    name: "応募率",
+    unit: "%",
+    kind: "ratio",
+    format: "percent",
+    numerator: "applies",
+    denominator: "views",
+  },
+  {
+    key: "cph",
+    name: "採用単価",
+    unit: "円",
+    kind: "ratio",
+    format: "money",
+    numerator: "spend",
+    denominator: "hires",
+  },
+];
+
+/** 媒体と指標を入れる。すでに 1 件でもあれば何もしない */
+export async function seedReports(orgId: string): Promise<boolean> {
+  const existing = (await rows<{ n: number }>(
+    `select count(*)::int as n from crm_metrics where org_id = $1`,
+    [orgId]
+  ))[0];
+  if ((existing?.n ?? 0) > 0) return false;
+
+  for (let i = 0; i < DEFAULT_CHANNELS.length; i++) {
+    await exec(
+      `insert into crm_channels (id, org_id, name, sort_order) values ($1, $2, $3, $4)`,
+      [newId(), orgId, DEFAULT_CHANNELS[i], i]
+    );
+  }
+
+  // ratio が参照する指標の id が要るので、入力する指標を先に入れる
+  const idByKey = new Map<string, string>();
+  for (let i = 0; i < DEFAULT_METRICS.length; i++) {
+    if (DEFAULT_METRICS[i].kind !== "input") continue;
+    const id = newId();
+    idByKey.set(DEFAULT_METRICS[i].key, id);
+    const m = DEFAULT_METRICS[i];
+    await exec(
+      `insert into crm_metrics (id, org_id, name, unit, kind, format, sort_order)
+       values ($1,$2,$3,$4,$5,$6,$7)`,
+      [id, orgId, m.name, m.unit, m.kind, m.format, i]
+    );
+  }
+  for (let i = 0; i < DEFAULT_METRICS.length; i++) {
+    const m = DEFAULT_METRICS[i];
+    if (m.kind !== "ratio") continue;
+    await exec(
+      `insert into crm_metrics
+         (id, org_id, name, unit, kind, format, numerator_id, denominator_id, sort_order)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        newId(),
+        orgId,
+        m.name,
+        m.unit,
+        m.kind,
+        m.format,
+        idByKey.get(m.numerator ?? "") ?? null,
+        idByKey.get(m.denominator ?? "") ?? null,
+        i,
+      ]
+    );
+  }
+  return true;
+}
+
 export async function seedOrg(orgId: string): Promise<void> {
+  await seedReports(orgId);
   for (let i = 0; i < DEFAULT_STAGES.length; i++) {
     const s = DEFAULT_STAGES[i];
     await exec(

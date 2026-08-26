@@ -223,6 +223,50 @@ create table if not exists crm_targets (
 );
 create unique index if not exists crm_targets_key on crm_targets (org_id, month, user_id);
 
+-- 運用実績。媒体(Indeed / スタートジョブ など)ごとに、月ごとの数字を記録する。
+-- 何を記録するかは会社によって違うので、指標そのものを行として持つ。
+create table if not exists crm_channels (
+  id text primary key,
+  org_id text not null,
+  name text not null,
+  sort_order int not null default 0,
+  active boolean not null default true
+);
+create index if not exists crm_channels_org on crm_channels (org_id, sort_order);
+
+create table if not exists crm_metrics (
+  id text primary key,
+  org_id text not null,
+  name text not null,
+  unit text not null default '',
+  -- input = 手で入れる数字 / ratio = 2つの指標から自動で出す数字
+  kind text not null default 'input',
+  -- kind = 'input' のとき: number(件数など) / money(金額)
+  -- kind = 'ratio'  のとき: money(単価) / percent(率) / number(倍率)
+  format text not null default 'number',
+  numerator_id text,
+  denominator_id text,
+  sort_order int not null default 0,
+  active boolean not null default true
+);
+create index if not exists crm_metrics_org on crm_metrics (org_id, sort_order);
+
+create table if not exists crm_metric_values (
+  id text primary key,
+  org_id text not null,
+  month date not null,
+  company_id text not null,
+  channel_id text not null,
+  metric_id text not null,
+  value numeric not null default 0,
+  updated_at timestamptz not null default now(),
+  updated_by text not null default ''
+);
+create unique index if not exists crm_metric_values_key
+  on crm_metric_values (org_id, month, company_id, channel_id, metric_id);
+create index if not exists crm_metric_values_month
+  on crm_metric_values (org_id, month, company_id);
+
 -- すでに動いているデータベースにも足りない列を入れる。
 -- create table if not exists は、テーブルがある場合は何もしないため、
 -- あとから増やした列はここで足す必要がある。

@@ -436,6 +436,21 @@ label.inline input { width: auto; }
 .alert.ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
 .alert.info { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
+/* 運用実績の表。自動で出す列は、入力する列と見分けが付くように沈める */
+table.t-report th,
+table.t-report td { padding: 6px 8px; }
+table.t-report th .unit {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-top: 1px;
+}
+table.t-report input { width: 100%; min-width: 68px; }
+table.t-report td.calc,
+table.t-report th.calc { background: var(--panel-2); color: var(--ink-2); }
+table.t-report tr.is-calc td { color: var(--ink-2); }
+table.t-report tfoot td { font-weight: 700; }
+
 /* ===== 商談ボード ===== */
 
 .board {

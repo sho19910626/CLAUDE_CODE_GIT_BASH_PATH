@@ -32,6 +32,7 @@ export default async function RootLayout({
     { href: "/deals", label: "商談", icon: "◆" },
     { href: "/companies", label: "取引先", icon: "▣" },
     { href: "/revenues", label: "売上", icon: "¥" },
+    { href: "/reports", label: "運用実績", icon: "▦" },
     { href: "/tasks", label: "やること", icon: "✓", badge: overdue },
   ];
 
