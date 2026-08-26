@@ -76,6 +76,7 @@ export async function POST(request: Request) {
         dealId: toText(r.dealId, 60) || null,
         productId: toText(r.productId, 60) || null,
         revenueType: (toText(r.revenueType, 20) || "onetime") as RevenueType,
+        unitLabel: toText(r.unitLabel, 8),
         name,
         amount: toNumber(r.amount),
         passthroughAmount: toNumber(r.passthroughAmount),

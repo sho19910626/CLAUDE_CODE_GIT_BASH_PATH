@@ -610,6 +610,7 @@ interface ItemRow {
   product_id: string | null;
   name: string;
   revenue_type: string;
+  unit_label: string;
   unit_price: string | number;
   quantity: string | number;
   months: number | null;
@@ -627,6 +628,7 @@ function toItem(r: ItemRow): DealItem {
     productId: r.product_id,
     name: r.name,
     revenueType: toRevenueType(r.revenue_type),
+    unitLabel: r.unit_label || "件",
     unitPrice: num(r.unit_price),
     quantity: num(r.quantity),
     months: r.months,
@@ -638,8 +640,8 @@ function toItem(r: ItemRow): DealItem {
   };
 }
 
-const ITEM_COLS = `id, deal_id, product_id, name, revenue_type, unit_price, quantity,
-  months, start_on, end_on, passthrough_amount, note, sort_order`;
+const ITEM_COLS = `id, deal_id, product_id, name, revenue_type, unit_label, unit_price,
+  quantity, months, start_on, end_on, passthrough_amount, note, sort_order`;
 
 async function itemsForDeals(
   orgId: string,
@@ -826,9 +828,9 @@ export async function saveDealItems(
     const it = items[i];
     await exec(
       `insert into crm_deal_items
-         (id, org_id, deal_id, product_id, name, revenue_type, unit_price, quantity,
-          months, start_on, end_on, passthrough_amount, note, sort_order)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+         (id, org_id, deal_id, product_id, name, revenue_type, unit_label, unit_price,
+          quantity, months, start_on, end_on, passthrough_amount, note, sort_order)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [
         it.id && it.id.length > 10 ? it.id : newId(),
         orgId,
@@ -836,6 +838,7 @@ export async function saveDealItems(
         it.productId || null,
         it.name,
         toRevenueType(it.revenueType),
+        it.unitLabel || "件",
         it.unitPrice || 0,
         it.quantity || 0,
         it.months ?? null,
@@ -892,8 +895,9 @@ export async function generateDealRevenues(
     await exec(
       `insert into crm_revenues
          (id, org_id, month, company_id, deal_id, item_id, product_id, revenue_type,
-          name, amount, passthrough_amount, units, status, source, owner_user_id, created_by)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'auto',$14,$15)`,
+          unit_label, name, amount, passthrough_amount, units, status, source,
+          owner_user_id, created_by)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'auto',$15,$16)`,
       [
         newId(),
         orgId,
@@ -903,6 +907,7 @@ export async function generateDealRevenues(
         p.itemId,
         p.productId,
         p.revenueType,
+        p.unitLabel,
         p.name,
         p.amount,
         p.passthroughAmount,
@@ -1028,9 +1033,9 @@ export async function extendOpenEndedRevenues(orgId: string): Promise<number> {
   const items = await rows<
     ItemRow & { company_id: string; deal_id: string; owner_user_id: string | null }
   >(
-    `select i.id, i.deal_id, i.product_id, i.name, i.revenue_type, i.unit_price,
-            i.quantity, i.months, i.start_on, i.end_on, i.passthrough_amount,
-            i.note, i.sort_order, d.company_id, d.owner_user_id
+    `select i.id, i.deal_id, i.product_id, i.name, i.revenue_type, i.unit_label,
+            i.unit_price, i.quantity, i.months, i.start_on, i.end_on,
+            i.passthrough_amount, i.note, i.sort_order, d.company_id, d.owner_user_id
      from crm_deal_items i
      join crm_deals d on d.id = i.deal_id and d.org_id = i.org_id
      join crm_stages s on s.id = d.stage_id and s.org_id = d.org_id
@@ -1054,8 +1059,9 @@ export async function extendOpenEndedRevenues(orgId: string): Promise<number> {
       await exec(
         `insert into crm_revenues
            (id, org_id, month, company_id, deal_id, item_id, product_id, revenue_type,
-            name, amount, passthrough_amount, units, status, source, owner_user_id, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'planned','auto',$13,'(自動延長)')`,
+            unit_label, name, amount, passthrough_amount, units, status, source,
+            owner_user_id, created_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'planned','auto',$14,'(自動延長)')`,
         [
           newId(),
           orgId,
@@ -1065,6 +1071,7 @@ export async function extendOpenEndedRevenues(orgId: string): Promise<number> {
           item.id,
           item.productId,
           item.revenueType,
+          item.unitLabel,
           item.name,
           item.unitPrice * item.quantity,
           item.revenueType === "passthrough" ? item.passthroughAmount : 0,
@@ -1335,6 +1342,7 @@ interface RevenueRow {
   item_id: string | null;
   product_id: string | null;
   revenue_type: string;
+  unit_label: string;
   name: string;
   amount: string | number;
   passthrough_amount: string | number;
@@ -1346,8 +1354,9 @@ interface RevenueRow {
 
 const REVENUE_SELECT = `
   select r.id, r.month, r.company_id, c.name as company_name, r.deal_id,
-         d.name as deal_name, r.item_id, r.product_id, r.revenue_type, r.name,
-         r.amount, r.passthrough_amount, r.units, r.status, r.note, r.owner_user_id
+         d.name as deal_name, r.item_id, r.product_id, r.revenue_type, r.unit_label,
+         r.name, r.amount, r.passthrough_amount, r.units, r.status, r.note,
+         r.owner_user_id
   from crm_revenues r
   join crm_companies c on c.id = r.company_id and c.org_id = r.org_id
   left join crm_deals d on d.id = r.deal_id and d.org_id = r.org_id
@@ -1364,6 +1373,7 @@ function toRevenue(r: RevenueRow): Revenue {
     itemId: r.item_id,
     productId: r.product_id,
     revenueType: toRevenueType(r.revenue_type),
+    unitLabel: r.unit_label || "件",
     name: r.name,
     amount: num(r.amount),
     passthroughAmount: num(r.passthrough_amount),
@@ -1426,7 +1436,8 @@ export async function saveRevenue(
   if (input.id) {
     await exec(
       `update crm_revenues set month = $1, name = $2, amount = $3,
-              passthrough_amount = $4, units = $5, status = $6, note = $7
+              passthrough_amount = $4, units = $5, status = $6, note = $7,
+              unit_label = coalesce(nullif($10, ''), unit_label)
        where id = $8 and org_id = $9`,
       [
         monthStart(toMonthKey(input.month)),
@@ -1438,15 +1449,16 @@ export async function saveRevenue(
         input.note ?? "",
         input.id,
         orgId,
+        input.unitLabel ?? "",
       ]
     );
     return;
   }
   await exec(
     `insert into crm_revenues
-       (id, org_id, month, company_id, deal_id, product_id, revenue_type, name,
-        amount, passthrough_amount, units, status, source, created_by)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'manual',$13)`,
+       (id, org_id, month, company_id, deal_id, product_id, revenue_type, unit_label,
+        name, amount, passthrough_amount, units, status, source, created_by)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'manual',$14)`,
     [
       newId(),
       orgId,
@@ -1455,6 +1467,7 @@ export async function saveRevenue(
       input.dealId || null,
       input.productId || null,
       toRevenueType(input.revenueType ?? "onetime"),
+      input.unitLabel || "件",
       input.name,
       input.amount ?? 0,
       input.passthroughAmount ?? 0,

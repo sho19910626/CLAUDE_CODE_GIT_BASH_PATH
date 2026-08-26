@@ -300,6 +300,14 @@ table.t td.num, table.t th.num {
 table.t tr:hover td { background: var(--panel-2); }
 /* 月の変わり目に線を入れて、長い一覧でも月の切れ目が分かるようにする */
 table.t tr.month-start td { border-top: 2px solid var(--line); }
+/* 「3 名」のように、数字のすぐ後ろに単位を出す */
+.units-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.units-cell > span { font-size: 11px; }
 table.t tr.is-off td { opacity: 0.5; }
 table.t tfoot td {
   font-weight: 700;

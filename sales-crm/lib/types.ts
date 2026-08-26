@@ -127,7 +127,13 @@ export interface DealItem {
   productId: string | null;
   name: string;
   revenueType: RevenueType;
-  /** 単価。月額継続なら「月額」、成果報酬なら「1件あたり」 */
+  /**
+   * 数量の単位。「名」「件」「社」など。
+   * 成果報酬は案件によって数え方が違う(採用課金なら1名、応募課金なら1件)ので、
+   * 商材から引き継いだうえで明細ごとにも変えられるようにしてある。
+   */
+  unitLabel: string;
+  /** 単価。月額継続なら「月額」、成果報酬なら「1単位あたり」 */
   unitPrice: number;
   /** 数量。成果報酬では見込み件数 */
   quantity: number;
@@ -176,6 +182,8 @@ export interface Revenue {
   itemId: string | null;
   productId: string | null;
   revenueType: RevenueType;
+  /** 実績件数の単位。「名」「件」など */
+  unitLabel: string;
   name: string;
   /** 自社の売上 */
   amount: number;

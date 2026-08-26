@@ -127,6 +127,24 @@ export default function RevenueRow({
       <span className="muted">—</span>
     );
 
+  // 成果報酬の実績は「3 名」「12 件」のように数え方が案件ごとに違う。
+  // 商材で決めた単位を数字の後ろに出す
+  const unitsCell = (width: number) =>
+    revenue.revenueType === "performance" ? (
+      <span className="units-cell">
+        <input
+          className="num"
+          inputMode="numeric"
+          value={units}
+          onChange={(e) => setUnits(e.target.value)}
+          style={{ width }}
+        />
+        <span className="muted">{revenue.unitLabel || "件"}</span>
+      </span>
+    ) : (
+      <span className="muted">—</span>
+    );
+
   const actions = (
     <div className="row tight">
       {dirty && (
@@ -184,9 +202,7 @@ export default function RevenueRow({
           <span className="tag">{revenueTypeLabel(revenue.revenueType)}</span>
         </td>
         <td className="num">{numInput(amount, setAmount, true, 100)}</td>
-        <td className="num">
-          {numInput(units, setUnits, revenue.revenueType === "performance", 60)}
-        </td>
+        <td className="num">{unitsCell(60)}</td>
         <td className="num">
           {numInput(passthrough, setPassthrough, revenue.revenueType === "passthrough", 100)}
         </td>
@@ -209,9 +225,7 @@ export default function RevenueRow({
         <span className="tag">{revenueTypeLabel(revenue.revenueType)}</span>
       </td>
       <td className="num">{numInput(amount, setAmount, true, 110)}</td>
-      <td className="num">
-        {numInput(units, setUnits, revenue.revenueType === "performance", 64)}
-      </td>
+      <td className="num">{unitsCell(64)}</td>
       <td className="num">
         {numInput(passthrough, setPassthrough, revenue.revenueType === "passthrough", 110)}
       </td>

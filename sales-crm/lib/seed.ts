@@ -56,9 +56,9 @@ export const DEFAULT_PRODUCTS: SeedProduct[] = [
     name: "成果報酬型 採用支援",
     revenueType: "performance",
     defaultUnitPrice: 30000,
-    unitLabel: "採用決定",
+    unitLabel: "名",
     defaultMonths: 12,
-    note: "採用決定1件あたりの報酬。受注時は見込み件数を入れ、毎月の実績は売上画面で書き換えます。",
+    note: "採用決定1名あたりの報酬。単位は「名」「件」など案件に合わせて変えられます(採用課金なら名、応募課金なら件)。",
   },
   {
     name: "Indeed広告費(立替)",

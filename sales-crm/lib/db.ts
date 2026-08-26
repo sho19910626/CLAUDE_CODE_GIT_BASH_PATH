@@ -147,6 +147,7 @@ create table if not exists crm_deal_items (
   product_id text,
   name text not null,
   revenue_type text not null default 'onetime',
+  unit_label text not null default '',
   unit_price numeric not null default 0,
   quantity numeric not null default 1,
   months int,
@@ -167,6 +168,7 @@ create table if not exists crm_revenues (
   item_id text,
   product_id text,
   revenue_type text not null default 'onetime',
+  unit_label text not null default '',
   name text not null default '',
   amount numeric not null default 0,
   passthrough_amount numeric not null default 0,
@@ -220,6 +222,12 @@ create table if not exists crm_targets (
   amount numeric not null default 0
 );
 create unique index if not exists crm_targets_key on crm_targets (org_id, month, user_id);
+
+-- すでに動いているデータベースにも足りない列を入れる。
+-- create table if not exists は、テーブルがある場合は何もしないため、
+-- あとから増やした列はここで足す必要がある。
+alter table crm_deal_items add column if not exists unit_label text not null default '';
+alter table crm_revenues add column if not exists unit_label text not null default '';
 `;
 
 type Sql = NeonQueryFunction<false, false>;

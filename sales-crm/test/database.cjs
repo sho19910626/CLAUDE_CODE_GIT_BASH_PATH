@@ -69,7 +69,7 @@ const M2 = money.addMonths(M, 2);
   await crm.saveDealItems(org.id, deal.id, [
     { id: "", productId: products[0].id, name: "Instagram採用アカウント構築", revenueType: "onetime", unitPrice: 150000, quantity: 1, months: null, startOn: null, endOn: null, passthroughAmount: 0, note: "", sortOrder: 0 },
     { id: "", productId: products[1].id, name: "Indeed運用代行", revenueType: "recurring", unitPrice: 100000, quantity: 1, months: null, startOn: `${M}-01`, endOn: null, passthroughAmount: 0, note: "", sortOrder: 1 },
-    { id: "", productId: products[2].id, name: "成果報酬", revenueType: "performance", unitPrice: 30000, quantity: 2, months: 6, startOn: `${M}-01`, endOn: null, passthroughAmount: 0, note: "", sortOrder: 2 },
+    { id: "", productId: products[2].id, name: "成果報酬", revenueType: "performance", unitLabel: "名", unitPrice: 30000, quantity: 2, months: 6, startOn: `${M}-01`, endOn: null, passthroughAmount: 0, note: "", sortOrder: 2 },
     { id: "", productId: products[3].id, name: "広告費立替", revenueType: "passthrough", unitPrice: 60000, quantity: 1, months: 6, startOn: `${M}-01`, endOn: null, passthroughAmount: 300000, note: "", sortOrder: 3 },
   ]);
   const withItems = await crm.getDeal(org.id, deal.id);
@@ -95,6 +95,13 @@ const M2 = money.addMonths(M, 2);
   a.equal(thisMonth.reduce((s, r) => s + r.amount, 0), 150000 + 100000 + 60000 + 60000);
   a.equal(thisMonth.reduce((s, r) => s + r.passthroughAmount, 0), 300000, "預かり金は別の欄");
   console.log("✓ 受注で売上予定 25 か月ぶんを自動生成");
+
+  // 成果報酬の数え方は案件ごとに違う(採用課金なら「名」、応募課金なら「件」)。
+  // 商材 → 明細 → 売上 と単位が引き継がれること
+  a.equal(withItems.items.find((i) => i.revenueType === "performance").unitLabel, "名");
+  a.equal(thisMonth.find((r) => r.revenueType === "performance").unitLabel, "名");
+  a.equal(thisMonth.find((r) => r.revenueType === "onetime").unitLabel, "件", "指定なしは既定の単位");
+  console.log("✓ 実績件数の単位が 商材 → 明細 → 売上 へ引き継がれる");
 
   // ---- ダッシュボード ----
   const d1 = await dash.buildDashboard(org.id, M);

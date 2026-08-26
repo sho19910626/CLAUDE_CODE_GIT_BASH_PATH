@@ -44,6 +44,7 @@ function readItems(raw: unknown): DealItem[] {
     productId: toText(r.productId, 60) || null,
     name: toText(r.name, 160) || "(名前なし)",
     revenueType: (toText(r.revenueType, 20) || "onetime") as RevenueType,
+    unitLabel: toText(r.unitLabel, 8) || "件",
     unitPrice: toNumber(r.unitPrice),
     quantity: toNumber(r.quantity, 1),
     months: r.months === null || r.months === "" ? null : Math.max(0, toNumber(r.months)) || null,

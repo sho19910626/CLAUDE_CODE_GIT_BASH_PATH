@@ -185,6 +185,7 @@ export interface PlannedRevenue {
   itemId: string;
   productId: string | null;
   revenueType: RevenueType;
+  unitLabel: string;
   name: string;
   amount: number;
   passthroughAmount: number;
@@ -217,6 +218,7 @@ export function plannedRevenuesForDeal(
         itemId: item.id,
         productId: item.productId,
         revenueType: item.revenueType,
+        unitLabel: item.unitLabel,
         name: item.name,
         amount,
         passthroughAmount: 0,
@@ -236,6 +238,7 @@ export function plannedRevenuesForDeal(
         itemId: item.id,
         productId: item.productId,
         revenueType: item.revenueType,
+        unitLabel: item.unitLabel,
         name: item.name,
         amount: itemMonthlyRevenue(item),
         passthroughAmount: itemMonthlyPassthrough(item),

@@ -173,6 +173,7 @@ function blankItem(): DealItem {
     productId: null,
     name: "",
     revenueType: "onetime",
+    unitLabel: "件",
     unitPrice: 0,
     quantity: 1,
     months: null,
@@ -184,11 +185,15 @@ function blankItem(): DealItem {
   };
 }
 
-/** 単価の後ろに出す単位。形態によって「1件あたり」だったり「月額」だったりする */
-function unitSuffix(type: RevenueType): string {
-  if (type === "recurring") return "円 / 月";
-  if (type === "performance") return "円 / 件";
-  if (type === "passthrough") return "円 / 月（手数料）";
+/**
+ * 単価の後ろに出す単位。形態によって意味が変わる。
+ * 成果報酬は案件ごとに数え方が違う(採用課金なら「名」、応募課金なら「件」)ので、
+ * 明細に持たせた単位をそのまま使う。
+ */
+function unitSuffix(item: DealItem): string {
+  if (item.revenueType === "recurring") return "円 / 月";
+  if (item.revenueType === "performance") return `円 / ${item.unitLabel || "件"}`;
+  if (item.revenueType === "passthrough") return "円 / 月（手数料）";
   return "円";
 }
 
@@ -226,6 +231,7 @@ function ItemsEditor({
       productId: p.id,
       name: p.name,
       revenueType: p.revenueType,
+      unitLabel: p.unitLabel || "件",
       unitPrice: p.defaultUnitPrice,
       months: p.defaultMonths,
       startOn: toMonthKey(todayYmd()) + "-01",
@@ -314,7 +320,7 @@ function ItemsEditor({
               <th>商材 / 内容</th>
               <th>売上の形態</th>
               <th className="num">単価</th>
-              <th className="num">数量</th>
+              <th className="num" title="成果報酬では単位も決められます（名・件など）">数量</th>
               <th className="num" title="空にすると解約するまで継続します">
                 契約月数
               </th>
@@ -374,7 +380,7 @@ function ItemsEditor({
                       value={it.unitPrice}
                       onChange={(e) => patch(it.id, { unitPrice: Number(e.target.value) || 0 })}
                     />
-                    <div className="unit">{unitSuffix(it.revenueType)}</div>
+                    <div className="unit">{unitSuffix(it)}</div>
                   </td>
                   <td className="num">
                     <input
@@ -383,6 +389,16 @@ function ItemsEditor({
                       value={it.quantity}
                       onChange={(e) => patch(it.id, { quantity: Number(e.target.value) || 0 })}
                     />
+                    {it.revenueType === "performance" && (
+                      <input
+                        className="num"
+                        value={it.unitLabel}
+                        placeholder="件"
+                        title="数え方の単位。採用課金なら「名」、応募課金なら「件」"
+                        onChange={(e) => patch(it.id, { unitLabel: e.target.value })}
+                        style={{ marginTop: 3, fontSize: 11, padding: "3px 5px" }}
+                      />
+                    )}
                   </td>
                   <td className="num">
                     {it.revenueType === "onetime" ? (

@@ -269,6 +269,8 @@ function ProductSettings({
       <h2>商材</h2>
       <p className="note">
         商談の明細で選ぶと、単価と契約月数が自動で入ります。
+        「単位」は数量の数え方です。成果報酬なら、採用課金は「名」、応募課金は「件」のように
+        商材ごとに決められます。商談の明細でも、その案件だけ別の単位に変えられます。
         すでに使われている商材は、消すのではなく「使用停止」になります
         （過去の売上が何の商材だったか分からなくならないようにするため）。
       </p>
@@ -279,7 +281,7 @@ function ProductSettings({
               <th>名前</th>
               <th>売上の形態</th>
               <th className="num">既定の単価</th>
-              <th>単位</th>
+              <th title="数量の単位。成果報酬なら「名」(採用課金)や「件」(応募課金)">単位</th>
               <th className="num">既定の契約月数</th>
               <th>状態</th>
               <th />
@@ -324,7 +326,21 @@ function ProductSettings({
                     style={{ width: 110 }}
                   />
                 </td>
-                <td>{p.unitLabel}</td>
+                <td>
+                  <input
+                    defaultValue={p.unitLabel}
+                    disabled={readOnly}
+                    title="数量の単位。成果報酬なら「名」(採用課金)や「件」(応募課金)"
+                    onBlur={(e) =>
+                      e.target.value !== p.unitLabel &&
+                      void onSend(
+                        { type: "saveProduct", product: { ...p, unitLabel: e.target.value } },
+                        "単位を変えました。"
+                      )
+                    }
+                    style={{ width: 70 }}
+                  />
+                </td>
                 <td className="num">{p.defaultMonths ?? "継続"}</td>
                 <td>
                   <span className={`tag${p.active ? " ok" : ""}`}>
