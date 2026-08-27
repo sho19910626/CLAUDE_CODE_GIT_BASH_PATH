@@ -594,6 +594,7 @@ function JobReport({
         companyEffect: allAnalysis.benchmarks.companyEffect(job.company),
         cost: analysis.cost,
         budget: analysis.budget,
+        wageMarket: allAnalysis.wageMarket.forJob(job),
       }),
     [job, snapshots, diagnosis, recommendations, store.interventions, allAnalysis]
   );
@@ -655,7 +656,24 @@ function JobReport({
           </Block>
         )}
         {insight.timing && <Block label="時期について">{insight.timing}</Block>}
-        {insight.money && <Block label="お金の見立て">{insight.money}</Block>}
+        {insight.money && (
+          <Block label="お金の見立て">
+            {insight.money.text}
+            {insight.money.actions.length > 0 && (
+              <ul className="idd-diffs">
+                {insight.money.actions.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            )}
+            {insight.money.clientNote && (
+              <div className="idd-client-note">
+                <span className="idd-client-note-label">クライアントへの伝え方</span>
+                {insight.money.clientNote}
+              </div>
+            )}
+          </Block>
+        )}
 
         {insight.plan.length > 0 && (
           <div className="idd-insight-actions">

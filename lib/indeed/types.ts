@@ -273,6 +273,21 @@ export interface CostBreakdown {
   cpaIfApplyRateFixed?: number;
 }
 
+/**
+ * お金の見立てと、そこから出てくる打ち手。
+ *
+ * 「単価が高い」で終わらせず、この求人の実数から
+ * 「いくらにするか」「その結果どうなるか」まで出す。
+ */
+export interface MoneyNote {
+  /** 診断の文章 */
+  text: string;
+  /** この求人で具体的にやること(数字入り) */
+  actions: string[];
+  /** クライアントへの伝え方。報告書にそのまま貼れる一文 */
+  clientNote: string | null;
+}
+
 /** 段階ごとの判定 */
 export type StageVerdict = "good" | "average" | "weak" | "insufficient";
 

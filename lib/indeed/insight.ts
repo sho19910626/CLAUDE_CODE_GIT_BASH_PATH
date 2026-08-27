@@ -12,12 +12,13 @@ import type { CompanyEffect, JobRollup } from "./benchmark";
 import { jobHeadroom } from "./diagnose";
 import { buildJobTypeInsight, type JobTypeInsight } from "./jobtype";
 import { comparePeers, type PeerComparison } from "./peers";
-import { actionShort } from "./playbook";
+import { actionShort, type WageMarket } from "./playbook";
 import type { JobAnalysis } from "./recommend";
 import { MONTH_NOTE } from "./season";
 import { analyzeTrend, type TrendAnalysis } from "./trend";
 import type {
   CostBreakdown,
+  MoneyNote,
   FunnelStage,
   Intervention,
   JobDiagnosis,
@@ -84,8 +85,8 @@ export interface Insight {
   jobType: { label: string | null; text: string } | null;
   /** 企業ごとの傾向(蓄積データから学習したもの) */
   company: string | null;
-  /** お金の見立て。応募単価の内訳と、予算を使い切っているか */
-  money: string | null;
+  /** お金の見立て。診断・具体策・クライアントへの伝え方 */
+  money: MoneyNote | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -144,6 +145,8 @@ export interface InsightContext {
   cost?: CostBreakdown;
   /** 日予算を使い切っているか */
   budget?: { capped: boolean; dailyCost?: number; days: number };
+  /** 時給・月給の相場。応募率が低い原因が条件かどうかの判断に使う */
+  wageMarket?: WageMarket;
 }
 
 
@@ -160,79 +163,226 @@ export interface InsightContext {
  * 「片方だけ直したらいくらになるか」を並べて、どちらが効くかを数字で見せる。
  */
 function buildMoneyNote(
+  job: JobRecord,
+  metrics: JobDiagnosis["metrics"],
+  benchmarkApplyRate: number,
   cost: CostBreakdown | undefined,
   budget: { capped: boolean; dailyCost?: number; days: number } | undefined,
-  metrics: JobDiagnosis["metrics"]
-): string | null {
+  wageMarket: WageMarket | undefined
+): MoneyNote | null {
+  if (!cost || !Number.isFinite(cost.cpa)) {
+    // 費用が無くても、予算の張り付きだけは言える場合がある
+    if (!budget?.capped || budget.dailyCost === undefined) return null;
+    return {
+      text: budgetCappedText(budget.dailyCost, budget.days),
+      actions: budgetActions(budget.dailyCost, metrics, benchmarkApplyRate),
+      clientNote: null,
+    };
+  }
+
+  const yen = (n: number) => `${Math.round(n).toLocaleString("ja-JP")}円`;
+  const monthlyApplies = metrics.appliesPerDay * 30;
   const parts: string[] = [];
+  const actions: string[] = [];
+  let clientNote: string | null = null;
 
-  if (cost && Number.isFinite(cost.cpa)) {
-    const yen = (n: number) => `${Math.round(n).toLocaleString("ja-JP")}円`;
-    const head =
-      `応募単価は ${yen(cost.cpa)}(クリック単価 ${yen(cost.cpc)} ÷ 応募率 ${(
-        cost.applyRate * 100
-      ).toFixed(1)}%)。`;
+  parts.push(
+    `応募単価は ${yen(cost.cpa)}(クリック単価 ${yen(cost.cpc)} ÷ 応募率 ${(
+      cost.applyRate * 100
+    ).toFixed(1)}%)。`
+  );
 
-    if (cost.driver === "none") {
-      parts.push(
-        head +
-          (cost.benchmarkCpc !== undefined
-            ? `クリック単価も応募率も、自社の他求人と比べて極端ではありません。単価を下げたい場合は、まず応募数そのものを増やすほうが効きます。`
-            : `比較できる求人がまだ少ないため、高い安いの判断は保留です。`)
+  if (cost.driver === "cpc" && cost.benchmarkCpc !== undefined) {
+    const ratio = cost.cpc / cost.benchmarkCpc;
+    parts.push(
+      `高い原因はクリック単価です(自社の相場 ${yen(cost.benchmarkCpc)} に対して ${ratio.toFixed(
+        1
+      )}倍)。` +
+        (cost.cpaIfCpcFixed !== undefined
+          ? `入札を相場まで戻せば、応募単価は ${yen(cost.cpaIfCpcFixed)} まで下がる計算です。`
+          : "") +
+        `原稿ではなく、入札額・キーワード・競合の見直しが先です。`
+    );
+
+    // 同じ費用でクリックがどれだけ増えるか → 応募が何件増えるか。
+    //
+    // ⚠ 相場まで一気に下げられる前提で計算すると、桁の違う数字が出る。
+    //    単価が高いのは競合が強いからのことが多く、相場まで戻せる保証はない。
+    //    そこで目標は「現在と相場の中間」に置き、そこまで下げられた場合の数字を出す。
+    if (metrics.cost !== undefined && metrics.cost > 0) {
+      const targetCpc = (cost.cpc + cost.benchmarkCpc) / 2;
+      const clicksNow = metrics.clicks;
+      const clicksIfFixed = metrics.cost / targetCpc;
+      const appliesGain = (clicksIfFixed - clicksNow) * cost.applyRate;
+      const perMonth = (appliesGain / Math.max(metrics.days, 1)) * 30;
+      if (perMonth >= 0.3) {
+        actions.push(
+          `まず狙う入札は ${yen(targetCpc)}(いまの ${yen(cost.cpc)} と相場 ${yen(
+            cost.benchmarkCpc
+          )} の中間)。` +
+            `予算を変えずにここまで下げられれば、同じ費用でクリックは ${Math.round(
+              clicksNow
+            )} → ${Math.round(clicksIfFixed)} 回、月の応募は約 ${perMonth.toFixed(
+              1
+            )} 件ぶん増える計算です。` +
+            `単価が高いのは競合が強いからのことも多いので、相場まで一気に下げられるとは限りません。まず中間を目標にしてください。`
+        );
+      }
+    }
+
+    actions.push(
+      `入札を 1 割下げて 2 週間置く。表示数と応募数が落ちなければ、もう 1 割下げる。` +
+        `落ちたら戻す。この往復で、この求人で通用する下限が分かります。`
+    );
+    actions.push(
+      `職種名「${job.jobCategory || job.name}」が競合の多い一般語になっていないか見る。` +
+        `検索されつつ競合が薄い言い方(勤務地・こだわり条件を含む形)に変えると、単価は下がります。`
+    );
+    if (job.prefecture) {
+      actions.push(
+        `勤務地の指定を「${job.prefecture}」全域のままにせず、市区町村まで絞る。` +
+          `通えない人へのクリックに払っている可能性があります。`
       );
-    } else if (cost.driver === "cpc") {
-      parts.push(
-        head +
-          `高い原因はクリック単価です(自社の相場 ${yen(cost.benchmarkCpc!)} に対して ${(
-            cost.cpc / cost.benchmarkCpc!
-          ).toFixed(1)}倍)。` +
-          (cost.cpaIfCpcFixed !== undefined
-            ? `入札を相場まで戻せば、応募単価は ${yen(cost.cpaIfCpcFixed)} まで下がる計算です。`
-            : "") +
-          `原稿ではなく、入札額・キーワード・競合の見直しが先です。`
+    }
+    // クライアントに出す数字は、達成できなかったときに信用を失う。
+    // 相場まで完全に戻した場合ではなく、中間まで下げた場合の数字で約束する。
+    const midCpa =
+      cost.applyRate > 0 ? (cost.cpc + cost.benchmarkCpc) / 2 / cost.applyRate : undefined;
+    clientNote =
+      `現在の応募単価 ${yen(cost.cpa)} は、同種求人の相場から見て割高です。` +
+      `原因は原稿ではなく入札にあるため、入札の調整で${
+        midCpa !== undefined ? ` ${yen(midCpa)} 前後まで` : "相場水準まで"
+      }下げられる見込みです。今月は入札の調整を行い、2 週間後に再評価します。`;
+  } else if (cost.driver === "applyRate") {
+    parts.push(
+      `高い原因は応募率の低さです。クリック単価は相場どおりなので、入札をいじっても単価は下がりません。` +
+        (cost.cpaIfApplyRateFixed !== undefined
+          ? `応募率を基準並みに戻せば、応募単価は ${yen(cost.cpaIfApplyRateFixed)} まで下がります。`
+          : "") +
+        `原稿(給与の見せ方・仕事内容・応募のしやすさ)を直すほうが効きます。`
+    );
+
+    actions.push(
+      `入札は触らない。ここを下げるとクリックが減り、応募はさらに減ります。`
+    );
+    if (benchmarkApplyRate > 0) {
+      const appliesIfFixed = metrics.clicks * benchmarkApplyRate;
+      const perMonth =
+        ((appliesIfFixed - metrics.applies) / Math.max(metrics.days, 1)) * 30;
+      if (perMonth >= 0.3) {
+        actions.push(
+          `応募率を ${(cost.applyRate * 100).toFixed(1)}% → ${(
+            benchmarkApplyRate * 100
+          ).toFixed(1)}%(同種求人の水準)に戻す。` +
+            `クリック数が今のままなら、月の応募は約 ${perMonth.toFixed(1)} 件ぶん増える計算です` +
+            `(他の条件が今のままという前提の単純計算です)。`
+        );
+      }
+    }
+    if (wageMarket && job.wage?.min !== undefined && job.wage.min < wageMarket.median) {
+      const diff = wageMarket.median - job.wage.min;
+      actions.push(
+        `${wageMarket.unit} ${job.wage.min.toLocaleString("ja-JP")}円 は、同種求人の中央値 ${wageMarket.median.toLocaleString(
+          "ja-JP"
+        )}円 より ${Math.round(diff).toLocaleString("ja-JP")}円 低い水準です。` +
+          `原稿を直しても応募率が戻らない場合、条件そのものが理由です。クライアントに ${wageMarket.median.toLocaleString(
+            "ja-JP"
+          )}円 への引き上げを、採用単価との比較で提案してください。`
       );
-    } else if (cost.driver === "applyRate") {
-      parts.push(
-        head +
-          `高い原因は応募率の低さです。クリック単価は相場どおりなので、入札をいじっても単価は下がりません。` +
-          (cost.cpaIfApplyRateFixed !== undefined
-            ? `応募率を基準並みに戻せば、応募単価は ${yen(cost.cpaIfApplyRateFixed)} まで下がります。`
-            : "") +
-          `原稿(給与の見せ方・仕事内容・応募のしやすさ)を直すほうが効きます。`
-      );
-    } else {
-      parts.push(
-        head +
-          `クリック単価が相場より高く、かつ応募率も低い状態です。` +
-          (cost.cpaIfCpcFixed !== undefined && cost.cpaIfApplyRateFixed !== undefined
-            ? `入札だけ直すと ${yen(cost.cpaIfCpcFixed)}、原稿だけ直すと ${yen(
-                cost.cpaIfApplyRateFixed
-              )}。効きが大きいほうから着手してください。`
-            : "") +
-          `両方直せば単価は大きく下がりますが、まず原稿を直してから入札を調整するほうが、無駄打ちが減ります。`
+    }
+    clientNote =
+      `クリック単価は適正です。応募単価が高いのは、求人を見た方が応募まで進んでいないためです。` +
+      `原稿を調整することで、応募単価は ${
+        cost.cpaIfApplyRateFixed !== undefined ? yen(cost.cpaIfApplyRateFixed) : "相場水準"
+      } 前後まで下げられる見込みです。掲載条件の変更ではなく原稿の改善から着手します。`;
+  } else if (cost.driver === "both") {
+    parts.push(
+      `クリック単価が相場より高く、かつ応募率も低い状態です。` +
+        (cost.cpaIfCpcFixed !== undefined && cost.cpaIfApplyRateFixed !== undefined
+          ? `入札だけ直すと ${yen(cost.cpaIfCpcFixed)}、原稿だけ直すと ${yen(
+              cost.cpaIfApplyRateFixed
+            )}。`
+          : "")
+    );
+    actions.push(
+      `原稿を先に直す。応募率が低いまま入札を上げ下げしても、増えたクリックが応募にならず費用だけ増えます。`
+    );
+    actions.push(
+      `原稿を直して 2 週間おき、応募率が戻ったのを確認してから入札を調整する。` +
+        `同時に動かすと、どちらが効いたのか分からなくなります。`
+    );
+    clientNote =
+      `応募単価 ${yen(cost.cpa)} は、原稿と入札の両方に原因があります。` +
+      `まず原稿を改善し、応募率が戻ったことを確認したうえで入札を調整します。` +
+      `順に進めることで、どの施策が効いたかを明確にします。`;
+  } else {
+    parts.push(
+      cost.benchmarkCpc !== undefined
+        ? `クリック単価も応募率も、自社の他求人と比べて極端ではありません。単価を下げたい場合は、まず応募数そのものを増やすほうが効きます。`
+        : `比較できる求人がまだ少ないため、高い安いの判断は保留です。費用の入った求人が 3 件たまると、相場との比較を出します。`
+    );
+    if (cost.benchmarkCpc !== undefined && monthlyApplies > 0) {
+      actions.push(
+        `単価は妥当なので、下げるより「同じ単価で量を増やす」ほうが早い局面です。` +
+          `日予算を上げれば、応募はおおむね比例して増えます(現在 月 ${monthlyApplies.toFixed(
+            1
+          )} 件)。`
       );
     }
   }
 
+  // --- 予算を使い切っているか ---
   if (budget?.capped && budget.dailyCost !== undefined) {
-    parts.push(
-      `日ごとの消化額が ${budget.dailyCost.toLocaleString("ja-JP")}円 前後でそろっています(${budget.days}日ぶん)。` +
-        `日予算の上限に張り付いている可能性が高い状態です。表示数が伸びない原因は原稿ではなく予算なので、` +
-        `原稿を直すより先に、日予算を上げるかクライアントに増額を提案するほうが応募は増えます。`
-    );
-  } else if (
-    metrics.costPerDay !== undefined &&
-    budget &&
-    budget.days >= 5 &&
-    !budget.capped
-  ) {
+    parts.push(budgetCappedText(budget.dailyCost, budget.days));
+    actions.push(...budgetActions(budget.dailyCost, metrics, benchmarkApplyRate));
+  } else if (metrics.costPerDay !== undefined && budget && budget.days >= 5) {
     parts.push(
       `日ごとの消化額は ${Math.round(metrics.costPerDay).toLocaleString("ja-JP")}円 前後で、日によってばらついています。` +
         `予算を使い切ってはいないので、表示数が足りない場合の原因は予算ではなく入札額かキーワードの側です。`
     );
   }
 
-  return parts.length > 0 ? parts.join("\n") : null;
+  return { text: parts.join(""), actions, clientNote };
+}
+
+function budgetCappedText(dailyCost: number, days: number): string {
+  return (
+    `日ごとの消化額が ${dailyCost.toLocaleString("ja-JP")}円 前後でそろっています(${days}日ぶん)。` +
+    `日予算の上限に張り付いている可能性が高い状態です。表示数が伸びない原因は原稿ではなく予算です。`
+  );
+}
+
+/** 予算を上げたときに応募が何件増えるかを、この求人の実数から出す */
+function budgetActions(
+  dailyCost: number,
+  metrics: JobDiagnosis["metrics"],
+  benchmarkApplyRate: number
+): string[] {
+  const out: string[] = [];
+  const monthlyApplies = metrics.appliesPerDay * 30;
+  const rate = metrics.applyRate > 0 ? metrics.applyRate : benchmarkApplyRate;
+
+  if (metrics.cpc !== undefined && metrics.cpc > 0 && rate > 0) {
+    // 予算 1.5 倍で、クリックも 1.5 倍になると仮定した場合
+    const extraDaily = dailyCost * 0.5;
+    const extraAppliesMonthly = ((extraDaily / metrics.cpc) * rate) * 30;
+    if (extraAppliesMonthly >= 0.3) {
+      out.push(
+        `日予算を ${dailyCost.toLocaleString("ja-JP")}円 → ${Math.round(
+          dailyCost * 1.5
+        ).toLocaleString("ja-JP")}円 に上げる。` +
+          `いまのクリック単価と応募率のままなら、月の応募は ${monthlyApplies.toFixed(
+            1
+          )} 件 → ${(monthlyApplies + extraAppliesMonthly).toFixed(1)} 件 になる計算です` +
+          `(増額分 月 ${Math.round(extraDaily * 30).toLocaleString("ja-JP")}円)。`
+      );
+    }
+  }
+  out.push(
+    `増額できない場合は、同じ予算のまま配信時間を絞る。求職者が動く夜〜深夜に寄せると、` +
+      `昼に使い切って夜に出ない状態を避けられます。`
+  );
+  return out;
 }
 
 export function buildInsight(
@@ -430,7 +580,14 @@ export function buildInsight(
   const company = buildCompanyNote(job, context.companyEffect ?? null, stage);
 
   // --- お金の見立て ---
-  const money = buildMoneyNote(context.cost, context.budget, m);
+  const money = buildMoneyNote(
+    job,
+    m,
+    apply.benchmark,
+    context.cost,
+    context.budget,
+    context.wageMarket
+  );
 
   // --- どうなるか ---
   //
@@ -494,7 +651,13 @@ export function buildInsight(
     reasoning,
     jobType ? `\n■ この職種ならではの見立て\n${jobType.text}` : "",
     company ? `\n■ この企業の傾向(蓄積データから)\n${company}` : "",
-    money ? `\n■ お金の見立て\n${money}` : "",
+    money
+      ? `\n■ お金の見立て\n${money.text}` +
+        (money.actions.length > 0
+          ? "\n" + money.actions.map((a) => `・${a}`).join("\n")
+          : "") +
+        (money.clientNote ? `\n【クライアントへの伝え方】\n${money.clientNote}` : "")
+      : "",
     plan.length > 0
       ? "\n■ やること\n" +
         plan

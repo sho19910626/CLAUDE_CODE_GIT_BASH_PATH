@@ -222,6 +222,7 @@ export default function QuickAnalyzer({ onGoPaste }: { onGoPaste?: () => void } 
         seasonCurve: analysis.season.curveForJob("quick"),
         cost: j.cost,
         budget: j.budget,
+        wageMarket: analysis.wageMarket.forJob(j.job),
       }),
       diagnosis: j.diagnosis,
     };
@@ -672,7 +673,24 @@ export default function QuickAnalyzer({ onGoPaste }: { onGoPaste?: () => void } 
                     <Block label="時期について">{result.insight.timing}</Block>
                   )}
                   {result.insight.money && (
-                    <Block label="お金の見立て">{result.insight.money}</Block>
+                    <Block label="お金の見立て">
+                      {result.insight.money.text}
+                      {result.insight.money.actions.length > 0 && (
+                        <ul className="idd-diffs">
+                          {result.insight.money.actions.map((a, i) => (
+                            <li key={i}>{a}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {result.insight.money.clientNote && (
+                        <div className="idd-client-note">
+                          <span className="idd-client-note-label">
+                            クライアントへの伝え方
+                          </span>
+                          {result.insight.money.clientNote}
+                        </div>
+                      )}
+                    </Block>
                   )}
 
                   {result.insight.plan.length > 0 && (
