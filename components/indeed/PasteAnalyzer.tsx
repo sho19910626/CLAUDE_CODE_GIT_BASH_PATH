@@ -272,6 +272,12 @@ export default function PasteAnalyzer({ onGoManual }: Props) {
           <strong>企業名・業種・職種・雇用形態・都道府県・時給</strong>の列があると、その単位で学習します。
           同じ求人・同じ日のデータを貼り直しても二重計上にはなりません。
         </p>
+        <p className="idd-note">
+          💡 Indeed の管理画面から落とした CSV は、<strong>そのまま貼り付けられます</strong>
+          （案件名・インプレッション数・コンバージョン数などの列名にも対応しています）。
+          <strong>利用金額</strong>か<strong>クリック単価</strong>の列があると、
+          「応募単価が高い原因はクリック単価か、応募率か」まで判定します。
+        </p>
         <div className="qa-actions">
           <button
             type="button"
@@ -586,6 +592,8 @@ function JobReport({
         rollups: allAnalysis.benchmarks.rollups,
         seasonCurve: allAnalysis.season.curveForJob(job.id),
         companyEffect: allAnalysis.benchmarks.companyEffect(job.company),
+        cost: analysis.cost,
+        budget: analysis.budget,
       }),
     [job, snapshots, diagnosis, recommendations, store.interventions, allAnalysis]
   );
@@ -647,6 +655,7 @@ function JobReport({
           </Block>
         )}
         {insight.timing && <Block label="時期について">{insight.timing}</Block>}
+        {insight.money && <Block label="お金の見立て">{insight.money}</Block>}
 
         {insight.plan.length > 0 && (
           <div className="idd-insight-actions">

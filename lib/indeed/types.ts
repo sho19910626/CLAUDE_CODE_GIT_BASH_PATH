@@ -239,8 +239,38 @@ export interface AggregatedMetrics {
   overallRate: number;
   impressionsPerDay: number;
   appliesPerDay: number;
+  /** 1 日あたりの費用。予算を使い切っているかの手がかりになる */
+  costPerDay?: number;
+  /** クリック単価。cost 未入力なら undefined */
+  cpc?: number;
   /** 応募単価。cost 未入力なら undefined */
   cpa?: number;
+}
+
+/**
+ * 応募単価の内訳。
+ *
+ * 応募単価 = クリック単価 ÷ 応募率 と分解できる。
+ * 「応募単価が高い」とき、原因がクリック側(入札・競合)なのか
+ * 応募側(原稿・応募フロー)なのかで打ち手がまったく違うため、
+ * どちらが効いているかを数字で切り分ける。
+ */
+export interface CostBreakdown {
+  cpa: number;
+  cpc: number;
+  applyRate: number;
+  /** 比較相手(同じ業種・職種・雇用形態の中央値)。データ不足なら undefined */
+  benchmarkCpc?: number;
+  benchmarkCpa?: number;
+  /** 主因。cpc = クリックが高い、applyRate = 応募率が低い、both、none */
+  driver: "cpc" | "applyRate" | "both" | "none";
+  /**
+   * クリック単価だけを相場に戻したときの応募単価。
+   * 「入札を直せばここまで下がる」の目安。
+   */
+  cpaIfCpcFixed?: number;
+  /** 応募率だけを相場に戻したときの応募単価 */
+  cpaIfApplyRateFixed?: number;
 }
 
 /** 段階ごとの判定 */

@@ -72,6 +72,8 @@ export function aggregate(snapshots: MetricSnapshot[]): AggregatedMetrics {
     overallRate: rate(applies, impressions),
     impressionsPerDay: impressions / days,
     appliesPerDay: applies / days,
+    costPerDay: hasCost ? cost / days : undefined,
+    cpc: hasCost && clicks > 0 ? cost / clicks : undefined,
     cpa: hasCost && applies > 0 ? cost / applies : undefined,
   };
 }

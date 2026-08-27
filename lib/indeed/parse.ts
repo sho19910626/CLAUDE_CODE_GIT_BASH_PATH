@@ -32,6 +32,11 @@ export interface ParsedRow {
   /** ファイルに入っていた CTR。計算値と 1 ポイント以上ずれたら警告する */
   reportedCtr?: number;
   reportedApplyRate?: number;
+  /** ファイルに入っていたクリック単価・応募単価(そのまま持つ) */
+  reportedCpc?: number;
+  reportedCpa?: number;
+  /** 費用を「クリック単価 × クリック数」から復元したか */
+  costDerived?: boolean;
   warnings: string[];
 }
 
@@ -44,12 +49,26 @@ export interface ParseResult {
 
 /** 列名の候補。左から順に部分一致で判定する */
 const COLUMN_ALIASES: Record<string, string[]> = {
-  jobName: ["求人名", "求人タイトル", "job title", "jobtitle", "タイトル", "求人"],
+  // Indeed の管理画面から落とした CSV をそのまま貼れるように、
+  // 実際の出力列名(案件名・コンバージョン数・利用金額…)も受け付ける。
+  // 手作りのスプレッドシートで使われがちな言い方も残してある。
+  jobName: ["求人名", "案件名", "求人タイトル", "job title", "jobtitle", "タイトル", "求人"],
   company: ["会社名", "企業名", "クライアント", "company"],
-  impressions: ["表示数", "インプレッション", "impression", "表示回数", "表示"],
+  impressions: [
+    "表示数", "インプレッション数", "インプレッション", "impression", "表示回数", "表示",
+  ],
   clicks: ["クリック数", "クリック", "click"],
-  applies: ["応募数", "応募開始数", "応募者数", "apply", "application", "応募"],
-  cost: ["費用", "広告費", "消化金額", "cost", "spend", "予算消化"],
+  applies: [
+    "応募数", "応募開始数", "応募者数", "コンバージョン数", "cv数", "conversion",
+    "apply", "application", "応募",
+  ],
+  cost: [
+    "利用金額", "利用額", "費用", "広告費", "消化金額", "cost", "spend", "予算消化", "金額",
+  ],
+  /** クリック単価。利用金額が無いときは、これ × クリック数 で費用を復元する */
+  cpc: ["クリック単価", "平均クリック単価", "cpc"],
+  /** 応募単価。読み取った費用との食い違いを警告に出すために使う */
+  cpa: ["コンバージョン単価", "応募単価", "cpa"],
   // 毎日 1 行ずつ記録するスプレッドシートを想定し、単一の日付列を最優先で見る
   date: ["日付", "date", "年月日", "計測日", "対象日"],
   periodStart: ["開始日", "期間開始", "from", "集計開始"],
@@ -292,6 +311,33 @@ export function parseMetricsTable(text: string): ParseResult {
       );
     }
 
+    // 費用の決め方:
+    //   1) 「利用金額」列があればそれを使う
+    //   2) 無くても「クリック単価」があれば、単価 × クリック数 で復元する
+    //      (Indeed の出力は単価だけで金額列が無い切り口があるため)
+    const reportedCpc = toNumber(cell(cols, "cpc"));
+    const reportedCpa = toNumber(cell(cols, "cpa"));
+    let cost = toNumber(cell(cols, "cost"));
+    let costDerived = false;
+    if (cost === undefined && reportedCpc !== undefined && clicks > 0) {
+      cost = Math.round(reportedCpc * clicks);
+      costDerived = true;
+    }
+
+    // 復元・読み取った費用が、ファイルの応募単価と食い違っていないか確かめる。
+    // 列の対応を取り違えたまま取り込むと、以降の判断がすべてずれるため。
+    if (cost !== undefined && reportedCpa !== undefined && applies > 0) {
+      const calcCpa = cost / applies;
+      const gap = Math.abs(calcCpa - reportedCpa) / Math.max(reportedCpa, 1);
+      if (gap > 0.05) {
+        warnings.push(
+          `ファイルの応募単価(${Math.round(reportedCpa)}円)と、費用÷応募数(${Math.round(
+            calcCpa
+          )}円)が合いません。列の対応を確認してください。`
+        );
+      }
+    }
+
     rows.push({
       rowNumber: li,
       jobName,
@@ -299,7 +345,10 @@ export function parseMetricsTable(text: string): ParseResult {
       impressions,
       clicks,
       applies,
-      cost: toNumber(cell(cols, "cost")),
+      cost,
+      costDerived: costDerived || undefined,
+      reportedCpc,
+      reportedCpa,
       periodStart,
       periodEnd,
       industry: matchIndustry(cell(cols, "industry")),

@@ -17,6 +17,7 @@ import type { JobAnalysis } from "./recommend";
 import { MONTH_NOTE } from "./season";
 import { analyzeTrend, type TrendAnalysis } from "./trend";
 import type {
+  CostBreakdown,
   FunnelStage,
   Intervention,
   JobDiagnosis,
@@ -83,6 +84,8 @@ export interface Insight {
   jobType: { label: string | null; text: string } | null;
   /** 企業ごとの傾向(蓄積データから学習したもの) */
   company: string | null;
+  /** お金の見立て。応募単価の内訳と、予算を使い切っているか */
+  money: string | null;
   /** そのままコピーして使える通しの文章 */
   text: string;
 }
@@ -137,6 +140,99 @@ export interface InsightContext {
   seasonCurve?: number[];
   /** 企業ごとの傾向。蓄積データから学習したもの */
   companyEffect?: CompanyEffect | null;
+  /** 応募単価の内訳。費用が入っているときだけ */
+  cost?: CostBreakdown;
+  /** 日予算を使い切っているか */
+  budget?: { capped: boolean; dailyCost?: number; days: number };
+}
+
+
+/**
+ * お金の見立てを文章にする。
+ *
+ * 応募単価 = クリック単価 ÷ 応募率 なので、単価が高いときは
+ * 「クリックが高い」か「応募率が低い」かのどちらか(または両方)。
+ * この 2 つは打ち手がまったく違う。
+ *   クリックが高い → 入札・キーワード・競合(管理画面の話)
+ *   応募率が低い   → 原稿と応募フロー(原稿の話)
+ * 取り違えると、原稿をいくら直しても単価は下がらない。
+ *
+ * 「片方だけ直したらいくらになるか」を並べて、どちらが効くかを数字で見せる。
+ */
+function buildMoneyNote(
+  cost: CostBreakdown | undefined,
+  budget: { capped: boolean; dailyCost?: number; days: number } | undefined,
+  metrics: JobDiagnosis["metrics"]
+): string | null {
+  const parts: string[] = [];
+
+  if (cost && Number.isFinite(cost.cpa)) {
+    const yen = (n: number) => `${Math.round(n).toLocaleString("ja-JP")}円`;
+    const head =
+      `応募単価は ${yen(cost.cpa)}(クリック単価 ${yen(cost.cpc)} ÷ 応募率 ${(
+        cost.applyRate * 100
+      ).toFixed(1)}%)。`;
+
+    if (cost.driver === "none") {
+      parts.push(
+        head +
+          (cost.benchmarkCpc !== undefined
+            ? `クリック単価も応募率も、自社の他求人と比べて極端ではありません。単価を下げたい場合は、まず応募数そのものを増やすほうが効きます。`
+            : `比較できる求人がまだ少ないため、高い安いの判断は保留です。`)
+      );
+    } else if (cost.driver === "cpc") {
+      parts.push(
+        head +
+          `高い原因はクリック単価です(自社の相場 ${yen(cost.benchmarkCpc!)} に対して ${(
+            cost.cpc / cost.benchmarkCpc!
+          ).toFixed(1)}倍)。` +
+          (cost.cpaIfCpcFixed !== undefined
+            ? `入札を相場まで戻せば、応募単価は ${yen(cost.cpaIfCpcFixed)} まで下がる計算です。`
+            : "") +
+          `原稿ではなく、入札額・キーワード・競合の見直しが先です。`
+      );
+    } else if (cost.driver === "applyRate") {
+      parts.push(
+        head +
+          `高い原因は応募率の低さです。クリック単価は相場どおりなので、入札をいじっても単価は下がりません。` +
+          (cost.cpaIfApplyRateFixed !== undefined
+            ? `応募率を基準並みに戻せば、応募単価は ${yen(cost.cpaIfApplyRateFixed)} まで下がります。`
+            : "") +
+          `原稿(給与の見せ方・仕事内容・応募のしやすさ)を直すほうが効きます。`
+      );
+    } else {
+      parts.push(
+        head +
+          `クリック単価が相場より高く、かつ応募率も低い状態です。` +
+          (cost.cpaIfCpcFixed !== undefined && cost.cpaIfApplyRateFixed !== undefined
+            ? `入札だけ直すと ${yen(cost.cpaIfCpcFixed)}、原稿だけ直すと ${yen(
+                cost.cpaIfApplyRateFixed
+              )}。効きが大きいほうから着手してください。`
+            : "") +
+          `両方直せば単価は大きく下がりますが、まず原稿を直してから入札を調整するほうが、無駄打ちが減ります。`
+      );
+    }
+  }
+
+  if (budget?.capped && budget.dailyCost !== undefined) {
+    parts.push(
+      `日ごとの消化額が ${budget.dailyCost.toLocaleString("ja-JP")}円 前後でそろっています(${budget.days}日ぶん)。` +
+        `日予算の上限に張り付いている可能性が高い状態です。表示数が伸びない原因は原稿ではなく予算なので、` +
+        `原稿を直すより先に、日予算を上げるかクライアントに増額を提案するほうが応募は増えます。`
+    );
+  } else if (
+    metrics.costPerDay !== undefined &&
+    budget &&
+    budget.days >= 5 &&
+    !budget.capped
+  ) {
+    parts.push(
+      `日ごとの消化額は ${Math.round(metrics.costPerDay).toLocaleString("ja-JP")}円 前後で、日によってばらついています。` +
+        `予算を使い切ってはいないので、表示数が足りない場合の原因は予算ではなく入札額かキーワードの側です。`
+    );
+  }
+
+  return parts.length > 0 ? parts.join("\n") : null;
 }
 
 export function buildInsight(
@@ -333,6 +429,9 @@ export function buildInsight(
   // ===== 企業ごとの傾向 =====
   const company = buildCompanyNote(job, context.companyEffect ?? null, stage);
 
+  // --- お金の見立て ---
+  const money = buildMoneyNote(context.cost, context.budget, m);
+
   // --- どうなるか ---
   //
   // 大きく下回っている求人に「上位25%まで行けます」とだけ伝えるのは過大な期待になる。
@@ -395,6 +494,7 @@ export function buildInsight(
     reasoning,
     jobType ? `\n■ この職種ならではの見立て\n${jobType.text}` : "",
     company ? `\n■ この企業の傾向(蓄積データから)\n${company}` : "",
+    money ? `\n■ お金の見立て\n${money}` : "",
     plan.length > 0
       ? "\n■ やること\n" +
         plan
@@ -432,6 +532,7 @@ export function buildInsight(
     timing,
     jobType,
     company,
+    money,
     text,
   };
 }

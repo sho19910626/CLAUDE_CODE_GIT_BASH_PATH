@@ -47,6 +47,8 @@ export interface ActionContext {
   wageMarket?: WageMarket;
   /** 掲載開始からの経過日数 */
   daysSincePosted?: number;
+  /** クリック単価の相場(自社の同じ業種・職種の実績から) */
+  costMarket?: { medianCpc: number; label: string; jobCount: number };
 }
 
 export interface ActionMatch {
@@ -105,6 +107,36 @@ const IMPRESSION_ACTIONS: PlaybookAction[] = [
             evidence: `無料掲載のまま、1 日あたり表示数は ${c.stage.impressions.value.toFixed(0)} 回(同セグメント基準 ${c.stage.impressions.benchmark.toFixed(0)} 回)。`,
           }
         : null,
+  },
+  {
+    id: "imp-cpc-high",
+    stage: "impressions",
+    title: "クリック単価が高い。入札とキーワードを見直す",
+    why:
+      "同じ費用でも、クリック単価が高いと集められるクリック数が減り、そのぶん応募も減ります。単価が相場より高いのは、競合の多いキーワードで戦っているか、入札を上げすぎているかのどちらかです。原稿を直しても単価は下がりません。",
+    how: [
+      "職種名を、応募してほしい人が実際に検索する言葉に変える(競合の多い一般語を避ける)",
+      "勤務地の指定を市区町村まで絞り、無関係なエリアへの露出を止める",
+      "入札を 1 割下げて 2 週間、表示数と応募数がどう動くか測る",
+      "それでも高いままなら、同エリア同職種の競合が強い可能性が高い。予算を他の求人へ回すことも検討する",
+    ],
+    seedLift: 0.5,
+    effort: 1,
+    // 表示数の伸びしろとは別軸のため、段階の上限で頭打ちにしない。
+    // 同じ予算でもクリック単価が下がればクリックは増える(表示が増えなくても効く)。
+    ignoreStageGate: true,
+    when: (c) => {
+      const cpc = c.metrics.cpc;
+      const market = c.costMarket;
+      if (cpc === undefined || !market || market.medianCpc <= 0) return null;
+      const ratio = cpc / market.medianCpc;
+      if (ratio < 1.2) return null;
+      return {
+        evidence: `クリック単価 ${Math.round(cpc)}円 は、${market.label}の相場 ${Math.round(
+          market.medianCpc
+        )}円(${market.jobCount}件)の ${ratio.toFixed(1)} 倍です。`,
+      };
+    },
   },
   {
     id: "imp-budget-up",
@@ -755,6 +787,7 @@ export function actionById(id: string): PlaybookAction | undefined {
 const SHORT_LABEL: Record<string, string> = {
   "imp-sponsor-start": "スポンサー掲載に切り替える",
   "imp-budget-up": "日予算・入札を上げる",
+  "imp-cpc-high": "入札とキーワードを見直す",
   "imp-title-keyword": "タイトルの職種名を検索される言葉にする",
   "imp-title-location": "タイトルに市区町村を入れる",
   "imp-refresh": "原稿を更新して鮮度を戻す",

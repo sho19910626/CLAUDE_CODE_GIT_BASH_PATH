@@ -21,6 +21,7 @@ import { buildSeasonIndex, type SeasonIndex } from "./season";
 import { employmentDef, employmentLabel, industryDef } from "./seed";
 import { percentile } from "./stats";
 import type {
+  CostBreakdown,
   FunnelStage,
   IndeedStore,
   JobDiagnosis,
@@ -29,6 +30,7 @@ import type {
   Recommendation,
   StageDiagnosis,
 } from "./types";
+import { breakdownCost, buildCostIndex, looksBudgetCapped, type CostIndex } from "./cost";
 
 /** 提案対象にする最低の伸びしろ(月間応募の増加見込み) */
 const MIN_STAGE_GAIN = 0.3;
@@ -143,7 +145,8 @@ export function buildRecommendations(
   job: JobRecord,
   diagnosis: JobDiagnosis,
   effects: EffectIndex,
-  wageMarket: WageMarket | undefined
+  wageMarket: WageMarket | undefined,
+  costMarket?: { medianCpc: number; label: string; jobCount: number }
 ): Recommendation[] {
   const stage = Object.fromEntries(
     diagnosis.stages.map((s) => [s.stage, s])
@@ -157,6 +160,7 @@ export function buildRecommendations(
     stage,
     industry: industryDef(job.industry),
     employment: employmentDef(job.employmentType),
+    costMarket,
     title: copy.title
       ? analyzeTitle(
           copy.title,
@@ -230,10 +234,16 @@ export interface JobAnalysis {
   snapshots: MetricSnapshot[];
   diagnosis: JobDiagnosis;
   recommendations: Recommendation[];
+  /** 応募単価の内訳。費用が入っていない求人では undefined */
+  cost?: CostBreakdown;
+  /** 日予算を使い切っているか */
+  budget?: { capped: boolean; dailyCost?: number; days: number };
 }
 
 export interface StoreAnalysis {
   benchmarks: BenchmarkIndex;
+  /** 単価の相場(自社の実績から作る) */
+  costIndex: CostIndex;
   effects: EffectIndex;
   wageMarket: WageMarketIndex;
   /** 季節指数。診断のベンチマーク補正と、推移の季節調整に使う */
@@ -264,6 +274,7 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
     measureAll(activeJobs, store.snapshots, store.interventions)
   );
   const wageMarket = buildWageMarket(activeJobs);
+  const costIndex = buildCostIndex(activeJobs, store.snapshots);
   const season = buildSeasonIndex(
     store.snapshots,
     new Map(activeJobs.map((j) => [j.id, j.industry])),
@@ -287,13 +298,34 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
       benchmarks.forJob(job),
       season.curveForJob(job.id)
     );
+    const market = costIndex.forJob(job);
     const recommendations = buildRecommendations(
       job,
       diagnosis,
       effects,
-      wageMarket.forJob(job)
+      wageMarket.forJob(job),
+      market ?? undefined
     );
-    return { job, snapshots, diagnosis, recommendations };
+    // お金の内訳。費用が入っていない求人では出さない
+    const cpc = diagnosis.metrics.cpc;
+    const cost =
+      cpc !== undefined
+        ? breakdownCost(
+            cpc,
+            diagnosis.metrics.applyRate,
+            market?.medianCpc,
+            diagnosis.benchmark.applyRate.center
+          )
+        : undefined;
+
+    return {
+      job,
+      snapshots,
+      diagnosis,
+      recommendations,
+      cost,
+      budget: looksBudgetCapped(snapshots),
+    };
   });
 
   const totalsSource = aggregate(store.snapshots);
@@ -301,6 +333,7 @@ export function analyzeStore(store: IndeedStore): StoreAnalysis {
 
   return {
     benchmarks,
+    costIndex,
     effects,
     wageMarket,
     season,

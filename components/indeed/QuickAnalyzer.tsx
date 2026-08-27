@@ -220,6 +220,8 @@ export default function QuickAnalyzer({ onGoPaste }: { onGoPaste?: () => void } 
       insight: buildInsight(j.job, j.diagnosis, j.recommendations, {
         snapshots: j.snapshots,
         seasonCurve: analysis.season.curveForJob("quick"),
+        cost: j.cost,
+        budget: j.budget,
       }),
       diagnosis: j.diagnosis,
     };
@@ -668,6 +670,9 @@ export default function QuickAnalyzer({ onGoPaste }: { onGoPaste?: () => void } 
                   )}
                   {result.insight.timing && (
                     <Block label="時期について">{result.insight.timing}</Block>
+                  )}
+                  {result.insight.money && (
+                    <Block label="お金の見立て">{result.insight.money}</Block>
                   )}
 
                   {result.insight.plan.length > 0 && (
