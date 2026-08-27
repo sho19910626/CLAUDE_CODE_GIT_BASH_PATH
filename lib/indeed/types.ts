@@ -284,6 +284,8 @@ export interface MoneyNote {
   text: string;
   /** この求人で具体的にやること(数字入り) */
   actions: string[];
+  /** 職種名の言い換え案。長いので箇条書きとは分けて表示する */
+  titleIdeas: { title: string; reason: string }[];
   /** クライアントへの伝え方。報告書にそのまま貼れる一文 */
   clientNote: string | null;
 }

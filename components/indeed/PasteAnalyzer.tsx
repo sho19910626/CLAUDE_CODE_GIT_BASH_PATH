@@ -666,6 +666,20 @@ function JobReport({
                 ))}
               </ul>
             )}
+            {insight.money.titleIdeas.length > 0 && (
+              <div className="idd-title-ideas">
+                <span className="idd-title-ideas-label">職種名の案</span>
+                {insight.money.titleIdeas.map((t, i) => (
+                  <div key={i} className="idd-title-idea">
+                    <strong>「{t.title}」</strong>
+                    <span>{t.reason}</span>
+                  </div>
+                ))}
+                <p className="idd-title-ideas-note">
+                  ※ 実態に当てはまる言葉だけを使ってください。違う言葉で集めても応募にはなりません。
+                </p>
+              </div>
+            )}
             {insight.money.clientNote && (
               <div className="idd-client-note">
                 <span className="idd-client-note-label">クライアントへの伝え方</span>

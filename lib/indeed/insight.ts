@@ -10,7 +10,7 @@
 
 import type { CompanyEffect, JobRollup } from "./benchmark";
 import { jobHeadroom } from "./diagnose";
-import { buildJobTypeInsight, type JobTypeInsight } from "./jobtype";
+import { suggestJobTitles, buildJobTypeInsight, type JobTypeInsight } from "./jobtype";
 import { comparePeers, type PeerComparison } from "./peers";
 import { actionShort, type WageMarket } from "./playbook";
 import type { JobAnalysis } from "./recommend";
@@ -176,6 +176,7 @@ function buildMoneyNote(
     return {
       text: budgetCappedText(budget.dailyCost, budget.days),
       actions: budgetActions(budget.dailyCost, metrics, benchmarkApplyRate),
+      titleIdeas: [],
       clientNote: null,
     };
   }
@@ -184,6 +185,7 @@ function buildMoneyNote(
   const monthlyApplies = metrics.appliesPerDay * 30;
   const parts: string[] = [];
   const actions: string[] = [];
+  let titleIdeas: { title: string; reason: string }[] = [];
   let clientNote: string | null = null;
 
   parts.push(
@@ -234,13 +236,19 @@ function buildMoneyNote(
       `入札を 1 割下げて 2 週間置く。表示数と応募数が落ちなければ、もう 1 割下げる。` +
         `落ちたら戻す。この往復で、この求人で通用する下限が分かります。`
     );
-    actions.push(
-      `職種名「${job.jobCategory || job.name}」が競合の多い一般語になっていないか見る。` +
-        `検索されつつ競合が薄い言い方(勤務地・こだわり条件を含む形)に変えると、単価は下がります。`
-    );
+    // 職種名は検索語との突き合わせに使われるので、単価に直接効く。
+    // 「見直してください」で終わらせず、この求人の実データから案を組み立てる。
+    titleIdeas = suggestJobTitles(job);
+    if (titleIdeas.length > 0) {
+      actions.push(
+        `職種名「${job.jobCategory || job.name}」を具体化する。` +
+          `一般語のままだと、同じエリアの同職種すべてと同じ枠で競るので単価が上がります。` +
+          `検索される回数は減りますが競合も減るぶん、単価は下がります(案は下に並べています)。`
+      );
+    }
     if (job.prefecture) {
       actions.push(
-        `勤務地の指定を「${job.prefecture}」全域のままにせず、市区町村まで絞る。` +
+        `配信先の勤務地設定も「${job.prefecture}」全域のままにせず、市区町村まで絞る。` +
           `通えない人へのクリックに払っている可能性があります。`
       );
     }
@@ -342,7 +350,7 @@ function buildMoneyNote(
     );
   }
 
-  return { text: parts.join(""), actions, clientNote };
+  return { text: parts.join(""), actions, titleIdeas, clientNote };
 }
 
 function budgetCappedText(dailyCost: number, days: number): string {
@@ -655,6 +663,13 @@ export function buildInsight(
       ? `\n■ お金の見立て\n${money.text}` +
         (money.actions.length > 0
           ? "\n" + money.actions.map((a) => `・${a}`).join("\n")
+          : "") +
+        (money.titleIdeas.length > 0
+          ? "\n【職種名の案】\n" +
+            money.titleIdeas
+              .map((t) => `　「${t.title}」\n　　${t.reason}`)
+              .join("\n") +
+            "\n　※ 実態に当てはまる言葉だけを使ってください。違う言葉で集めても応募にはなりません。"
           : "") +
         (money.clientNote ? `\n【クライアントへの伝え方】\n${money.clientNote}` : "")
       : "",

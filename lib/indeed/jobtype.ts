@@ -22,6 +22,20 @@ export interface JobTypeProfile {
   byStage: Partial<Record<FunnelStage, string>>;
   /** 応募判断を分ける項目。原稿に無ければ書き足す対象になる */
   decisive: string[];
+  /**
+   * 職種名を具体化するときに使える語。
+   *
+   * Indeed の職種名は検索語との突き合わせに使われる。
+   * 「フォークリフト」のような一般語だけだと同エリアの同職種すべてと
+   * 同じ枠で競るのでクリック単価が上がる。機種・工程・勤務形態を足すと
+   * 検索される回数は減るが競合も減り、単価が下がる。
+   *
+   *   specifics  … 仕事そのものを具体化する言い方(機種・工程・区分)
+   *   conditions … 条件で絞る言い方(勤務形態・待遇)
+   *
+   * ⚠ 実態に当てはまるものだけを使う。違う言葉で集めても応募にならない。
+   */
+  titleAngles?: { specifics: string[]; conditions: string[] };
   /** 法令・表記でこの職種特有の注意 */
   caution?: string;
 }
@@ -52,6 +66,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "身バレ対策(写真・SNS)",
       "私服可否・髪型ネイル",
     ],
+    titleAngles: {
+      specifics: ["フロアスタッフ", "ホールスタッフ", "受付", "バーテンダー"],
+      conditions: ["体験入店可", "日払い", "ノルマなし", "送りあり", "私服OK"],
+    },
     caution:
       "この職種は 18 歳未満(および高校生)を雇用できないため、「18歳以上(高校生不可)」の記載は法令上むしろ必要です。一方で、それ以外の年齢の上限を示す表現(「20代まで」など)や、容姿・体型を条件にする表現は書けません。「20〜50代活躍中」のような在籍層の記述に置き換えてください",
   },
@@ -74,6 +92,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "資格取得支援の有無",
       "倉庫の温度環境(冷蔵・常温)",
     ],
+    titleAngles: {
+      specifics: ["リーチ", "カウンター", "倉庫内", "入出荷", "ピッキング兼務"],
+      conditions: ["日勤のみ", "土日休み", "資格取得支援", "免許なしOK", "夜勤専属"],
+    },
   },
   {
     id: "driver",
@@ -94,6 +116,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "始業・終業時刻と拘束時間",
       "1日の配送件数",
     ],
+    titleAngles: {
+      specifics: ["2t", "4t", "大型", "軽貨物", "ルート配送", "地場", "長距離"],
+      conditions: ["日勤のみ", "土日休み", "積み下ろしなし", "免許取得支援", "直行直帰"],
+    },
   },
   {
     id: "nursing",
@@ -115,6 +141,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "資格取得支援",
       "残業の実態",
     ],
+    titleAngles: {
+      specifics: ["特養", "デイサービス", "訪問介護", "グループホーム", "サ高住"],
+      conditions: ["夜勤なし", "無資格OK", "資格取得支援", "週2日〜", "日勤のみ"],
+    },
   },
   {
     id: "medical",
@@ -136,6 +166,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "ブランク可か",
       "教育体制",
     ],
+    titleAngles: {
+      specifics: ["外来", "病棟", "訪問看護", "透析", "オペ室"],
+      conditions: ["夜勤なし", "オンコールなし", "日勤のみ", "託児所あり", "週3日〜"],
+    },
   },
   {
     id: "childcare",
@@ -154,6 +188,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "行事準備の扱い",
       "書類作業の量",
     ],
+    titleAngles: {
+      specifics: ["認可保育園", "小規模保育", "企業内保育", "学童"],
+      conditions: ["持ち帰りなし", "残業なし", "担任なし", "パート可", "週3日〜"],
+    },
   },
   {
     id: "foodservice",
@@ -174,6 +212,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "髪色・ピアス・ネイルの可否",
       "深夜手当",
     ],
+    titleAngles: {
+      specifics: ["ホール", "キッチン", "居酒屋", "カフェ", "洗い場"],
+      conditions: ["週1日〜", "1日3h〜", "まかないあり", "髪型自由", "深夜手当"],
+    },
   },
   {
     id: "callcenter",
@@ -192,6 +234,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "服装規定",
       "在宅可否",
     ],
+    titleAngles: {
+      specifics: ["受信のみ", "発信", "カスタマーサポート", "テレアポ", "事務センター"],
+      conditions: ["ノルマなし", "在宅可", "研修あり", "服装自由", "土日休み"],
+    },
   },
   {
     id: "lightwork",
@@ -210,6 +256,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       "送迎・車通勤・駐車場",
       "シフトの自由度",
     ],
+    titleAngles: {
+      specifics: ["ピッキング", "検品", "仕分け", "梱包", "シール貼り"],
+      conditions: ["座り作業", "空調完備", "送迎あり", "1日4h〜", "週払い"],
+    },
   },
   {
     id: "cleaning",
@@ -222,6 +272,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "詳細で止まるのは、担当範囲の広さ・体力的な負担・シニアの在籍状況が読めないためです。「60代も活躍中」のような在籍層の記述は、この職種では応募の後押しになります",
     },
     decisive: ["勤務時間帯と実働時間", "担当範囲", "体力的な負担", "在籍している年代", "直行直帰の可否"],
+    titleAngles: {
+      specifics: ["ビル清掃", "客室清掃", "施設清掃", "現場清掃", "日常清掃"],
+      conditions: ["早朝のみ", "短時間", "週2日〜", "シニア歓迎", "車通勤可"],
+    },
   },
   {
     id: "security",
@@ -234,6 +288,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "法定研修(20時間)の期間中に給与が出るかどうかは必ず気にされます。出るなら明記してください。立ち仕事の時間、休憩の取り方、制服貸与の有無も書き足す価値があります",
     },
     decisive: ["勤務形態(日勤/夜勤/隔日)", "法定研修中の給与", "立ち時間と休憩", "制服貸与", "資格取得支援"],
+    titleAngles: {
+      specifics: ["施設警備", "交通誘導", "常駐警備", "巡回警備"],
+      conditions: ["日勤のみ", "隔日勤務", "夜勤専属", "研修中も給与あり", "週2日〜"],
+    },
   },
   {
     id: "construction",
@@ -246,6 +304,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "現場のエリア範囲、道具の支給、資格取得支援、社会保険の加入。この4つが書かれていないと、経験者ほど応募を保留します。未経験可なら、何年目でどこまでできるようになるかの道筋を書いてください",
     },
     decisive: ["日給と月の稼働日数", "現場のエリア", "直行直帰", "道具の支給", "資格取得支援", "社会保険"],
+    titleAngles: {
+      specifics: ["内装", "電気工事", "とび", "解体", "設備"],
+      conditions: ["日給保証", "直行直帰", "道具支給", "未経験可", "寮あり"],
+    },
   },
   {
     id: "office",
@@ -258,6 +320,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "使用するソフト(Excelのどのレベルまで)、電話対応の量、繁忙期の残業。この3つが書いていないと、経験者は自分に合うか判断できず離脱します。応募が集まりすぎている場合は、要件を明確にして母集団の質を上げるほうに寄せてください",
     },
     decisive: ["使用ソフトとレベル", "電話対応の量", "残業の実態", "服装規定", "在宅可否"],
+    titleAngles: {
+      specifics: ["一般事務", "営業事務", "経理事務", "データ入力", "受付"],
+      conditions: ["残業なし", "土日祝休み", "在宅可", "服装自由", "扶養内可"],
+    },
   },
   {
     id: "sales",
@@ -270,6 +336,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "ノルマの実態、移動手段(社用車の有無)、みなし残業の内訳。ここが書かれていないと、経験者は警戒します。固定給の額を明示せずインセンティブだけを強調する求人は、応募率が下がります",
     },
     decisive: ["インセンティブの実額", "既存 / 新規の比率", "ノルマの実態", "社用車の有無", "みなし残業の内訳"],
+    titleAngles: {
+      specifics: ["ルート営業", "反響営業", "法人営業", "個人営業"],
+      conditions: ["ノルマなし", "既存中心", "社用車あり", "土日休み", "未経験可"],
+    },
   },
   {
     id: "retail",
@@ -282,6 +352,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "ノルマ(個人売上)の有無、シフトの提出サイクル、繁忙期の扱い。この3つが書かれていないと、経験者ほど慎重になります",
     },
     decisive: ["土日出勤の要否", "個人ノルマの有無", "シフトの自由度", "社割", "髪色・ネイル"],
+    titleAngles: {
+      specifics: ["アパレル販売", "食品販売", "レジ", "コスメ販売", "品出し"],
+      conditions: ["シフト自由", "社割あり", "週2日〜", "土日どちらか休み", "扶養内可"],
+    },
   },
   {
     id: "beauty",
@@ -294,6 +368,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "練習時間が勤務時間内か時間外か、営業後の練習の扱い、休日数、客単価。ここが書かれていないと、経験者は応募しません。ブランクからの復帰を受け入れるかも書く価値があります",
     },
     decisive: ["指名歩合の率", "デビューまでの年数", "練習時間の扱い", "休日数", "客単価"],
+    titleAngles: {
+      specifics: ["スタイリスト", "アシスタント", "アイリスト", "ネイリスト"],
+      conditions: ["時短可", "土日休み", "練習は時間内", "面貸し", "ブランクOK"],
+    },
   },
   {
     id: "it",
@@ -306,6 +384,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "自社開発か受託か客先常駐か、これが書かれていないと経験者は応募しません。技術スタック、チーム規模、裁量の範囲まで書いた求人が選ばれます",
     },
     decisive: ["使用技術", "自社 / 受託 / 常駐の別", "リモート可否", "チーム規模", "年収レンジ"],
+    titleAngles: {
+      specifics: ["フロントエンド", "バックエンド", "インフラ", "社内SE", "テスター"],
+      conditions: ["フルリモート", "自社開発", "副業可", "フレックス", "未経験可"],
+    },
   },
   {
     id: "manufacturing",
@@ -318,6 +400,10 @@ export const JOB_TYPE_PROFILES: JobTypeProfile[] = [
       apply: "クリーンルームか否か、立ち仕事の時間、扱う機械、寮・社宅の有無と費用。この4つが書かれていないと応募されません。寮完備は遠方からの応募を呼べる強い条件なので、あるなら必ず書いてください",
     },
     decisive: ["交替勤務のパターン", "手当込みの月収", "作業環境(クリーンルーム等)", "寮・社宅と費用", "資格取得支援"],
+    titleAngles: {
+      specifics: ["マシンオペレーター", "組立", "検査", "溶接", "塗装"],
+      conditions: ["2交替", "3交替", "寮完備", "日勤のみ", "土日休み"],
+    },
   },
 ];
 
@@ -467,4 +553,83 @@ export function buildJobTypeInsight(
     text: parts.join(" "),
     missing,
   };
+}
+
+// ===== 職種名の言い換え =====
+
+/**
+ * 求人名から市区町村を取り出す。
+ *
+ * 「【小牧市】フォークリフト」「小牧市/リフト」のような書き方を拾う。
+ * 見つからなければ null(都道府県で代用する)。
+ */
+export function extractCity(text: string): string | null {
+  const m = text.match(/([一-龥ぁ-んァ-ヶー]{1,8}?[市区町村])/);
+  return m ? m[1] : null;
+}
+
+export interface TitleSuggestion {
+  /** そのまま職種名欄に入れられる案 */
+  title: string;
+  /** なぜ競合が減るのか */
+  reason: string;
+}
+
+/**
+ * 職種名の言い換え案を、この求人の実データから組み立てる。
+ *
+ * Indeed の職種名は検索語との突き合わせに使われるので、
+ * 一般語だけだと同エリアの同職種すべてと同じ枠で競り、クリック単価が上がる。
+ * 地名・機種・条件を足すと検索母数は減るが競合も減り、単価が下がる。
+ *
+ * ⚠ ここで出すのは「型」であって事実ではない。
+ *    実態に当てはまらない言葉を使うと、集めても応募にならないので、
+ *    文言にもその注意を必ず添える。
+ */
+export function suggestJobTitles(job: JobRecord): TitleSuggestion[] {
+  const profile = matchJobType(job);
+  const base = (job.jobCategory || job.name).trim();
+  const place = extractCity(job.name) ?? extractCity(job.jobCategory ?? "") ?? job.prefecture;
+  const out: TitleSuggestion[] = [];
+
+  // すでに職種名に地名が入っているなら、足しても意味がない
+  if (place && !base.includes(place)) {
+    out.push({
+      title: `${place} ${base}`,
+      reason: "地名を入れると、通える範囲の人にだけ出るようになります。無関係なエリアへのクリックに払わずに済みます",
+    });
+  }
+
+  const angles = profile?.titleAngles;
+  if (angles) {
+    if (angles.specifics.length > 0) {
+      const picks = angles.specifics.slice(0, 3);
+      // 「一般事務 + 事務」のような重なりを避ける。
+      // 具体語のほうが職種名を含んでいるなら、足すのではなく置き換える
+      const overlaps = picks.some((x) => x.includes(base) || base.includes(x));
+      out.push({
+        title: overlaps
+          ? `${picks.join(" / ")} のうち実際のものに置き換える`
+          : `${base}（${picks.join(" / ")} のうち実際のもの）`,
+        reason: `仕事そのものを具体化する言い方です。「${base}」だけで探している人より、${picks[0]}で探している人のほうが競合が薄く、応募までの距離も近くなります`,
+      });
+    }
+    if (angles.conditions.length > 0) {
+      out.push({
+        title: `${base}（${angles.conditions.slice(0, 3).join(" / ")} のうち当てはまるもの）`,
+        reason: "条件で探している人に直接当てにいく形です。条件が合う人だけが来るので、クリック単価も応募率も同時に良くなります",
+      });
+    }
+  }
+
+  // 給与が登録されていれば、数字を前に出す形も出す
+  if (job.wage?.min !== undefined) {
+    const unit = job.wage.type === "hourly" ? "時給" : job.wage.type === "daily" ? "日給" : "月給";
+    out.push({
+      title: `${base}｜${unit}${job.wage.min.toLocaleString("ja-JP")}円`,
+      reason: "金額で絞り込んで探す層に当てにいく形です。相場より高いときだけ有効で、低いときは逆効果になります",
+    });
+  }
+
+  return out.slice(0, 4);
 }
