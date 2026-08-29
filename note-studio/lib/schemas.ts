@@ -115,6 +115,16 @@ export const ARTICLE_SCHEMA = obj({
   hashtags: arr(S, { min: 3, max: 10 }),
   visualDirection: S,
   fillIns: arr(obj({ where: S, what: S }), { max: 8 }),
+  // 見出し画像。文字色は指定させない(読めない組み合わせが出るため、
+  // 背景色から描画側で決める)
+  coverImage: obj({
+    headline: S,
+    sub: S,
+    layout: enumOf("band", "center", "quote"),
+    bg: S,
+    accent: S,
+    fontStyle: enumOf("gothic", "mincho", "rounded"),
+  }),
 });
 
 // ===== ⑦ 次の打ち手 =====

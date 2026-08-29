@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PanelProps } from "../Workspace";
 import { Copyable, Empty, Section, Warnings, yen } from "../ui";
 import type { Article } from "@/lib/types";
+import CoverPreview from "../CoverPreview";
 
 // ⑥ 記事。
 //
@@ -242,7 +243,20 @@ function ArticleCard({
             ))}
           </ul>
 
-          <h4 className="ns-h4">見出し画像の指示</h4>
+          <h4 className="ns-h4">見出し画像</h4>
+          <p className="ns-dim">
+            そのまま note に載せられます。文字や色はここで直せます。
+            写真に差し替えたいときは、下の「写真を使う場合の指示」を参考にしてください。
+          </p>
+          {a.coverImage ? (
+            <CoverPreview cover={a.coverImage} filename={`cover-${a.id.slice(0, 8)}`} />
+          ) : (
+            <p className="ns-dim">
+              この記事は見出し画像の設計が入る前に作られました。書き直すと付きます。
+            </p>
+          )}
+
+          <h4 className="ns-h4">写真を使う場合の指示</h4>
           <p className="ns-body">{a.visualDirection}</p>
 
           <h4 className="ns-h4">note に貼る本文</h4>

@@ -7,7 +7,7 @@ import { articleStats, buildPasteText, toArticle } from "@/lib/article";
 import { BASE_SYSTEM, articlePrompt } from "@/lib/prompts";
 import { ARTICLE_SCHEMA } from "@/lib/schemas";
 import { saveProject } from "@/lib/store";
-import type { Article } from "@/lib/types";
+import type { Article, CoverImage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 800;
@@ -25,7 +25,48 @@ type GeneratedArticle = Pick<
   | "hashtags"
   | "visualDirection"
   | "fillIns"
+  | "coverImage"
 >;
+
+/** #rrggbb 以外を弾き、既定値に落とす */
+function hex(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim())
+    ? value.trim().toLowerCase()
+    : fallback;
+}
+
+/** 色の相対輝度(0=黒, 1=白) */
+function luminance(h: string): number {
+  const n = parseInt(h.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function normalizeCover(raw: CoverImage | undefined): CoverImage {
+  const layouts = ["band", "center", "quote"] as const;
+  const fonts = ["gothic", "mincho", "rounded"] as const;
+
+  const bg = hex(raw?.bg, "#141a26");
+  let accent = hex(raw?.accent, "#7c6cf6");
+
+  // 背景と差し色の明るさが近いと、帯も罫線も見えない。
+  // 近すぎるときは既定の差し色に戻す。
+  if (Math.abs(luminance(bg) - luminance(accent)) < 0.06) {
+    accent = luminance(bg) > 0.45 ? "#2b2f45" : "#7c6cf6";
+  }
+
+  return {
+    headline: (raw?.headline ?? "").trim().slice(0, 40),
+    sub: (raw?.sub ?? "").trim().slice(0, 30),
+    layout: layouts.includes(raw?.layout as never) ? raw!.layout : "band",
+    bg,
+    accent,
+    fontStyle: fonts.includes(raw?.fontStyle as never) ? raw!.fontStyle : "gothic",
+  };
+}
 
 export async function POST(request: Request) {
   const body = await readJson<{
@@ -86,10 +127,15 @@ export async function POST(request: Request) {
       maxTokens: 24000,
     });
 
+    // 見出し画像は AI に色を選ばせている。読めない/汚い組み合わせが来ることが
+    // あるので、ここで最低限の担保をする(描画側は文字色を自動で決めるが、
+    // 背景と差し色が近すぎると帯や罫線が見えなくなる)。
+    const cover = normalizeCover(generated.coverImage);
+
     const article = toArticle(
       // 保存時は「無料は null」に揃える。AI には 0 で答えさせているが、
       // 画面と実績集計は null で分岐しているため、ここで一度だけ変換する。
-      { ...generated, priceYen: kind === "paid" ? price : null },
+      { ...generated, coverImage: cover, priceYen: kind === "paid" ? price : null },
       { planNo: planned?.no ?? null, kind }
     );
 

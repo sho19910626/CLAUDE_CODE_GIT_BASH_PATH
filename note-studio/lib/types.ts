@@ -52,6 +52,21 @@ export interface OwnerProfile {
   starterShapes: StarterShape[];
 }
 
+/** 見出し画像の設計。これをもとにブラウザで PNG を描く */
+export interface CoverImage {
+  /** 画像に大きく載せる文字。タイトルの丸写しにしない */
+  headline: string;
+  /** 小さく添える一行。無くてよい */
+  sub: string;
+  /** 組み方 */
+  layout: "band" | "center" | "quote";
+  /** 背景色 #rrggbb */
+  bg: string;
+  /** 差し色 #rrggbb */
+  accent: string;
+  fontStyle: FontStyle;
+}
+
 /** 持ち札を書き起こすための、雑な素材。整った文章でなくてよい */
 export interface ProfileSeed {
   /** 今やっている仕事・過去にやったこと */
@@ -337,8 +352,16 @@ export interface Article {
   cta: string;
   priceYen: number | null;
   hashtags: string[];
-  /** 導入部の写真・図の指示 */
+  /** 導入部の写真・図の指示(人が撮る/選ぶとき用) */
   visualDirection: string;
+  /**
+   * 見出し画像の設計。
+   *
+   * note の一覧では画像の有無で目に入りやすさが変わる。
+   * 写真を用意しなくても、文字を組んだ画像だけで十分機能するので、
+   * ブラウザ側で描いて PNG にできる形(文言と配色と型)で持つ。
+   */
+  coverImage: CoverImage;
   /** AIが埋められなかった、あなたが入れる必要のある一次情報 */
   fillIns: { where: string; what: string }[];
   /** note に貼り付けるための整形済みテキスト */
@@ -428,6 +451,9 @@ export interface ProjectSummary {
   /** 目標の手取り(円) */
   goalYen: number;
 }
+
+/** 見出し画像に使う書体の系統 */
+export type FontStyle = "gothic" | "mincho" | "rounded";
 
 import type { StarterShape } from "./starter";
 export type { StarterShape };
