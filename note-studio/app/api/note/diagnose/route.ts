@@ -9,7 +9,7 @@ import { currentUser } from "@/lib/auth";
 import { FetchSession, searchNotes } from "@/lib/note-api";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const user = await currentUser();

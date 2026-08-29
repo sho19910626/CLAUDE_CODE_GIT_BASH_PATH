@@ -10,7 +10,7 @@ import { saveProject } from "@/lib/store";
 import type { Article, CoverImage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 type GeneratedArticle = Pick<
   Article,
@@ -124,7 +124,10 @@ export async function POST(request: Request) {
         previousTitles: g.project.articles.map((a) => a.title).slice(-20),
       }),
       schema: ARTICLE_SCHEMA,
-      maxTokens: 24000,
+      // 出力の量が所要時間をほぼ決める。Vercel の無料プランは1回 300 秒までなので、
+      // その中で必ず終わる量に抑える。note の有料記事は 5,000〜8,000 字程度で、
+      // 12,000 トークンあれば足りる(思考のぶんも含む)。
+      maxTokens: 12000,
     });
 
     // 見出し画像は AI に色を選ばせている。読めない/汚い組み合わせが来ることが

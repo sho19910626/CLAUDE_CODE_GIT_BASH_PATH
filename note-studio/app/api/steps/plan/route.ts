@@ -10,7 +10,7 @@ import { saveProject } from "@/lib/store";
 import type { OperationPlan } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const body = await readJson<{ projectId?: string }>(request);
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       system: BASE_SYSTEM,
       prompt: planPrompt(g.project.profile, g.project.genre!, g.project.account!, g.project.research!),
       schema: PLAN_SCHEMA,
-      maxTokens: 20000,
+      // 同上。90日ぶんのカレンダーが入るが 14,000 で収まる
+      maxTokens: 14000,
     });
 
     // 算数はAIに任せきりにしない。目標は【手取り】なので、

@@ -19,7 +19,9 @@
 const BASE = "https://note.com";
 
 const DELAY_MS = Number(process.env.NOTE_FETCH_DELAY_MS ?? 700);
-const MAX_FETCHES = Number(process.env.NOTE_FETCH_MAX ?? 40);
+// 1回の取得ごとに間隔を空けるため、回数がそのまま所要時間になる。
+// Vercel の無料プランは1回 300 秒までなので、その中で分析まで終わる回数にする。
+const MAX_FETCHES = Number(process.env.NOTE_FETCH_MAX ?? 24);
 const TIMEOUT_MS = 15000;
 
 /** note から見た1記事。取れなかった項目は null のまま扱う */
