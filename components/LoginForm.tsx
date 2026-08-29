@@ -53,8 +53,16 @@ export default function LoginForm() {
           firstAdmin ? { name, password, setupSecret } : { name, password }
         ),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "ログインできませんでした");
+      // サーバーが本文なしで落ちることがあるため、JSONとして読めない場合も想定する。
+      // そのまま res.json() すると "Unexpected end of JSON input" とだけ出て、
+      // 何が起きたのか利用者にも管理者にも分からなくなる。
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          data?.error ??
+            `ログインできませんでした(サーバーエラー ${res.status})。黒い画面のログを管理者に伝えてください。`
+        );
+      }
       router.push(next);
       router.refresh();
     } catch (err) {

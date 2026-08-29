@@ -25,7 +25,10 @@ import {
 export const dynamic = "force-dynamic";
 
 function sameSecret(input: string): boolean {
-  const s = process.env.APP_PASSWORD ?? "";
+  // lib/auth.ts の secret() と同じ読み方をする。
+  // 片方だけ APP_PASSWORD 固定だと、旧 BASIC_AUTH_PASSWORD のままの人が
+  // ログイン画面には進めるのに合言葉だけ通らない、という状態になる。
+  const s = process.env.APP_PASSWORD || process.env.BASIC_AUTH_PASSWORD || "";
   const a = Buffer.from(input);
   const b = Buffer.from(s);
   return s.length > 0 && a.length === b.length && timingSafeEqual(a, b);
@@ -86,6 +89,12 @@ export async function POST(request: Request) {
 
   const name = (body.name ?? "").trim();
   const password = body.password ?? "";
+
+  // アカウントの保管先(データベース)に触れる処理はここから。
+  // DATABASE_URL 未設定などで失敗すると、素の 500 が本文なしで返り、
+  // 画面側の res.json() が "Unexpected end of JSON input" になって
+  // 原因がまったく分からなくなる。必ず理由をJSONで返す。
+  try {
   const store = getAccounts();
 
   // ===== まだ誰もいないとき: 最初の管理者を作る =====
@@ -141,6 +150,13 @@ export async function POST(request: Request) {
   await store.touchLogin(user.id);
   await store.log(user.name, "ログイン", "");
   return session(user.id, user.name);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: `アカウントの保管先に接続できませんでした。${detail}` },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE() {

@@ -9,7 +9,10 @@
 import { neon } from "@neondatabase/serverless";
 
 function secret(): string {
-  return process.env.APP_PASSWORD ?? "";
+  // 旧 BASIC_AUTH_PASSWORD からの移行中は、そちらの値も同じ合言葉として受け付ける。
+  // CLAUDE.md にそう書いてあるのに実装が APP_PASSWORD だけを見ていると、
+  // 旧設定のまま更新した人が「APP_PASSWORD が設定されていません」で締め出される。
+  return process.env.APP_PASSWORD || process.env.BASIC_AUTH_PASSWORD || "";
 }
 
 export function isConfigured(): boolean {

@@ -26,7 +26,10 @@ import {
 export const dynamic = "force-dynamic";
 
 function sameSecret(input: string): boolean {
-  const s = process.env.APP_PASSWORD ?? "";
+  // lib/auth.ts の secret() と同じ読み方をする。
+  // 片方だけ APP_PASSWORD 固定だと、旧 BASIC_AUTH_PASSWORD のままの人が
+  // ログイン画面には進めるのに合言葉だけ通らない、という状態になる。
+  const s = process.env.APP_PASSWORD || process.env.BASIC_AUTH_PASSWORD || "";
   const a = Buffer.from(input);
   const b = Buffer.from(s);
   return s.length > 0 && a.length === b.length && timingSafeEqual(a, b);

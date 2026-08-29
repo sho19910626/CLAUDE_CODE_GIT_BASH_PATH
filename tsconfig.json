@@ -25,6 +25,7 @@
     "CLAUDE_CODE_GIT_BASH_PATH",
     "avatar-studio",
     "insta-studio",
+    "sales-crm",
     "**/node_modules",
     "_backup",
     "_stray-backup"

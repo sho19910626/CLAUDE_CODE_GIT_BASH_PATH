@@ -16,7 +16,10 @@ const COOKIE = "insta_session";
 const MAX_AGE = 60 * 60 * 12;
 
 function secret(): string {
-  return process.env.APP_PASSWORD ?? "";
+  // 旧 BASIC_AUTH_PASSWORD からの移行中は、そちらの値も同じ合言葉として受け付ける。
+  // CLAUDE.md にそう書いてあるのに実装が APP_PASSWORD だけを見ており、
+  // 旧設定のまま更新した人が「APP_PASSWORD が設定されていません」で締め出されていた。
+  return process.env.APP_PASSWORD || process.env.BASIC_AUTH_PASSWORD || "";
 }
 
 export function isConfigured(): boolean {
