@@ -77,7 +77,14 @@ export async function generateJson<T>(args: {
 
   try {
     const client = new Anthropic();
-    const response = await client.messages.create({
+
+    // ストリーミングで受け取る。
+    //
+    // 記事や運用計画は出力が長く、まとめて受け取る書き方だと SDK に
+    // 「10分を超える可能性がある処理は streaming が必要」と断られる。
+    // 途中経過は使わないが、finalMessage() で完成品だけ受け取れるので、
+    // 呼び出し側の書き方は変わらない。
+    const stream = client.messages.stream({
       model: MODEL,
       max_tokens: args.maxTokens ?? 16000,
       thinking: { type: "adaptive" },
@@ -90,6 +97,7 @@ export async function generateJson<T>(args: {
         },
       },
     });
+    const response = await stream.finalMessage();
 
     if (response.stop_reason === "refusal") {
       throw new GenerationError(
@@ -98,11 +106,28 @@ export async function generateJson<T>(args: {
       );
     }
 
+    if (response.stop_reason === "max_tokens") {
+      // 途中で切れた JSON をそのまま parse すると意味不明なエラーになる。
+      // 何が起きたかを利用者に分かる言葉で返す。
+      throw new GenerationError(
+        "生成が長くなりすぎて途中で切れました。指示を短くするか、分けて生成してください。",
+        502
+      );
+    }
+
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") {
       throw new GenerationError("生成結果が空でした。もう一度お試しください。", 502);
     }
-    return JSON.parse(block.text) as T;
+
+    try {
+      return JSON.parse(block.text) as T;
+    } catch {
+      throw new GenerationError(
+        "AI の返事が読み取れませんでした。もう一度お試しください。",
+        502
+      );
+    }
   } catch (e) {
     if (e instanceof GenerationError) throw e;
     if (e instanceof Anthropic.AuthenticationError) {
