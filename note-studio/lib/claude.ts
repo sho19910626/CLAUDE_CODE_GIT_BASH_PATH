@@ -76,7 +76,9 @@ export async function generateJson<T>(args: {
   }
 
   try {
-    const client = new Anthropic();
+    // 待ち時間を明示する(ミリ秒)。記事の生成は数分かかるため、
+    // 既定のままだと途中で打ち切られることがある。
+    const client = new Anthropic({ timeout: 20 * 60 * 1000, maxRetries: 2 });
 
     // ストリーミングで受け取る。
     //
@@ -87,7 +89,10 @@ export async function generateJson<T>(args: {
     const stream = client.messages.stream({
       model: MODEL,
       max_tokens: args.maxTokens ?? 16000,
-      thinking: { type: "adaptive" },
+      // display を既定のままにすると、考えている間は中身が空のまま流れる。
+      // その「無音」が長いと、途中の通信が切られて terminated になる。
+      // 要約を流させることで、考えている間もデータが動き続ける。
+      thinking: { type: "adaptive", display: "summarized" },
       system: args.system,
       messages: [{ role: "user", content: args.prompt }],
       output_config: {
@@ -130,6 +135,10 @@ export async function generateJson<T>(args: {
     }
   } catch (e) {
     if (e instanceof GenerationError) throw e;
+
+    // 画面には短い文言しか出せないので、詳細は黒い画面に残す。
+    // 何が起きたかを人に伝えてもらうときの材料になる。
+    console.error("[AI生成の失敗]", e);
     if (e instanceof Anthropic.AuthenticationError) {
       throw new GenerationError(
         "APIキーが無効です。ANTHROPIC_API_KEY を確認してください。",
@@ -156,8 +165,24 @@ export async function generateJson<T>(args: {
         502
       );
     }
-    const message = e instanceof Error ? e.message : String(e);
-    throw new GenerationError(`予期しないエラー: ${message}`, 500);
+    // 通信の切断は message が "terminated" だけのことが多い。
+    // 本当の理由は cause に入っているので、そこまで辿って出す。
+    const parts: string[] = [];
+    let cur: unknown = e;
+    for (let i = 0; i < 4 && cur; i++) {
+      if (cur instanceof Error) parts.push(cur.message);
+      else parts.push(String(cur));
+      cur = (cur as { cause?: unknown }).cause;
+    }
+    const detail = parts.filter(Boolean).join(" / ");
+
+    if (/terminated|aborted|ECONNRESET|socket|fetch failed|timeout/i.test(detail)) {
+      throw new GenerationError(
+        `AI との通信が途中で切れました。もう一度お試しください。何度も起きる場合は、生成する内容を短くしてください。(${detail})`,
+        504
+      );
+    }
+    throw new GenerationError(`予期しないエラー: ${detail}`, 500);
   }
 }
 
