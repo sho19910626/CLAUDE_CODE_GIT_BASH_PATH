@@ -87,7 +87,9 @@ export const PLAN_SCHEMA = obj({
       day: N,
       title: S,
       kind: enumOf("free", "paid", "members"),
-      priceYen: { type: ["number", "null"] },
+      // 無料は 0 で表す。["number","null"] のような複合型は
+      // 構造化出力で受け付けられないことがあるため使わない。
+      priceYen: N,
       role: S,
       summary: S,
       hashtags: arr(S, { max: 8 }),
@@ -108,7 +110,8 @@ export const ARTICLE_SCHEMA = obj({
   paywallPitch: S,
   paidBody: S,
   cta: S,
-  priceYen: { type: ["number", "null"] },
+  // 無料は 0 で表す(複合型を避ける)
+  priceYen: N,
   hashtags: arr(S, { min: 3, max: 10 }),
   visualDirection: S,
   fillIns: arr(obj({ where: S, what: S }), { max: 8 }),

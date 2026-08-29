@@ -17,6 +17,51 @@ export class GenerationError extends Error {
   }
 }
 
+/**
+ * 構造化出力が受け付けないスキーマの指定を取り除く。
+ *
+ * 公式の制限:
+ *   - 配列の件数指定(minItems / maxItems など)
+ *   - 数値の範囲(minimum / maximum / multipleOf)
+ *   - 文字数(minLength / maxLength)
+ *   - 再帰するスキーマ
+ * これらを付けたまま送ると 400 で弾かれる。
+ *
+ * ⚠ 件数や長さの指定を消しても要件は消えない。
+ *   「3〜5個」のような指定は、プロンプト本文で必ず言うこと。
+ *   スキーマ側は自己文書化のために書いたままにして、送る直前にここで落とす。
+ */
+const UNSUPPORTED_SCHEMA_KEYS = new Set([
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "contains",
+  "minContains",
+  "maxContains",
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "minProperties",
+  "maxProperties",
+]);
+
+export function sanitizeSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(sanitizeSchema);
+  if (node === null || typeof node !== "object") return node;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (UNSUPPORTED_SCHEMA_KEYS.has(key)) continue;
+    out[key] = sanitizeSchema(value);
+  }
+  return out;
+}
+
 export async function generateJson<T>(args: {
   system: string;
   prompt: string;
@@ -39,7 +84,10 @@ export async function generateJson<T>(args: {
       system: args.system,
       messages: [{ role: "user", content: args.prompt }],
       output_config: {
-        format: { type: "json_schema", schema: args.schema },
+        format: {
+          type: "json_schema",
+          schema: sanitizeSchema(args.schema) as Record<string, unknown>,
+        },
       },
     });
 
@@ -69,8 +117,19 @@ export async function generateJson<T>(args: {
         429
       );
     }
+    if (e instanceof Anthropic.BadRequestError) {
+      // 400 は「送った内容が不正」。API が理由を文章で返してくれるので、
+      // それを必ず画面まで届ける。番号だけ出しても直しようがない。
+      throw new GenerationError(
+        `AI への送信内容に問題がありました。${e.message}`,
+        502
+      );
+    }
     if (e instanceof Anthropic.APIError) {
-      throw new GenerationError(`AI 生成でエラーが起きました (${e.status})`, 502);
+      throw new GenerationError(
+        `AI 生成でエラーが起きました (${e.status})。${e.message}`,
+        502
+      );
     }
     const message = e instanceof Error ? e.message : String(e);
     throw new GenerationError(`予期しないエラー: ${message}`, 500);

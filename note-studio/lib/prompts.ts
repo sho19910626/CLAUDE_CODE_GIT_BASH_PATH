@@ -225,7 +225,7 @@ export function keywordPrompt(p: OwnerProfile, hint: string): string {
 ${hint.trim() ? `## 利用者が調べたいと言っている方向\n${hint.trim()}\n` : ""}
 ## やること
 
-この人が note で有料記事を売るとして、市場を調べるための検索キーワードを 5〜10 個出してください。
+この人が note で有料記事を売るとして、市場を調べるための検索キーワード(keywords)を **5〜10 個**出してください。
 
 キーワードの選び方:
 - note の検索にかけて、実際に有料記事が出てくる語にする(抽象的な概念語は避ける)
@@ -314,18 +314,18 @@ ${sampleText || "(取得できませんでした)"}
 このデータだけを根拠に、市場の読み方を書いてください。
 
 - marketSummary: この市場が今どうなっているか。件数・価格・スキ数の実数を引用しながら書く。
-- winningPatterns: 売れている・読まれている記事に共通する型。
+- winningPatterns: 売れている・読まれている記事に共通する型を **3〜6 個**。
   evidence には必ず、上のタイトル一覧から実際のタイトルを引用する。
   howToUse は、この書き手が持ち札でその型を使うとしたら何を書くか。
 - priceGuidance: 実際の価格分布から妥当な価格帯を出す。
   recommendedStart は「最初の 1 本をいくらで出すか」の具体的な円の数字。
   最初は相場の中央値より下から入り、実績が出てから上げる、という考え方で判断する。
-- gaps: 誰も書いていない空白。データ上、そのテーマの記事が少ない/古いことを根拠にする。
+- gaps: 誰も書いていない空白を **2〜6 個**。データ上、そのテーマの記事が少ない/古いことを根拠にする。
   difficulty は、この書き手の持ち札で埋められるかで判定する。
-- avoid: この書き手が今から入っても勝てない領域。
+- avoid: この書き手が今から入っても勝てない領域を **1〜5 個**。
   「フォロワー数の差で勝てない」「一次情報が無い」など、理由を具体的に書く。
 - entryDifficulty: 総合判定。
-- caveats: データが薄い・偏っている点。件数が少ないキーワード、取得できなかった項目を正直に書く。
+- caveats: データが薄い・偏っている点を **6 個以内**で。件数が少ないキーワード、取得できなかった項目を正直に書く。
   読み手が結論を鵜呑みにしないための断り書きです。省略しないでください。`;
 }
 
@@ -352,7 +352,7 @@ ${research.stats
 # やること
 
 この人が note で **月の手取り ${p.monthlyGoalYen.toLocaleString()} 円**(売上で約 ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円)を
-作るためのジャンル候補を 3〜5 個出し、点数をつけて 1 つ推奨してください。
+作るためのジャンル候補を **3〜5 個**(candidates)出し、点数をつけて 1 つ推奨してください。
 
 ${tierGuidance(p.monthlyGoalYen)}
 
@@ -424,18 +424,18 @@ ${research.competitors
   構成は「①誰に向けているか → ②なぜあなたが言えるのか(実績の数字) → ③何が読めるか → ④次にしてほしいこと」。
   実績の数字は、持ち札にあるものだけを使う。無ければその行を作らない。
 - headerDirection / iconDirection: 画像の方針。何を写し、何を写さないか。文字を入れるなら何と入れるか。
-- pinnedArticle: 最初に書く自己紹介記事。これが名刺になります。
+- pinnedArticle: 最初に書く自己紹介記事。これが名刺になります。outline は **4〜10 項目**。
   purpose には、この記事が読者に何をさせるための記事かを書く。
 - coreHashtags: 毎回付ける基本タグ。リサーチの topTags で実際に使われているものを優先し、
   競合が使っていて回遊が見込めるものを選ぶ。5〜7 個。
-- magazines: 記事を束ねるマガジンの分け方。読者が「次に何を読めばいいか」で迷わない分け方にする。
+- magazines: 記事を束ねるマガジンの分け方を **2〜5 個**。読者が「次に何を読めばいいか」で迷わない分け方にする。
 
 - membership: ${
     useMembership
       ? `使います。use を true にしてください。
   月額は 500 円刻みで現実的な額にする。
   targetMembers は「その人数 × 月額」が月商目標の一部として成立する人数にし、
-  benefits はその金額に見合うものだけを並べる(こなせない約束をしない。週 ${p.hoursPerWeek} 時間で回せる範囲にする)。
+  benefits はその金額に見合うものだけを **8 個以内**で並べる(こなせない約束をしない。週 ${p.hoursPerWeek} 時間で回せる範囲にする)。
   boundary には「単品の有料記事とメンバーシップで、何を分けるか」を明記する。
   ここが曖昧だと、どちらも売れなくなります。`
       : "使いません。use を false にし、他の項目は空文字か 0 にしてください。"
@@ -493,13 +493,13 @@ ${tierGuidance(p.monthlyGoalYen)}
 - netGoalYen は ${p.monthlyGoalYen}(手取りの目標)です。
 - goalYen は ${grossNeededFor(p.monthlyGoalYen)}(その手取りに必要な売上)です。
 
-breakdown は【売上】で分解してください。何をいくらで何本売れば ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円の
+breakdown は【売上】で、**1〜6 行**に分解してください。何をいくらで何本売れば ${grossNeededFor(p.monthlyGoalYen).toLocaleString()} 円の
 売上になるかを書きます。
 subtotalYen = unitYen × unitsPerMonth になるようにし、
 breakdown の subtotalYen の合計が goalYen(${grossNeededFor(p.monthlyGoalYen)})以上になるようにしてください。
 計算を間違えないこと。手取りの額(${p.monthlyGoalYen})で組むと、手数料のぶん足りなくなります。
 
-assumptions には前提を正直に書いてください。最低限、次を含めること:
+assumptions には前提を正直に書いてください。**2〜8 個**。最低限、次を含めること:
 - 記事の閲覧数のうち何%が買うと見込んでいるか(note の有料記事は 1〜3% 程度が一つの目安。
   ただしこれはリサーチで確かめた数字ではないので、目安であることを明記する)
 - その購入率で必要な閲覧数はどれだけか
@@ -513,7 +513,7 @@ monthsToGoal は、上の前提で正直に見積もった月数。
 週 ${p.hoursPerWeek} 時間でこの目標が現実的でないなら、
 assumptions に「この時間では届かない。◯時間必要」と正直に書いてください。
 
-## phases — 3 期に分ける
+## phases — 3 期に分ける(phases は **3〜4 個**)
 
 ゼロからなので、順番を守ります。読者がいない状態で有料記事を出しても売れません。
 
@@ -535,12 +535,13 @@ exitCriteria は「この数字に届いたら次へ進む。届かなければ�
 - 各記事の role には、その記事が計画の中で果たす役目を書く
   (例「自己紹介記事へ送客する」「有料記事の無料版として信頼を作る」)。
 - title は実際に使えるレベルまで書き切る。仮題にしない。
+- priceYen は円の数字。**無料記事とメンバー限定は 0** にする。
 - 有料記事の priceYen は、リサーチの価格帯に沿わせる。
   第2期の 1 本目は ${start} 円かそれ以下から始める。
 
 ## weeklyRoutine
 
-週 ${p.hoursPerWeek} 時間(= ${p.hoursPerWeek * 60} 分)に収まるように、曜日ごとの作業を割ってください。
+週 ${p.hoursPerWeek} 時間(= ${p.hoursPerWeek * 60} 分)に収まるように、曜日ごとの作業を **3〜10 行**に割ってください。
 minutes の合計が ${p.hoursPerWeek * 60} 分を超えないこと。
 
 ## recoveryPlaybook
@@ -569,13 +570,13 @@ export function articlePrompt(args: {
 
   const kindBrief =
     kind === "free"
-      ? `**無料記事**です。paidBody は空文字、paywallPitch も空文字、priceYen は null にしてください。
+      ? `**無料記事**です。paidBody は空文字、paywallPitch も空文字、priceYen は 0 にしてください。
 freeBody に全文を書きます。無料だからこそ、ここで実力を示し切ってください。`
       : kind === "members"
         ? `**メンバーシップ限定記事**です。
 freeBody には、会員でない人にも見える導入(状況の共有と、この記事で何が分かるか)を書きます。
 paidBody に本編を書きます。paywallPitch には、メンバーシップに入るとこれが読める、という案内を書きます。
-priceYen は null にしてください(単品販売しないため)。`
+priceYen は 0 にしてください(単品販売しないため)。`
         : `**有料記事**です。価格は ${priceYen ?? research.analysis.priceGuidance.recommendedStart} 円。
 
 有料ラインの引き方が売上を決めます。次の配分にしてください。
@@ -758,12 +759,12 @@ expectedEffect には、それをやると何がどれだけ変わると見込�
 
 ## stopDoing
 
-効果が出ていないのに続けていることを挙げてください。
+効果が出ていないのに続けていることを **5 個以内**で挙げてください。
 週 ${p.hoursPerWeek} 時間しかないので、やめることを決めないと新しいことが入りません。
 
 ## rewriteTargets
 
-数字が悪い記事のうち、書き直せば良くなるものを挙げてください。
+数字が悪い記事のうち、書き直せば良くなるものを **5 個以内**で挙げてください。
 problem に何が悪いか、fix にどう直すかを具体的に書きます。
 実績の記録が無い記事は対象にしないでください。`;
 }

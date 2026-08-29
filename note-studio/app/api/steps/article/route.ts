@@ -62,7 +62,10 @@ export async function POST(request: Request) {
     kind === "paid"
       ? typeof body.priceYen === "number" && body.priceYen >= 100
         ? Math.min(Math.round(body.priceYen), 10000)
-        : (planned?.priceYen ?? g.project.research!.analysis.priceGuidance.recommendedStart)
+        : // 計画側は無料を 0 で表すので、0 は「価格未設定」とみなして推奨価格に落とす
+          (planned?.priceYen && planned.priceYen > 0
+            ? planned.priceYen
+            : g.project.research!.analysis.priceGuidance.recommendedStart)
       : null;
 
   try {
@@ -84,6 +87,8 @@ export async function POST(request: Request) {
     });
 
     const article = toArticle(
+      // 保存時は「無料は null」に揃える。AI には 0 で答えさせているが、
+      // 画面と実績集計は null で分岐しているため、ここで一度だけ変換する。
       { ...generated, priceYen: kind === "paid" ? price : null },
       { planNo: planned?.no ?? null, kind }
     );
