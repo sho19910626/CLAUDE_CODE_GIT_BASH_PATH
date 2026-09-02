@@ -219,16 +219,22 @@ async function checkOpenAI(value, model, envPath) {
     const data = await res.json().catch(() => ({}));
     const msg = data?.error?.message || "";
     if (res.ok) {
-      const imageModel = model || "gpt-image-1";
-      const available = Array.isArray(data?.data)
-        ? data.data.some((m) => m?.id === imageModel)
-        : false;
+      // app/api/background/route.ts の DEFAULT_MODEL と揃えること。
+      // ここだけ古いモデル名にしておくと、実際には使えないのに
+      // 「利用可能です」と出てしまい、診断が嘘をつく。
+      const imageModel = model || "gpt-image-2";
+      const ids = Array.isArray(data?.data) ? data.data.map((m) => m?.id) : [];
       console.log("✅ キーは有効です。");
-      if (available) {
+      if (ids.includes(imageModel)) {
         console.log(`✅ 画像モデル ${imageModel} が利用可能です。「✨ AI写真」が使えます。`);
       } else {
         console.log(`⚠ 画像モデル ${imageModel} が一覧に見つかりませんでした。`);
-        console.log("  → 初回の画像生成時に組織認証 (Organization Verification) を求められる場合があります。");
+        const older = ids.filter((id) => /^gpt-image-/.test(id));
+        if (older.length) {
+          console.log(`  → このアカウントで使える画像モデル: ${older.join(", ")}`);
+          console.log(`  → .env に OPENAI_IMAGE_MODEL=${older[0]} を足すと、そちらで動きます。`);
+        }
+        console.log("  → 新しいモデルは組織認証 (Organization Verification) が要ることがあります。");
         console.log("  → platform.openai.com → Settings → Organization → Verification を確認してください。");
       }
       console.log("  ※ 残高不足の場合は生成時にエラーになります。Billing で残高もご確認ください。");
