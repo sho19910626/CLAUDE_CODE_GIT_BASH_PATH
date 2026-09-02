@@ -12,23 +12,29 @@ function mask(v) {
   return `${v.slice(0, 14)}...${v.slice(-4)} (全${v.length}文字)`;
 }
 
-// .env を簡易パースして全変数を返す
+// .env を簡易パースして全変数を返す。
+// 同じ変数を2回書くと Next.js は「下の行」を採用する。上の行を直したつもりで
+// 直っていない、という取り違えが起きやすいので、重複は行番号付きで報告する。
 function parseEnv(envPath) {
   let raw = fs.readFileSync(envPath, "utf8");
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // BOM除去
   const vars = {};
   const orphans = [];
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
+  const lineNos = {}; // 変数名 → 出てきた行番号の配列
+  const lines = raw.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const m = trimmed.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
     if (m) {
       vars[m[1]] = m[2].trim();
+      (lineNos[m[1]] ||= []).push(i + 1);
     } else {
       orphans.push(trimmed);
     }
   }
-  return { vars, orphans };
+  const duplicates = Object.keys(lineNos).filter((k) => lineNos[k].length > 1);
+  return { vars, orphans, lineNos, duplicates };
 }
 
 // 値の書き方チェック。問題の配列と正規化済みの値を返す
@@ -57,13 +63,13 @@ async function checkAnthropic(value) {
   console.log("── Anthropic (コンテンツ生成用 / 必須) ──");
   if (value.startsWith("sk-ant-admin")) {
     console.log("✖ これは Admin キーです。通常の API キー (sk-ant-api03-...) を作成してください。");
-    return;
+    return false;
   }
   const { problems, value: v } = validateKeyFormat(value, ["sk-ant-"], "ANTHROPIC_API_KEY");
   console.log(`✔ キーを読み取りました: ${mask(v)}`);
   if (problems.length) {
     for (const p of problems) console.log("✖ " + p);
-    return;
+    return false;
   }
   console.log("  接続テスト中...");
   try {
@@ -84,8 +90,14 @@ async function checkAnthropic(value) {
     const msg = data?.error?.message || "";
     if (res.ok) {
       console.log("✅ 有効です。コンテンツ生成が使えます。");
-    } else if (res.status === 401) {
-      console.log("❌ 無効なキーです (401)。platform.claude.com で新しいキーを作り直してください。");
+      return true;
+    }
+    if (res.status === 401) {
+      console.log("❌ 無効なキーです (401)。");
+      console.log("  よくある原因:");
+      console.log("   ・キーを削除(Revoke)した / 別の組織のキーを貼っている");
+      console.log("   ・コピーの取りこぼしで途中が欠けている(前後の空白ごと貼り直す)");
+      console.log("  → platform.claude.com → API keys で新しいキーを発行し、.env に貼り直してください。");
     } else if (res.status === 400 && /credit|billing/i.test(msg)) {
       console.log("❌ クレジット残高がありません。platform.claude.com → Billing でチャージしてください。");
     } else {
@@ -94,6 +106,7 @@ async function checkAnthropic(value) {
   } catch (e) {
     console.log("❌ 接続に失敗しました: " + e.message);
   }
+  return false;
 }
 
 // 実際に使うモデルで生成できるか、どれくらい時間がかかるかを測る。
@@ -200,7 +213,20 @@ async function main() {
   }
   console.log("✔ .env ファイルがあります\n");
 
-  const { vars, orphans } = parseEnv(envPath);
+  const { vars, orphans, lineNos, duplicates } = parseEnv(envPath);
+
+  // 同じ変数が2行以上あると、下の行の値だけが効く。
+  // 「直したのに変わらない」の原因になりやすいので最初に伝える。
+  if (duplicates.length) {
+    console.log("⚠ 同じ設定が複数の行に書かれています。下の行の値だけが使われます。");
+    for (const key of duplicates) {
+      const nos = lineNos[key];
+      console.log(
+        `  ${key}: ${nos.join(" 行目 と ")} 行目 → ${nos[nos.length - 1]} 行目が採用されます`
+      );
+    }
+    console.log("  → notepad .env で開き、要らない方の行を削除してください。\n");
+  }
 
   if (!("ANTHROPIC_API_KEY" in vars) || !vars.ANTHROPIC_API_KEY) {
     if (orphans.some((l) => /sk-ant-|^api03-/.test(l))) {
@@ -216,8 +242,9 @@ async function main() {
     console.log("⚠ 変数名のない行にキーらしき文字列があります。= の後ろに1行で書けているか確認してください。\n");
   }
 
-  await checkAnthropic(vars.ANTHROPIC_API_KEY);
-  await checkModel(vars.ANTHROPIC_API_KEY, vars.ANTHROPIC_MODEL);
+  // キー自体が通らないなら、モデルの確認をしても同じ401が出るだけなので飛ばす
+  const keyOk = await checkAnthropic(vars.ANTHROPIC_API_KEY);
+  if (keyOk) await checkModel(vars.ANTHROPIC_API_KEY, vars.ANTHROPIC_MODEL);
   await checkOpenAI(vars.OPENAI_API_KEY, vars.OPENAI_IMAGE_MODEL);
 
   console.log("\n診断が終わったら、サーバーを再起動 (Ctrl+C → npm run dev) してからアプリをお試しください。");
