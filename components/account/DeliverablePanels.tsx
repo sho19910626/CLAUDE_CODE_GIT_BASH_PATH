@@ -19,7 +19,10 @@ import {
   type ImageFormat,
   type ZipEntry,
 } from "@/lib/zip";
-import { useBackgroundImages } from "./useBackgroundImages";
+import type { UploadedAsset } from "./assets";
+import { useSlideBackground, type BgSource, type SlideBackground } from "./background";
+import { AssetPicker } from "./AssetLibrary";
+import { ReelPanel } from "./ReelPanel";
 
 type Tab = "feed" | "highlight" | "reel" | "caption" | "calendar";
 
@@ -31,9 +34,31 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "calendar", label: "投稿カレンダー" },
 ];
 
-export function DeliverablePanels({ plan }: { plan: AccountPlan }) {
+/** フィード全体を通した通し番号。投稿をまたいで別の素材が当たるようにする */
+function feedFlatIndex(plan: AccountPlan, postIndex: number, slideIndex: number): number {
+  let n = 0;
+  for (let i = 0; i < postIndex; i++) n += plan.posts[i].slides.length;
+  return n + slideIndex;
+}
+
+function highlightFlatIndex(plan: AccountPlan, setIndex: number, slideIndex: number): number {
+  let n = 0;
+  for (let i = 0; i < setIndex; i++) n += plan.highlights[i].slides.length;
+  return n + slideIndex;
+}
+
+const feedKey = (slot: number, slideIndex: number) => `feed:${slot}:${slideIndex}`;
+const hlKey = (id: string, slideIndex: number) => `hl:${id}:${slideIndex}`;
+
+export function DeliverablePanels({
+  plan,
+  assets,
+}: {
+  plan: AccountPlan;
+  assets: UploadedAsset[];
+}) {
   const [tab, setTab] = useState<Tab>("feed");
-  const bg = useBackgroundImages();
+  const bg = useSlideBackground(assets);
 
   return (
     <>
@@ -49,9 +74,9 @@ export function DeliverablePanels({ plan }: { plan: AccountPlan }) {
         ))}
       </div>
 
-      {tab === "feed" && <FeedTab plan={plan} bg={bg} />}
-      {tab === "highlight" && <HighlightTab plan={plan} bg={bg} />}
-      {tab === "reel" && <ReelTab plan={plan} />}
+      {tab === "feed" && <FeedTab plan={plan} bg={bg} assets={assets} />}
+      {tab === "highlight" && <HighlightTab plan={plan} bg={bg} assets={assets} />}
+      {tab === "reel" && <ReelTab plan={plan} bg={bg} assets={assets} />}
       {tab === "caption" && <CaptionTab plan={plan} />}
       {tab === "calendar" && <CalendarTab plan={plan} />}
 
@@ -60,14 +85,52 @@ export function DeliverablePanels({ plan }: { plan: AccountPlan }) {
   );
 }
 
-type Bg = ReturnType<typeof useBackgroundImages>;
+/** 背景の出どころを選ぶピル。撮影素材が無いときはその選択肢を出さない */
+function BgSourcePills({
+  bg,
+  assetCount,
+  disabled,
+}: {
+  bg: SlideBackground;
+  assetCount: number;
+  disabled?: boolean;
+}) {
+  const options: { id: BgSource; label: string }[] = [
+    { id: "template", label: "🎨 テンプレート背景" },
+    ...(assetCount > 0
+      ? [{ id: "asset" as BgSource, label: `📷 撮影素材 (${assetCount})` }]
+      : []),
+    { id: "ai", label: "✨ AI写真" },
+  ];
+  return (
+    <div className="template-row">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          className={`template-pill ${bg.source === o.id ? "active" : ""}`}
+          onClick={() => bg.setSource(o.id)}
+          disabled={disabled}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /* ===== フィード ===== */
 
-function FeedTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
+function FeedTab({
+  plan,
+  bg,
+  assets,
+}: {
+  plan: AccountPlan;
+  bg: SlideBackground;
+  assets: UploadedAsset[];
+}) {
   const [postIndex, setPostIndex] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [usePhoto, setUsePhoto] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const post = plan.posts[postIndex];
 
@@ -75,18 +138,23 @@ function FeedTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
 
   const slide = post?.slides[slideIndex];
   const prompt = slide?.bgPrompt ?? "";
+  const key = post ? feedKey(post.slot, slideIndex) : "";
+  const flat = post ? feedFlatIndex(plan, postIndex, slideIndex) : 0;
 
   useEffect(() => {
-    if (usePhoto && prompt) bg.fetch(prompt, "square");
-  }, [usePhoto, prompt, bg]);
+    if (bg.source === "ai" && prompt) bg.ai.fetch(prompt, "square");
+  }, [bg.source, prompt, bg.ai]);
 
-  const src = usePhoto ? bg.get(prompt, "square") : undefined;
+  const aiSrc = bg.source === "ai" ? bg.ai.get(prompt, "square") : undefined;
+  const chosen = bg.source === "asset" ? bg.assetAt(key, flat) : null;
 
   useEffect(() => {
     if (!post) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       await ensureFonts();
+      // 撮影素材モードでは、動画なら1コマ切り出してから読み込む
+      const src = chosen ? await bg.toStill(chosen) : aiSrc;
       const img = src ? await loadImage(src) : null;
       if (cancelled || !canvasRef.current) return;
       renderFeedSlide(
@@ -106,7 +174,9 @@ function FeedTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
     return () => {
       cancelled = true;
     };
-  }, [plan, post, slideIndex, src]);
+    // chosen は同じIDなら同じ素材なので、識別子だけを依存に取る
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, post, slideIndex, aiSrc, chosen?.id, bg.toStill]);
 
   if (!post) return null;
 
@@ -137,27 +207,35 @@ function FeedTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
           </button>
         ))}
       </div>
-      <div className="preview-actions">
-        <button className="btn btn-ghost btn-small" onClick={() => setUsePhoto((v) => !v)}>
-          {usePhoto ? "🎨 テンプレート背景" : "✨ AI写真背景"}
-        </button>
-        {usePhoto && src && (
+      <BgSourcePills bg={bg} assetCount={assets.length} />
+      {bg.source === "asset" && (
+        <AssetPicker
+          assets={assets}
+          selectedId={chosen?.id}
+          onSelect={(id) => bg.chooseAsset(key, id)}
+          label={`${post.slot}枚目 / ${slideIndex + 1}スライド目の素材`}
+        />
+      )}
+      {bg.source === "ai" && (
+        <div className="preview-actions">
           <button
             className="btn btn-ghost btn-small"
-            onClick={() => bg.regenerate(prompt, "square")}
+            onClick={() => bg.ai.regenerate(prompt, "square")}
+            disabled={!aiSrc}
           >
             🔄 この背景を変える
           </button>
-        )}
-      </div>
-      {usePhoto && !src && (
+        </div>
+      )}
+      {bg.source === "ai" && !aiSrc && (
         <p className="note">
           <span className="spinner" /> AI背景を生成中です(20秒〜1分)...
         </p>
       )}
-      {bg.error && <div className="error-box">{bg.error}</div>}
+      {bg.ai.error && <div className="error-box">{bg.ai.error}</div>}
       <p className="note">
         {post.slot}枚目「{post.theme}」— 全{post.slides.length}枚 / 1080×1350 (4:5)
+        {bg.source === "asset" && "・素材はスライドごとに自動配分されています"}
       </p>
     </div>
   );
@@ -165,10 +243,17 @@ function FeedTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
 
 /* ===== ハイライト ===== */
 
-function HighlightTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
+function HighlightTab({
+  plan,
+  bg,
+  assets,
+}: {
+  plan: AccountPlan;
+  bg: SlideBackground;
+  assets: UploadedAsset[];
+}) {
   const [setIndex, setSetIndex] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [usePhoto, setUsePhoto] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const coverRef = useRef<HTMLCanvasElement>(null);
   const set = plan.highlights[setIndex];
@@ -177,18 +262,22 @@ function HighlightTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
 
   const slide = set?.slides[slideIndex];
   const prompt = slide?.bgPrompt ?? "";
+  const key = set ? hlKey(set.id, slideIndex) : "";
+  const flat = set ? highlightFlatIndex(plan, setIndex, slideIndex) : 0;
 
   useEffect(() => {
-    if (usePhoto && prompt) bg.fetch(prompt, "vertical");
-  }, [usePhoto, prompt, bg]);
+    if (bg.source === "ai" && prompt) bg.ai.fetch(prompt, "vertical");
+  }, [bg.source, prompt, bg.ai]);
 
-  const src = usePhoto ? bg.get(prompt, "vertical") : undefined;
+  const aiSrc = bg.source === "ai" ? bg.ai.get(prompt, "vertical") : undefined;
+  const chosen = bg.source === "asset" ? bg.assetAt(key, flat) : null;
 
   useEffect(() => {
     if (!set || !slide) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       await ensureFonts();
+      const src = chosen ? await bg.toStill(chosen) : aiSrc;
       const img = src ? await loadImage(src) : null;
       if (cancelled) return;
       if (canvasRef.current) {
@@ -210,7 +299,9 @@ function HighlightTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
     return () => {
       cancelled = true;
     };
-  }, [plan, set, slide, slideIndex, src]);
+    // chosen は同じIDなら同じ素材なので、識別子だけを依存に取る
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, set, slide, slideIndex, aiSrc, chosen?.id, bg.toStill]);
 
   if (!set) return null;
 
@@ -239,11 +330,21 @@ function HighlightTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
           </button>
         ))}
       </div>
-      <div className="preview-actions">
-        <button className="btn btn-ghost btn-small" onClick={() => setUsePhoto((v) => !v)}>
-          {usePhoto ? "🎨 テンプレート背景" : "✨ AI写真背景"}
-        </button>
-      </div>
+      <BgSourcePills bg={bg} assetCount={assets.length} />
+      {bg.source === "asset" && (
+        <AssetPicker
+          assets={assets}
+          selectedId={chosen?.id}
+          onSelect={(id) => bg.chooseAsset(key, id)}
+          label={`${set.title} / ${slideIndex + 1}枚目の素材`}
+        />
+      )}
+      {bg.source === "ai" && !aiSrc && (
+        <p className="note">
+          <span className="spinner" /> AI背景を生成中です(20秒〜1分)...
+        </p>
+      )}
+      {bg.ai.error && <div className="error-box">{bg.ai.error}</div>}
       <div className="hl-cover-row">
         <div>
           <canvas ref={coverRef} className="hl-cover" />
@@ -262,48 +363,79 @@ function HighlightTab({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
 
 /* ===== リール ===== */
 
-function ReelTab({ plan }: { plan: AccountPlan }) {
+function ReelTab({
+  plan,
+  bg,
+  assets,
+}: {
+  plan: AccountPlan;
+  bg: SlideBackground;
+  assets: UploadedAsset[];
+}) {
   const [index, setIndex] = useState(0);
   const reel = plan.reels[index];
   if (!reel) return null;
 
   return (
-    <div className="copy-card">
-      <div className="template-row">
-        {plan.reels.map((r, i) => (
-          <button
-            key={r.id}
-            className={`template-pill ${index === i ? "active" : ""}`}
-            onClick={() => setIndex(i)}
-          >
-            {i + 1}. {r.title}
-          </button>
-        ))}
+    <div className="result-grid">
+      <div>
+        <div className="template-row">
+          {plan.reels.map((r, i) => (
+            <button
+              key={r.id}
+              className={`template-pill ${index === i ? "active" : ""}`}
+              onClick={() => setIndex(i)}
+            >
+              {i + 1}. {r.title}
+            </button>
+          ))}
+        </div>
+        <ReelPanel
+          key={reel.id}
+          plan={plan}
+          reel={reel}
+          reelIndex={index}
+          assets={assets}
+          assign={bg.assign}
+          chooseAsset={bg.chooseAsset}
+          resetAssign={bg.resetAssign}
+          toStill={bg.toStill}
+        />
       </div>
-      <h3>{reel.title}</h3>
-      <ol className="scene-list">
-        {reel.scenes.map((s, i) => (
-          <li key={i}>
-            <span className={`scene-type scene-${s.type}`}>
-              {s.type === "hook" ? "フック" : s.type === "cta" ? "CTA" : `ポイント`}
-            </span>
-            <div>
-              <strong>{s.title.replace(/\\n/g, " ")}</strong>
-              <div className="scene-sub">{s.subtitle}</div>
-              <div className="scene-bg">🎥 {s.bgPrompt}</div>
-            </div>
-          </li>
-        ))}
-      </ol>
-      <div className="copy-card" style={{ marginTop: 16, marginBottom: 0 }}>
-        <h3>撮影指示</h3>
-        <pre>{reel.shootingNote}</pre>
+      <div>
+        <div className="copy-card">
+          <h3>{reel.title}</h3>
+          <ol className="scene-list">
+            {reel.scenes.map((s, i) => (
+              <li key={i}>
+                <span className={`scene-type scene-${s.type}`}>
+                  {s.type === "hook" ? "フック" : s.type === "cta" ? "CTA" : `ポイント`}
+                </span>
+                <div>
+                  <strong>{s.title.replace(/\\n/g, " ")}</strong>
+                  <div className="scene-sub">{s.subtitle}</div>
+                  <div className="scene-bg">🎥 {s.bgPrompt}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="copy-card">
+          <h3>撮影指示</h3>
+          <pre>{reel.shootingNote}</pre>
+          <p className="note">
+            まだ素材が無いシーンは、この指示のとおりに撮ってから左のサムネイルで割り当ててください。
+          </p>
+        </div>
+        <div className="copy-card">
+          <h3>おすすめの音楽</h3>
+          <p className="music-hint">
+            <strong>{reel.musicSuggestion}</strong>
+            <br />
+            書き出したMP4に音声は入りません。Instagramアプリの音源ライブラリから付けてください。
+          </p>
+        </div>
       </div>
-      <p className="note">
-        音楽の方向性: {reel.musicSuggestion}
-        <br />
-        実素材で編集する場合は「Insta Studio」のリール機能に、この構成を持ち込んで動画を書き出せます。
-      </p>
     </div>
   );
 }
@@ -411,7 +543,7 @@ function CalendarTab({ plan }: { plan: AccountPlan }) {
 
 /* ===== 一括書き出し ===== */
 
-function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
+function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: SlideBackground }) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -429,11 +561,17 @@ function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
       const ext = format === "jpeg" ? "jpg" : "png";
 
       // フィード9投稿
-      for (const post of plan.posts) {
+      for (let p = 0; p < plan.posts.length; p++) {
+        const post = plan.posts[p];
         const dir = `01_フィード/${String(post.slot).padStart(2, "0")}_${safeName(post.theme)}`;
         for (let i = 0; i < post.slides.length; i++) {
           setProgress(`フィード ${post.slot}/${plan.posts.length} — ${i + 1}枚目`);
-          const src = bg.get(post.slides[i].bgPrompt ?? "", "square");
+          const src = await bg.resolveForExport(
+            feedKey(post.slot, i),
+            feedFlatIndex(plan, p, i),
+            post.slides[i].bgPrompt ?? "",
+            "square"
+          );
           const img = src ? await loadImage(src) : null;
           renderFeedSlide(
             canvas,
@@ -460,13 +598,19 @@ function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
       }
 
       // ハイライト3種 + カバーアイコン
-      for (const set of plan.highlights) {
+      for (let h = 0; h < plan.highlights.length; h++) {
+        const set = plan.highlights[h];
         const dir = `02_ハイライト/${safeName(set.title)}`;
         renderHighlightCover(canvas, brand, set.title, set.icon);
         entries.push({ name: `${dir}/00_カバー.${ext}`, data: await canvasToBytes(canvas, format) });
         for (let i = 0; i < set.slides.length; i++) {
           setProgress(`ハイライト ${set.title} — ${i + 1}枚目`);
-          const src = bg.get(set.slides[i].bgPrompt ?? "", "vertical");
+          const src = await bg.resolveForExport(
+            hlKey(set.id, i),
+            highlightFlatIndex(plan, h, i),
+            set.slides[i].bgPrompt ?? "",
+            "vertical"
+          );
           const img = src ? await loadImage(src) : null;
           renderHighlightSlide(
             canvas,
@@ -598,8 +742,15 @@ function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: Bg }) {
       </p>
       {error && <div className="error-box">{error}</div>}
       <p className="note">
-        AI写真背景を生成済みのスライドはその背景で、未生成のものはテンプレート背景で書き出されます。
-        写真背景で納品する場合は、先に各タブで「✨ AI写真背景」を生成してからダウンロードしてください。
+        {bg.source === "asset"
+          ? "各タブで割り当てた撮影素材のまま書き出します。動画素材のスライドは1コマ切り出した静止画になります。"
+          : bg.source === "ai"
+            ? "生成済みのAI背景のスライドはその背景で、未生成のものはテンプレート背景になります。先に各タブで生成してからダウンロードしてください。"
+            : "配色だけのテンプレート背景で書き出します。各タブで背景の出どころを切り替えられます。"}
+      </p>
+      <p className="note">
+        リールのMP4はここには含まれません。リールタブで1本ずつ書き出してください
+        (動画はファイルが大きく、ZIPに入れるとブラウザのメモリが足りなくなるためです)。
       </p>
     </div>
   );

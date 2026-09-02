@@ -20,21 +20,11 @@ import {
 import { STAGE_LABELS, STAGE_ORDER, useAccountBuild } from "./account/useAccountBuild";
 import { GridPreview } from "./account/GridPreview";
 import { DeliverablePanels } from "./account/DeliverablePanels";
+import { AssetLibrary } from "./account/AssetLibrary";
+import { VISION_IMAGE_LIMIT, type UploadedAsset } from "./account/assets";
 import { ensureFonts } from "./canvas/helpers";
 
 const BRIEF_KEY = "insta-account-brief";
-
-/** 参考写真を縮小して dataURL にする */
-async function fileToDataUrl(file: File, maxDim = 1400): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return canvas.toDataURL("image/jpeg", 0.85);
-}
 
 const FIELDS: {
   key: keyof AccountBrief;
@@ -132,7 +122,7 @@ export default function AccountStudio() {
   const [slots, setSlots] = useState<SlotSpec[]>(DEFAULT_SLOTS);
   const [highlightSpecs, setHighlightSpecs] = useState<HighlightSpec[]>(DEFAULT_HIGHLIGHTS);
   const [reelSpecs, setReelSpecs] = useState<ReelSpec[]>(DEFAULT_REELS);
-  const [images, setImages] = useState<string[]>([]);
+  const [assets, setAssets] = useState<UploadedAsset[]>([]);
   const [showPlanEditor, setShowPlanEditor] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -161,24 +151,11 @@ export default function AccountStudio() {
   const set = (key: keyof AccountBrief, value: string) =>
     setBrief((prev) => ({ ...prev, [key]: value }));
 
-  const addImages = useCallback(
-    async (files: FileList | null) => {
-      if (!files) return;
-      const room = 3 - images.length;
-      if (room <= 0) return;
-      try {
-        const added = await Promise.all(
-          Array.from(files)
-            .slice(0, room)
-            .map((f) => fileToDataUrl(f))
-        );
-        setImages((prev) => [...prev, ...added].slice(0, 3));
-      } catch {
-        setUploadError("写真の読み込みに失敗しました。JPEGまたはPNGをお試しください。");
-      }
-    },
-    [images.length]
-  );
+  // 会社の雰囲気の読み取りに送るのは先頭数枚だけ。全部送るとリクエストが重すぎる
+  const visionImages = assets
+    .filter((a) => a.kind === "image")
+    .slice(0, VISION_IMAGE_LIMIT)
+    .map((a) => a.url);
 
   const canRun =
     !!(brief.companyName.trim() || brief.business.trim() || brief.url.trim()) && !build.running;
@@ -192,6 +169,7 @@ export default function AccountStudio() {
       <p className="lede">
         ヒアリング内容を入力すると、<strong>プロフィール / フィード9投稿(3×3グリッド) / ハイライト3種×4枚 / リール3本</strong>
         を一括で設計します。9投稿はプロフィール画面でメニューとして機能するよう、グリッド全体を先に設計してから中身を書きます。
+        取材で撮った写真・動画を入れておくと、投稿の背景とリールの映像にそのまま使えます。
         <Link href="/indeed" className="ip-navlink">
           Indeed 提案スタジオはこちら →
         </Link>
@@ -230,44 +208,12 @@ export default function AccountStudio() {
             )
           )}
 
-          <div className="field">
-            <label>
-              職場の写真
-              <span className="hint">任意・最大3枚: 空気感を配色と背景に反映します</span>
-            </label>
-            <div className="upload-row">
-              <label className="btn btn-ghost btn-small">
-                📷 写真を追加 ({images.length}/3)
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  disabled={build.running || images.length >= 3}
-                  onChange={(e) => {
-                    addImages(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </div>
-            {images.length > 0 && (
-              <div className="thumbs">
-                {images.map((src, i) => (
-                  <div key={i} className="thumb">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`職場写真${i + 1}`} />
-                    <button
-                      type="button"
-                      onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <AssetLibrary
+            assets={assets}
+            setAssets={setAssets}
+            disabled={build.running}
+            onError={setUploadError}
+          />
 
           <button
             className="btn btn-ghost"
@@ -294,7 +240,7 @@ export default function AccountStudio() {
             className="btn btn-primary"
             disabled={!canRun}
             onClick={() =>
-              build.run({ brief, slots, highlightSpecs, reelSpecs, images })
+              build.run({ brief, slots, highlightSpecs, reelSpecs, images: visionImages })
             }
           >
             {build.running ? "構築中..." : "アカウント一式を構築する"}
@@ -331,14 +277,14 @@ export default function AccountStudio() {
                 プロフィール完成イメージと全納品物がここに表示されます。
                 <br />
                 <span style={{ fontSize: 12, opacity: 0.7 }}>
-                  ★印の2項目(社内の数字・社員のエピソード)が仕上がりを大きく変えます
+                  ★印の3項目(社内の数字・社員のエピソード・取材素材)が仕上がりを大きく変えます
                 </span>
               </div>
             )
           ) : (
             <>
               <GridPreview plan={build.plan} />
-              <DeliverablePanels plan={build.plan} />
+              <DeliverablePanels plan={build.plan} assets={assets} />
             </>
           )}
         </div>

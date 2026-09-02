@@ -55,3 +55,15 @@ export interface ReelScene {
   /** このシーン専用の背景映像プロンプト(英語) */
   bgPrompt?: string;
 }
+
+/**
+ * リール動画の描画に必要な最小限。
+ * lib/account-types.ts の AccountReel はこれを構造的に満たすので、
+ * ReelPlayer にそのまま渡せる。
+ */
+export interface ReelPlan {
+  scenes: ReelScene[];
+  caption: string;
+  hashtags: string[];
+  musicSuggestion: string;
+}

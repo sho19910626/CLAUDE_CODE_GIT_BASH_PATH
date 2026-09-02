@@ -91,13 +91,15 @@ export function renderHighlightSlide(
   ctx.fillText(`${index + 1} / ${total}`, HL_W - 80, barY + 66);
 
   /* ---------- 本文 ---------- */
+  // ここから下はすべて左揃え。上の「1 / 4」で right にしたままだと、
+  // eyebrow が空のスライドで見出しと本文が左端の外へ流れてしまう。
+  ctx.textAlign = "left";
   const x = 90;
   const maxW = HL_W - 180;
   let y = HL_H * 0.34;
 
   // eyebrow(見出しの上の小ラベル)
   if (slide.eyebrow?.trim()) {
-    ctx.textAlign = "left";
     ctx.font = `700 32px ${family}`;
     setTracking(ctx, 2);
     const w = ctx.measureText(slide.eyebrow).width;
