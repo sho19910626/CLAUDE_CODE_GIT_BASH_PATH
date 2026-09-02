@@ -37,6 +37,12 @@ function parseEnv(envPath) {
   return { vars, orphans, lineNos, duplicates };
 }
 
+// .env.example に書いてある記入例のまま(末尾が ... )かどうか。
+// 「短すぎます」より原因がはっきり伝わるので、専用のメッセージを出す。
+function isPlaceholder(v) {
+  return /\.\.\.$/.test(v);
+}
+
 // 値の書き方チェック。問題の配列と正規化済みの値を返す
 function validateKeyFormat(value, expectedPrefixes, keyName) {
   const problems = [];
@@ -44,6 +50,12 @@ function validateKeyFormat(value, expectedPrefixes, keyName) {
   if (/^["']|["']$/.test(v)) {
     problems.push(`${keyName} の前後に引用符 " や ' が付いています → 外してください`);
     v = v.replace(/^["']+|["']+$/g, "");
+  }
+  if (isPlaceholder(v)) {
+    problems.push(
+      `${keyName} が記入例(${v})のままです → 実際のキーに置き換えてください`
+    );
+    return { problems, value: v };
   }
   if (/[^\x21-\x7e]/.test(v)) {
     problems.push(`${keyName} に全角文字またはスペースが混ざっています → コピーし直してください`);
@@ -59,7 +71,35 @@ function validateKeyFormat(value, expectedPrefixes, keyName) {
   return { problems, value: v };
 }
 
-async function checkAnthropic(value) {
+// 同じリポジトリの他のツールの .env に、使えるキーが残っていないか探す。
+// .env は Git の管理外なので、うっかり上書きすると復元できない。
+// 姉妹アプリに残っていればコピーで済むため、それを教える。
+function findKeyElsewhere(keyName, selfPath) {
+  const found = [];
+  for (const dir of ["insta-studio", "avatar-studio"]) {
+    const p = path.join(__dirname, dir, ".env");
+    if (p === selfPath || !fs.existsSync(p)) continue;
+    try {
+      const v = (parseEnv(p).vars[keyName] || "").replace(/^["']+|["']+$/g, "");
+      if (v && !isPlaceholder(v) && v.length >= 40) {
+        found.push({ path: path.join(dir, ".env"), length: v.length });
+      }
+    } catch {
+      // 読めないファイルは黙って飛ばす
+    }
+  }
+  return found;
+}
+
+// 他のツールの .env に使えるキーが残っていれば案内する
+function suggestElsewhere(keyName, envPath) {
+  for (const f of findKeyElsewhere(keyName, envPath)) {
+    console.log(`  💡 ${f.path} に ${keyName}(${f.length}文字)が入っています。`);
+    console.log("     そちらを開いてコピーすれば、発行し直さずに済みます。");
+  }
+}
+
+async function checkAnthropic(value, envPath) {
   console.log("── Anthropic (コンテンツ生成用 / 必須) ──");
   if (value.startsWith("sk-ant-admin")) {
     console.log("✖ これは Admin キーです。通常の API キー (sk-ant-api03-...) を作成してください。");
@@ -69,6 +109,7 @@ async function checkAnthropic(value) {
   console.log(`✔ キーを読み取りました: ${mask(v)}`);
   if (problems.length) {
     for (const p of problems) console.log("✖ " + p);
+    suggestElsewhere("ANTHROPIC_API_KEY", envPath);
     return false;
   }
   console.log("  接続テスト中...");
@@ -156,7 +197,7 @@ async function checkModel(value, model) {
   }
 }
 
-async function checkOpenAI(value, model) {
+async function checkOpenAI(value, model, envPath) {
   console.log("\n── OpenAI (AI写真背景用 / 任意) ──");
   if (!value) {
     console.log("ℹ OPENAI_API_KEY は未設定です。「✨ AI写真」を使わないなら設定不要です。");
@@ -167,6 +208,7 @@ async function checkOpenAI(value, model) {
   console.log(`✔ キーを読み取りました: ${mask(v)}`);
   if (problems.length) {
     for (const p of problems) console.log("✖ " + p);
+    suggestElsewhere("OPENAI_API_KEY", envPath);
     return;
   }
   console.log("  接続テスト中...");
@@ -243,9 +285,9 @@ async function main() {
   }
 
   // キー自体が通らないなら、モデルの確認をしても同じ401が出るだけなので飛ばす
-  const keyOk = await checkAnthropic(vars.ANTHROPIC_API_KEY);
+  const keyOk = await checkAnthropic(vars.ANTHROPIC_API_KEY, envPath);
   if (keyOk) await checkModel(vars.ANTHROPIC_API_KEY, vars.ANTHROPIC_MODEL);
-  await checkOpenAI(vars.OPENAI_API_KEY, vars.OPENAI_IMAGE_MODEL);
+  await checkOpenAI(vars.OPENAI_API_KEY, vars.OPENAI_IMAGE_MODEL, envPath);
 
   console.log("\n診断が終わったら、サーバーを再起動 (Ctrl+C → npm run dev) してからアプリをお試しください。");
 }
