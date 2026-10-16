@@ -22,6 +22,7 @@ import { GridPreview } from "./account/GridPreview";
 import { DeliverablePanels } from "./account/DeliverablePanels";
 import { AssetLibrary } from "./account/AssetLibrary";
 import { VISION_IMAGE_LIMIT, toVisionImage, type UploadedAsset } from "./account/assets";
+import { useSlideBackground } from "./account/background";
 import { ensureFonts } from "./canvas/helpers";
 
 const BRIEF_KEY = "insta-account-brief";
@@ -127,6 +128,9 @@ export default function AccountStudio() {
   const [saved, setSaved] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const build = useAccountBuild();
+  // 背景の設定は納品物ぜんぶで1つ。グリッドとタブで別々に持つと、
+  // 同じ絵をAIに2回生成させてしまう(1枚1分半 + 従量課金)。
+  const bg = useSlideBackground(assets);
 
   useEffect(() => {
     void ensureFonts();
@@ -294,8 +298,8 @@ export default function AccountStudio() {
             )
           ) : (
             <>
-              <GridPreview plan={build.plan} />
-              <DeliverablePanels plan={build.plan} assets={assets} />
+              <GridPreview plan={build.plan} bg={bg} assetCount={assets.length} />
+              <DeliverablePanels plan={build.plan} assets={assets} bg={bg} />
             </>
           )}
         </div>

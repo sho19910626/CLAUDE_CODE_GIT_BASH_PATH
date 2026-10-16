@@ -20,7 +20,14 @@ import {
   type ZipEntry,
 } from "@/lib/zip";
 import type { UploadedAsset } from "./assets";
-import { useSlideBackground, type BgSource, type SlideBackground } from "./background";
+import {
+  feedFlatIndex,
+  feedKey,
+  highlightFlatIndex,
+  hlKey,
+  type SlideBackground,
+} from "./background";
+import { BgSourcePills } from "./BgSourcePills";
 import { AssetPicker } from "./AssetLibrary";
 import { ReelPanel } from "./ReelPanel";
 
@@ -34,31 +41,16 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "calendar", label: "投稿カレンダー" },
 ];
 
-/** フィード全体を通した通し番号。投稿をまたいで別の素材が当たるようにする */
-function feedFlatIndex(plan: AccountPlan, postIndex: number, slideIndex: number): number {
-  let n = 0;
-  for (let i = 0; i < postIndex; i++) n += plan.posts[i].slides.length;
-  return n + slideIndex;
-}
-
-function highlightFlatIndex(plan: AccountPlan, setIndex: number, slideIndex: number): number {
-  let n = 0;
-  for (let i = 0; i < setIndex; i++) n += plan.highlights[i].slides.length;
-  return n + slideIndex;
-}
-
-const feedKey = (slot: number, slideIndex: number) => `feed:${slot}:${slideIndex}`;
-const hlKey = (id: string, slideIndex: number) => `hl:${id}:${slideIndex}`;
-
 export function DeliverablePanels({
   plan,
   assets,
+  bg,
 }: {
   plan: AccountPlan;
   assets: UploadedAsset[];
+  bg: SlideBackground;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
-  const bg = useSlideBackground(assets);
 
   return (
     <>
@@ -82,39 +74,6 @@ export function DeliverablePanels({
 
       <ExportPanel plan={plan} bg={bg} />
     </>
-  );
-}
-
-/** 背景の出どころを選ぶピル。撮影素材が無いときはその選択肢を出さない */
-function BgSourcePills({
-  bg,
-  assetCount,
-  disabled,
-}: {
-  bg: SlideBackground;
-  assetCount: number;
-  disabled?: boolean;
-}) {
-  const options: { id: BgSource; label: string }[] = [
-    { id: "template", label: "🎨 テンプレート背景" },
-    ...(assetCount > 0
-      ? [{ id: "asset" as BgSource, label: `📷 撮影素材 (${assetCount})` }]
-      : []),
-    { id: "ai", label: "✨ AI写真" },
-  ];
-  return (
-    <div className="template-row">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          className={`template-pill ${bg.source === o.id ? "active" : ""}`}
-          onClick={() => bg.setSource(o.id)}
-          disabled={disabled}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
   );
 }
 

@@ -5,25 +5,33 @@
 // ハイライトアイコン・3×3グリッドを並べる。クライアントへの提案と
 // 納品確認に使うため、ピン止めの3枠が上段に来ることが分かるようにしている。
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { AccountPlan } from "@/lib/account-types";
-import { ensureFonts, loadImage } from "../canvas/helpers";
+import { ensureFonts } from "../canvas/helpers";
 import { renderFeedSlide } from "../canvas/renderFeed";
 import { renderHighlightCover } from "../canvas/renderHighlight";
-import { useBackgroundImages } from "./useBackgroundImages";
+import { feedFlatIndex, feedKey, type SlideBackground } from "./background";
+import { BgSourcePills } from "./BgSourcePills";
 
-export function GridPreview({ plan }: { plan: AccountPlan }) {
+export function GridPreview({
+  plan,
+  bg,
+  assetCount,
+}: {
+  plan: AccountPlan;
+  bg: SlideBackground;
+  assetCount: number;
+}) {
   const { foundation, posts, highlights } = plan;
-  const bg = useBackgroundImages();
-  const [usePhotos, setUsePhotos] = useState(false);
 
-  // AI背景を使う設定にしたら、9枚の表紙ぶんをまとめて生成する
+  // AI写真のときだけ、9枚の表紙ぶんをまとめて生成する。
+  // 1枚およそ90秒かかるうえ従量課金なので、選ばれるまでは一切呼ばない。
   useEffect(() => {
-    if (!usePhotos) return;
+    if (bg.source !== "ai") return;
     for (const p of foundation.posts) {
-      if (p.coverBgPrompt) bg.fetch(p.coverBgPrompt, "square");
+      if (p.coverBgPrompt) bg.ai.fetch(p.coverBgPrompt, "square");
     }
-  }, [usePhotos, foundation.posts, bg]);
+  }, [bg.source, foundation.posts, bg.ai]);
 
   return (
     <div className="copy-card">
@@ -65,17 +73,28 @@ export function GridPreview({ plan }: { plan: AccountPlan }) {
           {foundation.posts
             .slice()
             .sort((a, b) => a.slot - b.slot)
-            .map((outline) => {
+            .map((outline, i) => {
               const post = posts.find((p) => p.slot === outline.slot);
+              // 表紙はフィードタブの1スライド目と同じ絵なので、割り当ても共有する
+              const asset =
+                bg.source === "asset"
+                  ? bg.assetAt(feedKey(outline.slot, 0), feedFlatIndex(plan, i, 0))
+                  : null;
               return (
                 <GridTile
                   key={outline.slot}
                   plan={plan}
                   slot={outline.slot}
                   pinned={outline.slot <= 3}
+                  bgKey={asset ? asset.id : `ai:square:${outline.coverBgPrompt}`}
                   bgSrc={
-                    usePhotos ? bg.get(outline.coverBgPrompt, "square") ?? null : null
+                    asset
+                      ? asset.still
+                      : bg.source === "ai"
+                        ? bg.ai.get(outline.coverBgPrompt, "square") ?? null
+                        : null
                   }
+                  loadCached={bg.loadCached}
                   hasPost={!!post}
                 />
               );
@@ -83,20 +102,14 @@ export function GridPreview({ plan }: { plan: AccountPlan }) {
         </div>
       </div>
 
-      <div className="preview-actions">
-        <button
-          className={`btn btn-ghost btn-small ${usePhotos ? "" : ""}`}
-          onClick={() => setUsePhotos((v) => !v)}
-        >
-          {usePhotos ? "🎨 テンプレート背景に戻す" : "✨ AI写真背景で仕上げる (9枚)"}
-        </button>
-        {usePhotos && bg.loadingCount > 0 && (
-          <span className="note" style={{ margin: 0 }}>
-            <span className="spinner" /> 背景を生成中 (残り{bg.loadingCount}枚)
-          </span>
-        )}
-      </div>
-      {bg.error && <div className="error-box">{bg.error}</div>}
+      <BgSourcePills bg={bg} assetCount={assetCount} />
+      {bg.source === "ai" && bg.ai.loadingCount > 0 && (
+        <p className="note">
+          <span className="spinner" /> AI写真を生成中 (残り{bg.ai.loadingCount}枚)。
+          1枚あたり1分半ほどかかり、枚数ぶん課金されます。
+        </p>
+      )}
+      {bg.ai.error && <div className="error-box">{bg.ai.error}</div>}
 
       <p className="note">
         上段3枠がピン止めされ、プロフィールを開いた求職者に常に最初に見えます。
@@ -112,13 +125,17 @@ function GridTile({
   plan,
   slot,
   pinned,
+  bgKey,
   bgSrc,
+  loadCached,
   hasPost,
 }: {
   plan: AccountPlan;
   slot: number;
   pinned: boolean;
+  bgKey: string;
   bgSrc: string | null;
+  loadCached: (key: string, src: string) => Promise<HTMLImageElement>;
   hasPost: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,9 +145,9 @@ function GridTile({
   useEffect(() => {
     if (!outline) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       await ensureFonts();
-      const img = bgSrc ? await loadImage(bgSrc) : null;
+      const img = bgSrc ? await loadCached(bgKey, bgSrc).catch(() => null) : null;
       if (cancelled || !canvasRef.current) return;
       // 中面が未生成でも、表紙だけは骨子から描ける
       const slides = post?.slides?.length
@@ -161,7 +178,7 @@ function GridTile({
     return () => {
       cancelled = true;
     };
-  }, [plan, slot, bgSrc, post, outline]);
+  }, [plan, slot, bgKey, bgSrc, post, outline, loadCached]);
 
   return (
     <div className="ig-tile" title={outline?.theme}>

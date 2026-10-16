@@ -9,10 +9,30 @@
 // 循環させるので、何も操作しなくても全スライドに違う素材が当たる。
 
 import { useCallback, useRef, useState } from "react";
+import type { AccountPlan } from "@/lib/account-types";
 import { assetFor, createImageCache, type UploadedAsset } from "./assets";
 import { useBackgroundImages, type Aspect } from "./useBackgroundImages";
 
 export type BgSource = "template" | "asset" | "ai";
+
+/* ===== 割り当てのキーと通し番号 =====
+   グリッドの表紙と、フィードタブの1スライド目は同じ絵なので、同じキーを使う。
+   通し番号は投稿をまたいで進めるので、何もしなくても全スライドに別の素材が当たる。 */
+
+export const feedKey = (slot: number, slideIndex: number) => `feed:${slot}:${slideIndex}`;
+export const hlKey = (id: string, slideIndex: number) => `hl:${id}:${slideIndex}`;
+
+export function feedFlatIndex(plan: AccountPlan, postIndex: number, slideIndex: number): number {
+  let n = 0;
+  for (let i = 0; i < postIndex; i++) n += plan.posts[i].slides.length;
+  return n + slideIndex;
+}
+
+export function highlightFlatIndex(plan: AccountPlan, setIndex: number, slideIndex: number): number {
+  let n = 0;
+  for (let i = 0; i < setIndex; i++) n += plan.highlights[i].slides.length;
+  return n + slideIndex;
+}
 
 export function useSlideBackground(assets: UploadedAsset[]) {
   const ai = useBackgroundImages();
