@@ -1,13 +1,14 @@
 "use client";
 
 // 取材素材(写真・動画)のアップロード画面と、スライドごとの割り当てピッカー。
+// 表示はすべてサムネイル。原寸や <video> を一覧に並べると画面が重くなる。
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   MAX_PHOTOS,
   MAX_VIDEOS,
-  fileToDataUrl,
-  nextAssetId,
+  photoToAsset,
+  videoToAsset,
   type UploadedAsset,
 } from "./assets";
 
@@ -24,56 +25,43 @@ export function AssetLibrary({
 }) {
   const photos = assets.filter((a) => a.kind === "image");
   const videos = assets.filter((a) => a.kind === "video");
+  // 何本目を読んでいるか。動画はシークを挟むぶん時間がかかるので進捗を出す
+  const [reading, setReading] = useState<string | null>(null);
 
-  const addPhotos = useCallback(
-    async (files: FileList | null) => {
+  /**
+   * 少しずつ並行して読む。
+   * 写真は数枚まとめても平気だが、動画は1本ずつにする。まとめて投げると
+   * 本数ぶんのデコーダが同時に動いてブラウザが固まる。
+   * 読めたそばから一覧に出るので、待っている感じも薄い。
+   */
+  const add = useCallback(
+    async (
+      files: FileList | null,
+      room: number,
+      limitLabel: string,
+      convert: (f: File) => Promise<UploadedAsset>,
+      concurrency: number
+    ) => {
       if (!files) return;
-      const room = MAX_PHOTOS - photos.length;
       if (room <= 0) {
-        onError(`写真は最大${MAX_PHOTOS}枚までです`);
+        onError(limitLabel);
         return;
       }
-      try {
-        const added = await Promise.all(
-          Array.from(files)
-            .slice(0, room)
-            .map(async (f) => ({
-              id: nextAssetId(),
-              kind: "image" as const,
-              url: await fileToDataUrl(f),
-              name: f.name,
-            }))
-        );
-        setAssets((prev) => [...prev, ...added]);
-        onError(null);
-      } catch {
-        onError("写真の読み込みに失敗しました。JPEGまたはPNGをお試しください。");
-      }
-    },
-    [photos.length, setAssets, onError]
-  );
-
-  const addVideos = useCallback(
-    (files: FileList | null) => {
-      if (!files) return;
-      const room = MAX_VIDEOS - videos.length;
-      if (room <= 0) {
-        onError(`動画は最大${MAX_VIDEOS}本までです`);
-        return;
-      }
-      // 動画は縮小せず objectURL のまま扱う(dataURL 化するとメモリが持たない)
-      const added = Array.from(files)
-        .slice(0, room)
-        .map((f) => ({
-          id: nextAssetId(),
-          kind: "video" as const,
-          url: URL.createObjectURL(f),
-          name: f.name,
-        }));
-      setAssets((prev) => [...prev, ...added]);
+      const targets = Array.from(files).slice(0, room);
       onError(null);
+      let failed = 0;
+      for (let i = 0; i < targets.length; i += concurrency) {
+        const chunk = targets.slice(i, i + concurrency);
+        setReading(`${Math.min(i + chunk.length, targets.length)} / ${targets.length} 読み込み中`);
+        const done = await Promise.all(chunk.map((f) => convert(f).catch(() => null)));
+        const ok = done.filter((a): a is UploadedAsset => a !== null);
+        failed += done.length - ok.length;
+        if (ok.length) setAssets((prev) => [...prev, ...ok]);
+      }
+      setReading(null);
+      if (failed) onError(`${failed}件は読み込めませんでした。別の形式でお試しください。`);
     },
-    [videos.length, setAssets, onError]
+    [setAssets, onError]
   );
 
   const remove = useCallback(
@@ -86,6 +74,8 @@ export function AssetLibrary({
     },
     [setAssets]
   );
+
+  const busy = disabled || reading !== null;
 
   return (
     <div className="field">
@@ -103,9 +93,15 @@ export function AssetLibrary({
             accept="image/*"
             multiple
             hidden
-            disabled={disabled || photos.length >= MAX_PHOTOS}
+            disabled={busy || photos.length >= MAX_PHOTOS}
             onChange={(e) => {
-              void addPhotos(e.target.files);
+              void add(
+                e.target.files,
+                MAX_PHOTOS - photos.length,
+                `写真は最大${MAX_PHOTOS}枚までです`,
+                photoToAsset,
+                4
+              );
               e.target.value = "";
             }}
           />
@@ -117,26 +113,35 @@ export function AssetLibrary({
             accept="video/*"
             multiple
             hidden
-            disabled={disabled || videos.length >= MAX_VIDEOS}
+            disabled={busy || videos.length >= MAX_VIDEOS}
             onChange={(e) => {
-              addVideos(e.target.files);
+              void add(
+                e.target.files,
+                MAX_VIDEOS - videos.length,
+                `動画は最大${MAX_VIDEOS}本までです`,
+                videoToAsset,
+                1
+              );
               e.target.value = "";
             }}
           />
         </label>
       </div>
 
+      {reading && (
+        <p className="note">
+          <span className="spinner" /> {reading}
+        </p>
+      )}
+
       {assets.length > 0 && (
         <div className="thumbs">
           {assets.map((a) => (
             <div key={a.id} className="thumb" title={a.name}>
-              {a.kind === "image" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.url} alt={a.name} />
-              ) : (
-                <video src={a.url} muted playsInline preload="metadata" />
-              )}
-              <button type="button" onClick={() => remove(a.id)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={a.thumb} alt={a.name} />
+              {a.kind === "video" && <span className="thumb-badge">🎥</span>}
+              <button type="button" onClick={() => remove(a.id)} disabled={busy}>
                 ×
               </button>
             </div>
@@ -177,13 +182,11 @@ export function AssetPicker({
             onClick={() => onSelect(a.id)}
             title={a.name}
           >
-            {a.kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={a.url} alt={a.name} />
-            ) : (
-              <video src={a.url} muted playsInline preload="metadata" />
-            )}
-            <span className="asset-num">{i + 1}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={a.thumb} alt={a.name} />
+            <span className="asset-num">
+              {a.kind === "video" ? "🎥" : i + 1}
+            </span>
           </button>
         ))}
       </div>

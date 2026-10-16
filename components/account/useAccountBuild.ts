@@ -139,15 +139,16 @@ export function useAccountBuild() {
         slots: args.slots,
         highlightSpecs: args.highlightSpecs,
         reelSpecs: args.reelSpecs,
-        images: args.images,
       };
 
       try {
-        // ① 土台。ここで決まる配色・グリッド設計に以降すべてが従う
+        // ① 土台。ここで決まる配色・グリッド設計に以降すべてが従う。
+        // 写真を見て雰囲気を読むのはこの段階だけなので、画像もここにしか送らない。
+        // 6段階すべてに載せると、同じ画像を6回アップロードすることになる。
         setStage("foundation", { status: "running", message: "開始しています" });
         const foundation = await callStage<FoundationStage>(
           "foundation",
-          base,
+          { ...base, images: args.images },
           (m) => setStage("foundation", { message: m }),
           controller.signal
         );

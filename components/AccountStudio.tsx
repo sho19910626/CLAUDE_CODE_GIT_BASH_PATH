@@ -21,7 +21,7 @@ import { STAGE_LABELS, STAGE_ORDER, useAccountBuild } from "./account/useAccount
 import { GridPreview } from "./account/GridPreview";
 import { DeliverablePanels } from "./account/DeliverablePanels";
 import { AssetLibrary } from "./account/AssetLibrary";
-import { VISION_IMAGE_LIMIT, type UploadedAsset } from "./account/assets";
+import { VISION_IMAGE_LIMIT, toVisionImage, type UploadedAsset } from "./account/assets";
 import { ensureFonts } from "./canvas/helpers";
 
 const BRIEF_KEY = "insta-account-brief";
@@ -151,11 +151,24 @@ export default function AccountStudio() {
   const set = (key: keyof AccountBrief, value: string) =>
     setBrief((prev) => ({ ...prev, [key]: value }));
 
-  // 会社の雰囲気の読み取りに送るのは先頭数枚だけ。全部送るとリクエストが重すぎる
-  const visionImages = assets
-    .filter((a) => a.kind === "image")
-    .slice(0, VISION_IMAGE_LIMIT)
-    .map((a) => a.url);
+  // 会社の雰囲気の読み取りに送るのは先頭数枚だけ。全部送るとリクエストが重すぎる。
+  // 送る直前に視覚分析用の小さい版を作る(背景用の原寸をそのまま送ると数MBになる)。
+  const startBuild = useCallback(async () => {
+    setUploadError(null);
+    let images: string[] = [];
+    try {
+      images = await Promise.all(
+        assets
+          .filter((a) => a.kind === "image")
+          .slice(0, VISION_IMAGE_LIMIT)
+          .map((a) => toVisionImage(a.still))
+      );
+    } catch {
+      // 写真を渡せなくても、ヒアリング内容だけで構築は進められる
+      setUploadError("写真を読み込めなかったため、文章だけで構築します。");
+    }
+    void build.run({ brief, slots, highlightSpecs, reelSpecs, images });
+  }, [assets, brief, slots, highlightSpecs, reelSpecs, build]);
 
   const canRun =
     !!(brief.companyName.trim() || brief.business.trim() || brief.url.trim()) && !build.running;
@@ -239,9 +252,7 @@ export default function AccountStudio() {
           <button
             className="btn btn-primary"
             disabled={!canRun}
-            onClick={() =>
-              build.run({ brief, slots, highlightSpecs, reelSpecs, images: visionImages })
-            }
+            onClick={startBuild}
           >
             {build.running ? "構築中..." : "アカウント一式を構築する"}
           </button>

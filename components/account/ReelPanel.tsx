@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AccountPlan, AccountReel } from "@/lib/account-types";
-import { ensureFonts, loadImage } from "../canvas/helpers";
+import { ensureFonts } from "../canvas/helpers";
 import { ReelPlayer, SCENE_MS } from "../canvas/reel";
 import { exportReelMp4, supportsMp4Export } from "../canvas/exportMp4";
 import { assetFor, type UploadedAsset } from "./assets";
@@ -80,7 +80,7 @@ export function ReelPanel({
   assign,
   chooseAsset,
   resetAssign,
-  toStill,
+  loadCached,
 }: {
   plan: AccountPlan;
   reel: AccountReel;
@@ -89,7 +89,7 @@ export function ReelPanel({
   assign: Record<string, string>;
   chooseAsset: (key: string, id: string) => void;
   resetAssign: () => void;
-  toStill: (asset: UploadedAsset) => Promise<string | null>;
+  loadCached: (key: string, src: string) => Promise<HTMLImageElement>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<ReelPlayer | null>(null);
@@ -113,6 +113,16 @@ export function ReelPanel({
   // 依存配列に入れるための、割り当ての要約
   const chosenIds = chosen.map((a) => a?.id ?? "").join(",");
 
+  /**
+   * 実際にシーンへ割り当たっている動画だけを読み込む。
+   * アップロード済みの全部(最大20本)に <video> を作ると、
+   * 使わない動画までデコーダを抱えて画面が重くなる。
+   */
+  const liveVideos =
+    bgMode === "video"
+      ? videos.filter((v) => chosen.some((a) => a?.id === v.id))
+      : [];
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -122,10 +132,11 @@ export function ReelPanel({
       let videoEls: (HTMLVideoElement | null)[] | null = null;
 
       if (bgMode === "photo") {
-        const srcs = await Promise.all(
-          chosen.map(async (a) => (a ? await toStill(a) : null))
+        images = await Promise.all(
+          chosen.map(async (a) =>
+            a ? await loadCached(a.id, a.still).catch(() => null) : null
+          )
         );
-        images = await Promise.all(srcs.map((s) => (s ? loadImage(s) : null)));
       } else if (bgMode === "video") {
         videoEls = chosen.map((a) => (a ? videoRefs.current.get(a.id) ?? null : null));
         if (videoEls.every((v) => v === null)) videoEls = null;
@@ -163,7 +174,7 @@ export function ReelPanel({
     };
     // chosen は毎レンダー新しい配列になるため、中身の要約 chosenIds で判定する
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, reel, bgMode, chosenIds, toStill]);
+  }, [plan, reel, bgMode, chosenIds, loadCached]);
 
   const exporter = useReelExport(
     playerRef,
@@ -198,8 +209,8 @@ export function ReelPanel({
         </button>
       </div>
 
-      {/* 描画元にするため、割り当て候補の動画をすべて読み込んでおく */}
-      {videos.map((a) => (
+      {/* シーンに割り当たっている動画だけを読み込む */}
+      {liveVideos.map((a) => (
         <video
           key={a.id}
           src={a.url}

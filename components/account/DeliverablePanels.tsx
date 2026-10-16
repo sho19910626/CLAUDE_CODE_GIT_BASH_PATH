@@ -153,9 +153,12 @@ function FeedTab({
     let cancelled = false;
     void (async () => {
       await ensureFonts();
-      // 撮影素材モードでは、動画なら1コマ切り出してから読み込む
-      const src = chosen ? await bg.toStill(chosen) : aiSrc;
-      const img = src ? await loadImage(src) : null;
+      // 撮影素材は取り込み時に静止画へ落としてあるので、ここでは復号するだけ
+      const img = chosen
+        ? await bg.loadCached(chosen.id, chosen.still).catch(() => null)
+        : aiSrc
+          ? await loadImage(aiSrc).catch(() => null)
+          : null;
       if (cancelled || !canvasRef.current) return;
       renderFeedSlide(
         canvasRef.current,
@@ -176,7 +179,7 @@ function FeedTab({
     };
     // chosen は同じIDなら同じ素材なので、識別子だけを依存に取る
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, post, slideIndex, aiSrc, chosen?.id, bg.toStill]);
+  }, [plan, post, slideIndex, aiSrc, chosen?.id, bg.loadCached]);
 
   if (!post) return null;
 
@@ -277,8 +280,11 @@ function HighlightTab({
     let cancelled = false;
     void (async () => {
       await ensureFonts();
-      const src = chosen ? await bg.toStill(chosen) : aiSrc;
-      const img = src ? await loadImage(src) : null;
+      const img = chosen
+        ? await bg.loadCached(chosen.id, chosen.still).catch(() => null)
+        : aiSrc
+          ? await loadImage(aiSrc).catch(() => null)
+          : null;
       if (cancelled) return;
       if (canvasRef.current) {
         renderHighlightSlide(
@@ -301,7 +307,7 @@ function HighlightTab({
     };
     // chosen は同じIDなら同じ素材なので、識別子だけを依存に取る
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, set, slide, slideIndex, aiSrc, chosen?.id, bg.toStill]);
+  }, [plan, set, slide, slideIndex, aiSrc, chosen?.id, bg.loadCached]);
 
   if (!set) return null;
 
@@ -399,7 +405,7 @@ function ReelTab({
           assign={bg.assign}
           chooseAsset={bg.chooseAsset}
           resetAssign={bg.resetAssign}
-          toStill={bg.toStill}
+          loadCached={bg.loadCached}
         />
       </div>
       <div>
@@ -566,13 +572,13 @@ function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: SlideBackground }) {
         const dir = `01_フィード/${String(post.slot).padStart(2, "0")}_${safeName(post.theme)}`;
         for (let i = 0; i < post.slides.length; i++) {
           setProgress(`フィード ${post.slot}/${plan.posts.length} — ${i + 1}枚目`);
-          const src = await bg.resolveForExport(
+          const bgRef = bg.resolveForExport(
             feedKey(post.slot, i),
             feedFlatIndex(plan, p, i),
             post.slides[i].bgPrompt ?? "",
             "square"
           );
-          const img = src ? await loadImage(src) : null;
+          const img = bgRef ? await bg.loadCached(bgRef.cacheKey, bgRef.src).catch(() => null) : null;
           renderFeedSlide(
             canvas,
             brand,
@@ -605,13 +611,13 @@ function ExportPanel({ plan, bg }: { plan: AccountPlan; bg: SlideBackground }) {
         entries.push({ name: `${dir}/00_カバー.${ext}`, data: await canvasToBytes(canvas, format) });
         for (let i = 0; i < set.slides.length; i++) {
           setProgress(`ハイライト ${set.title} — ${i + 1}枚目`);
-          const src = await bg.resolveForExport(
+          const bgRef = bg.resolveForExport(
             hlKey(set.id, i),
             highlightFlatIndex(plan, h, i),
             set.slides[i].bgPrompt ?? "",
             "vertical"
           );
-          const img = src ? await loadImage(src) : null;
+          const img = bgRef ? await bg.loadCached(bgRef.cacheKey, bgRef.src).catch(() => null) : null;
           renderHighlightSlide(
             canvas,
             brand,
