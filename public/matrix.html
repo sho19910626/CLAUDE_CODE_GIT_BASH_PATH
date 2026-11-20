@@ -206,6 +206,21 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 .cell.filled.tex{background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.3) 4px 6px)}
 .cell.filled span{overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
 .cell.filled .x{position:absolute; top:1px; right:3px; opacity:.75; font-size:12px; cursor:pointer}
+/* ---------- 下書き ---------- */
+.drafts{border-style:dashed}
+.memo-row{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
+.memo-row input{flex:1; min-width:180px}
+.draft-row{display:flex; gap:10px 14px; align-items:center; padding:10px 12px; border-radius:8px; background:var(--surface-2); border:1px dashed var(--axis); flex-wrap:wrap}
+.draft-row .dt{flex:1; min-width:160px; font-size:13.5px; font-weight:600; word-break:break-word}
+.draft-row .dt.untitled{color:var(--ink-muted); font-weight:500}
+.draft-row .dm{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+.dprog{width:64px; height:6px; border-radius:3px; background:color-mix(in oklab,var(--grid) 70%,transparent); overflow:hidden; flex:none}
+.dprog i{display:block; height:100%; background:var(--q2); border-radius:0 3px 3px 0}
+.draft-row .da{display:flex; gap:6px; margin-left:auto}
+.cnt-badge{display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--q2); color:#fff; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; margin-left:6px; vertical-align:1px}
+.wz-saved{font-size:11.5px; color:var(--ink-muted); white-space:nowrap}
+#toast{position:fixed; left:50%; bottom:24px; transform:translate(-50%,12px); z-index:120; background:var(--ink); color:var(--surface); font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; max-width:calc(100vw - 32px)}
+#toast.show{opacity:1; transform:translate(-50%,0)}
 .gcal-row{display:flex; gap:12px; align-items:center; font-size:13px; padding:9px 12px; border-radius:8px; background:var(--surface-2); border:1px solid var(--border); flex-wrap:wrap}
 .gcal-row .qi{width:10px; height:10px; border-radius:3px; flex:none}
 .gcal-row .ti{flex:1; min-width:140px; font-weight:600; word-break:break-word}
@@ -233,11 +248,11 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 
 /* ---------- モーダル ---------- */
 .overlay{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.55); display:grid; place-items:center; padding:20px; overflow-y:auto}
-.modal{background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 64px rgba(0,0,0,.35); width:100%; max-width:600px; max-height:calc(100vh - 40px); display:flex; flex-direction:column; overflow:hidden}
+.modal{background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 64px rgba(0,0,0,.35); width:100%; max-width:600px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); display:flex; flex-direction:column; overflow:hidden}
 .modal-head{padding:18px 22px 14px; border-bottom:1px solid var(--grid); display:flex; align-items:center; gap:12px}
 .modal-head h3{font-size:16px; flex:1}
 .modal-body{padding:20px 22px; overflow-y:auto; flex:1}
-.modal-foot{padding:14px 22px; border-top:1px solid var(--grid); display:flex; gap:8px; align-items:center; background:var(--surface)}
+.modal-foot{padding:14px 22px; border-top:1px solid var(--grid); display:flex; gap:8px; align-items:center; background:var(--surface); flex-wrap:wrap}
 .modal-foot .spacer{margin-left:auto}
 .steps{display:flex; gap:4px; padding:0 22px 12px}
 .steps i{height:3px; flex:1; background:var(--grid); border-radius:2px}
@@ -255,8 +270,8 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 .opt .mk{width:18px; height:18px; border-radius:50%; border:1.5px solid var(--axis); flex:none; margin-top:2px; display:grid; place-items:center; font-size:10px}
 .opt[aria-pressed=true] .mk{background:var(--q2); border-color:var(--q2); color:#fff}
 .opt .mk.sq{border-radius:5px}
-.opt .ot{font-size:14px; font-weight:600; line-height:1.5}
-.opt .od{font-size:12px; color:var(--ink-muted); line-height:1.55; margin-top:2px}
+.opt .ot{display:block; font-size:14px; font-weight:600; line-height:1.5}
+.opt .od{display:block; font-size:12px; color:var(--ink-muted); line-height:1.55; margin-top:2px}
 
 .verdict{border-radius:12px; border:1px solid color-mix(in oklab,var(--qc) 35%,transparent); overflow:hidden; margin-bottom:16px}
 .verdict-top{padding:16px 18px; background:color-mix(in oklab,var(--qc) 12%,transparent); border-bottom:1px solid color-mix(in oklab,var(--qc) 25%,transparent)}
@@ -294,12 +309,28 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
   .shell{padding:0 14px 60px}
   .plan-grid{font-size:10px; grid-template-columns:40px repeat(var(--days),1fr)}
   .ob-mx{grid-template-columns:1fr}
+  input[type=text],input[type=number],textarea,select{font-size:16px}
+  .overlay{padding:10px}
+  .modal{max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px)}
+  .modal-head{padding:14px 16px 12px}
+  .steps{padding:0 16px 10px}
+  .modal-body{padding:16px}
+  .modal-foot{padding:12px 16px}
+  .modal-foot .btn-sm{padding:8px 12px; font-size:13px}
+  .tabs{width:100%}
+  .tab{flex:1; white-space:nowrap; padding:8px 4px; font-size:13px}
+  .weeknav{width:100%}
+  .memo-row input{flex:1 1 100%}
+  .memo-row .btn{flex:1}
+  .draft-row .da{margin-left:0; width:100%}
+  .draft-row .da .btn{flex:1; padding:8px 10px}
 }
 </style>
 </head>
 <body>
 
 <div id="tip" role="status" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <header class="top">
   <div class="top-in">
@@ -359,6 +390,16 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
       <button class="btn btn-primary" id="addTask">＋ タスクを追加して判定する</button>
       <button class="btn btn-sm btn-ghost" id="toggleDone">完了タスクを表示</button>
       <span class="muted" style="font-size:12.5px;margin-left:auto" id="taskCount"></span>
+    </div>
+
+    <div class="card sec drafts" id="draftsCard" style="margin-top:12px">
+      <h3>下書き<span class="cnt-badge" id="draftCount" hidden></span></h3>
+      <p class="lead" style="margin:0">判定の途中で閉じたタスクと、メモだけ残したタスクがここに残ります。まだ4つの領域には入っていません。</p>
+      <div class="memo-row">
+        <input type="text" id="memoInput" placeholder="タスクをメモ（判定はあとで）" enterkeyhint="done">
+        <button class="btn" id="memoSave">下書きに保存</button>
+      </div>
+      <div class="list" id="draftList" style="margin-top:12px"></div>
     </div>
 
     <div class="matrix-axis">
@@ -489,12 +530,13 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 
 <div class="overlay" id="wzOverlay" hidden>
   <div class="modal">
-    <div class="modal-head"><h3 id="wzTitle">タスクを判定する</h3><button class="iconbtn" id="wzClose">✕</button></div>
+    <div class="modal-head"><h3 id="wzTitle">タスクを判定する</h3><span class="wz-saved" id="wzSaved"></span><button class="iconbtn" id="wzClose" title="閉じる（下書きに残ります）">✕</button></div>
     <div class="steps" id="wzSteps"></div>
     <div class="modal-body" id="wzBody"></div>
     <div class="modal-foot">
       <button class="btn btn-sm" id="wzBack">戻る</button>
       <span class="spacer"></span>
+      <button class="btn btn-sm btn-ghost" id="wzDraft">下書き保存して閉じる</button>
       <button class="btn btn-primary btn-sm" id="wzNext">次へ</button>
     </div>
   </div>
@@ -674,7 +716,7 @@ function reason(a, sc){
 const KEY = 'sales-time-matrix-v1';
 const DEF = {
   settings:{ style:'shinki', weekly:40, targets:{q1:8,q2:20,q3:10,q4:2}, threshold:35, theme:'system', onboarded:false, showWeekend:false },
-  tasks:[], blocks:[], vows:{}, gcal:{}
+  tasks:[], blocks:[], vows:{}, gcal:{}, drafts:[]
 };
 let S = load();
 let view = 'matrix', weekOffset = 0, showDone = false, showTable = false;
@@ -863,7 +905,9 @@ function renderMatrix(){
 
   const ex = STYLES[S.settings.style].ex;
   const list = S.tasks.filter(x=>!x.dropped && (showDone || !x.done));
-  document.getElementById('taskCount').textContent = '未完了 ' + openTasks().length + ' 件 ／ 今週完了 ' + doneIn(week).length + ' 件';
+  document.getElementById('taskCount').textContent = '未完了 ' + openTasks().length + ' 件 ／ 今週完了 ' + doneIn(week).length + ' 件'
+    + (S.drafts.length ? ' ／ 下書き ' + S.drafts.length + ' 件' : '');
+  renderDrafts();
   document.getElementById('toggleDone').textContent = showDone ? '完了タスクを隠す' : '完了タスクを表示';
 
   document.getElementById('matrix').innerHTML = QKEYS.map(k=>{
@@ -916,15 +960,84 @@ function taskHTML(t){
    7. 判定ウィザード
    ========================================================================= */
 let wz = null;
-function openWizard(editId){
+function openWizard(editId, draftId){
   const t = editId ? S.tasks.find(x=>x.id===editId) : null;
-  wz = { step:0, editId:editId||null, a: t ? {...t.answers, title:t.title, estimate:t.estimate, note:t.note} : {contrib:[]}, result:null };
+  const d = (!editId && draftId) ? S.drafts.find(x=>x.id===draftId) : null;
+  wz = { step: d ? Math.max(0, Math.min(d.step||0, WZ.length)) : 0, editId:editId||null, draftId: d ? d.id : null,
+         a: d ? JSON.parse(JSON.stringify(d.a||{})) : t ? {...t.answers, title:t.title, estimate:t.estimate, note:t.note} : {contrib:[]}, result:null };
   if(!wz.a.contrib) wz.a.contrib = [];
-  document.getElementById('wzTitle').textContent = editId ? 'タスクを判定しなおす' : 'タスクを判定する';
+  if(d && !(wz.a.title||'').trim()) wz.step = 0;          // タスク名がまだなら最初の設問から
+  document.getElementById('wzTitle').textContent = editId ? 'タスクを判定しなおす' : d ? '下書きの続き' : 'タスクを判定する';
+  document.getElementById('wzDraft').hidden = !!editId;
+  document.getElementById('wzSaved').textContent = editId ? '' : d ? '下書きから再開' : '入力は自動で下書きに保存';
   document.getElementById('wzOverlay').hidden = false;
   drawWizard();
 }
-function closeWizard(){ document.getElementById('wzOverlay').hidden = true; wz = null; }
+// 閉じる。新規タスクの判定中なら、入力ずみの内容を下書きに残す。
+function closeWizard(opts){
+  const discard = !!(opts && opts.discard === true);
+  let kept = false;
+  if(wz && !discard && !wz.editId){ saveDraft(); kept = !!wz.draftId; }
+  clearTimeout(draftTimer);
+  document.getElementById('wzOverlay').hidden = true; wz = null;
+  if(kept){ toast('下書きに保存しました'); render(); }
+}
+
+/* ---- 下書き（判定の途中保存） ---- */
+let draftTimer = 0;
+function wzCapture(){                       // 入力欄の現在値を、検証なしで回答に写す
+  if(!wz) return;
+  const ti = document.getElementById('fTitle'), no = document.getElementById('fNote'), es = document.getElementById('fEst');
+  const body = document.getElementById('wzBody');
+  if(ti && body.contains(ti)){ wz.a.title = ti.value.trim(); wz.a.note = no ? no.value.trim() : (wz.a.note||''); }
+  if(es && body.contains(es)){ wz.a.estimate = Math.max(0, +es.value || 0); }
+}
+function wzHasContent(){
+  const a = wz.a;
+  return !!((a.title||'').trim() || (a.note||'').trim() || a.deadline || a.blocks || (a.contrib||[]).length || a.impact || a.owner || a.escape);
+}
+function saveDraft(){
+  if(!wz || wz.editId) return;
+  wzCapture();
+  if(!wzHasContent()) return;
+  let d = wz.draftId ? S.drafts.find(x=>x.id===wz.draftId) : null;
+  if(!d){ d = {id:uid(), created:Date.now()}; S.drafts.unshift(d); wz.draftId = d.id; }
+  d.a = JSON.parse(JSON.stringify(wz.a)); d.step = wz.step; d.updated = Date.now();
+  save();
+  const el = document.getElementById('wzSaved');
+  if(el) el.textContent = storageOK ? '下書きに保存ずみ ' + hhmm(d.updated) : '保存できていません';
+}
+function saveDraftSoon(){ clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 400); }
+const hhmm = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+function ago(ts){
+  const m = Math.floor((Date.now()-ts)/60000);
+  if(m < 1) return 'たった今';
+  if(m < 60) return m+'分前';
+  const h = Math.floor(m/60); if(h < 24) return h+'時間前';
+  return Math.floor(h/24)+'日前';
+}
+let toastTimer = 0;
+function toast(msg){
+  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+function renderDrafts(){
+  const ds = S.drafts.slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const cnt = document.getElementById('draftCount');
+  cnt.hidden = !ds.length; cnt.textContent = ds.length;
+  const total = WZ.length;
+  document.getElementById('draftList').innerHTML = ds.length ? ds.map(d=>{
+    const title = (d.a && d.a.title || '').trim();
+    const step = Math.max(0, Math.min(d.step||0, total));
+    const prog = step >= total ? '全問回答ずみ・登録待ち' : step === 0 ? 'タスク名を入力中' : total+'問中 '+step+'問まで回答';
+    return '<div class="draft-row" data-draft="'+d.id+'">'
+      + '<span class="dt'+(title?'':' untitled')+'">'+(title ? esc(title) : '（タスク名が未入力）')+'</span>'
+      + '<span class="dm"><span class="dprog"><i style="width:'+(step/total*100)+'%"></i></span>'+prog+'<span class="muted">· '+ago(d.updated||d.created)+'</span></span>'
+      + '<span class="da"><button class="btn btn-sm btn-primary" data-dact="resume">続きから</button>'
+      + '<button class="btn btn-sm btn-ghost" data-dact="del">削除</button></span>'
+      + '</div>';
+  }).join('') : '<p class="muted" style="font-size:12.5px">下書きはありません。</p>';
+}
 
 function drawWizard(){
   const total = WZ.length;
@@ -964,8 +1077,9 @@ function drawWizard(){
     if(arr.includes(v)) arr = arr.filter(x=>x!==v);
     else if(opt.excl) arr = [v];
     else { arr = arr.filter(x=>!s.opts.find(o=>o.v===x).excl); arr.push(v); if(arr.length > s.max) arr.shift(); }
-    wz.a[s.id] = arr; drawWizard();
+    wz.a[s.id] = arr; drawWizard(); saveDraft();
   }));
+  body.querySelectorAll('input,textarea').forEach(el=>el.addEventListener('input', saveDraftSoon));
   const ti = document.getElementById('fTitle'); if(ti) ti.focus();
 }
 
@@ -1003,7 +1117,7 @@ function nextStep(auto){
   } else {
     if(!wz.a[s.id]) return;
   }
-  wz.step++; drawWizard();
+  wz.step++; drawWizard(); saveDraft();
 }
 function commitWizard(){
   const {sc, r} = wz.result, a = wz.a;
@@ -1016,7 +1130,8 @@ function commitWizard(){
       answers, quadrant:sc.quadrant, reason:r, done:false, dropped:false, delegateTo:'',
       created:Date.now(), week:curWeek(), doneWeek:null });
   }
-  save(); closeWizard(); render();
+  if(wz.draftId) S.drafts = S.drafts.filter(x=>x.id!==wz.draftId);   // 登録できたら下書きは役目を終える
+  save(); closeWizard({discard:true}); render();
 }
 
 /* =========================================================================
@@ -1416,6 +1531,8 @@ function render(){
   document.getElementById('styleLabel').textContent = STYLES[S.settings.style].label;
   ['matrix','plan','review','settings'].forEach(v=>{ document.getElementById('view-'+v).hidden = (v!==view); });
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.view===view)));
+  document.querySelector('.tab[data-view="matrix"]').innerHTML = 'マトリックス'
+    + (S.drafts.length ? '<span class="cnt-badge" title="下書き '+S.drafts.length+' 件">'+S.drafts.length+'</span>' : '');
   if(view==='matrix') renderMatrix();
   if(view==='plan') renderPlan();
   if(view==='review') renderReview();
@@ -1432,7 +1549,33 @@ $('toggleDone').onclick = ()=>{ showDone = !showDone; render(); };
 $('toggleTable').onclick = ()=>{ showTable = !showTable; render(); };
 
 $('wzClose').onclick = closeWizard;
-$('wzBack').onclick = ()=>{ if(wz.step>0){ wz.step--; drawWizard(); } };
+$('wzBack').onclick = ()=>{ if(wz.step>0){ wzCapture(); wz.step--; drawWizard(); saveDraft(); } };
+$('wzDraft').onclick = ()=>{
+  wzCapture();
+  if(!wzHasContent()){ toast('まだ何も入力されていません'); return; }
+  closeWizard();
+};
+$('memoSave').onclick = ()=>{
+  const el = $('memoInput'), v = el.value.trim();
+  if(!v){ el.focus(); return; }
+  S.drafts.unshift({id:uid(), created:Date.now(), updated:Date.now(), step:1, a:{title:v, note:'', contrib:[]}});
+  save(); el.value = ''; toast('下書きに保存しました'); render();
+};
+$('memoInput').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); $('memoSave').click(); } });
+$('draftList').addEventListener('click', e=>{
+  const act = e.target.dataset.dact; if(!act) return;
+  const row = e.target.closest('[data-draft]'); if(!row) return;
+  const id = row.dataset.draft, d = S.drafts.find(x=>x.id===id); if(!d) return;
+  if(act === 'resume'){ openWizard(null, id); }
+  else if(act === 'del'){
+    const name = (d.a && d.a.title || '').trim() || '（タスク名が未入力）';
+    if(!confirm('下書き「'+name+'」を削除します。取り消せません。よろしいですか？')) return;
+    S.drafts = S.drafts.filter(x=>x.id!==id); save(); render();
+  }
+});
+// スマホでアプリを切り替えた・画面を閉じた瞬間にも、打ちかけの内容を残す
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') saveDraft(); });
+addEventListener('pagehide', ()=> saveDraft());
 $('wzNext').onclick = ()=> nextStep(false);
 $('dlClose').onclick = ()=>{ $('dlOverlay').hidden = true; };
 $('dlCopy').onclick = async ()=>{
