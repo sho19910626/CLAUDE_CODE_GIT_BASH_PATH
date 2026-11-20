@@ -69,6 +69,10 @@ input,select,textarea{font:inherit; color:inherit}
 .btn-ghost{background:transparent; border-color:transparent; color:var(--ink-2)}
 .btn-ghost:hover{background:var(--surface-2); border-color:var(--border)}
 .btn-sm{padding:4px 10px; font-size:12.5px; border-radius:6px}
+a.btn{display:inline-block; text-decoration:none; text-align:center}
+.cl-entry::before{content:'✳'; margin-right:5px; color:var(--q2i); font-weight:700}
+body.no-claude .cl-entry{display:none !important}
+.draft-tools{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
 .btn:disabled{opacity:.4; cursor:not-allowed}
 
 .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow)}
@@ -227,7 +231,7 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 .gcal-row .wh{color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap; font-size:12.5px}
 .gcal-row.added{opacity:.62}
 .gcal-row.added .ti{font-weight:500}
-.gbtn{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--surface); border-radius:7px; padding:5px 11px; font-size:12.5px; font-weight:650; white-space:nowrap}
+.gbtn{display:inline-flex; align-items:center; gap:6px; text-decoration:none; color:var(--ink); border:1px solid var(--border); background:var(--surface); border-radius:7px; padding:5px 11px; font-size:12.5px; font-weight:650; white-space:nowrap}
 .gbtn:hover{border-color:var(--axis); background:var(--surface-2)}
 .gbtn.done{color:var(--good); border-color:color-mix(in oklab,var(--good) 40%,transparent)}
 .plan-bar{display:flex; gap:14px; align-items:center; flex-wrap:wrap; padding:14px 18px}
@@ -388,6 +392,7 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
 
     <div style="display:flex;gap:8px;align-items:center;margin:22px 0 4px;flex-wrap:wrap">
       <button class="btn btn-primary" id="addTask">＋ タスクを追加して判定する</button>
+      <button class="btn btn-sm cl-entry" id="clWeek">今週の優先順位をClaudeに相談</button>
       <button class="btn btn-sm btn-ghost" id="toggleDone">完了タスクを表示</button>
       <span class="muted" style="font-size:12.5px;margin-left:auto" id="taskCount"></span>
     </div>
@@ -398,6 +403,10 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
       <div class="memo-row">
         <input type="text" id="memoInput" placeholder="タスクをメモ（判定はあとで）" enterkeyhint="done">
         <button class="btn" id="memoSave">下書きに保存</button>
+      </div>
+      <div class="draft-tools">
+        <button class="btn btn-sm cl-entry" id="clDump">Claudeとタスクを洗い出す</button>
+        <button class="btn btn-sm btn-ghost" id="imOpen">一覧を貼り付けてまとめて取り込む</button>
       </div>
       <div class="list" id="draftList" style="margin-top:12px"></div>
     </div>
@@ -468,6 +477,7 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
           <h3>チームに共有するサマリー</h3>
           <p class="lead" style="margin:0">上司・メンバーにそのまま貼れるテキストを書き出します。</p>
         </div>
+        <button class="btn btn-sm cl-entry" id="clReview">Claudeとふりかえる</button>
         <button class="btn btn-sm" id="copySummary">サマリーをコピー</button>
         <button class="btn btn-sm btn-ghost" id="dlSummary">.txt で保存</button>
       </div>
@@ -499,6 +509,7 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
         <label class="field"><span>テーマ</span>
           <select id="setTheme"><option value="system">システムに合わせる</option><option value="light">ライト</option><option value="dark">ダーク</option></select></label>
         <label class="field"><span>週の稼働時間（h）</span><input type="number" id="setWeekly" min="1" max="120" step="1"></label>
+        <label class="field" style="display:flex;gap:9px;align-items:flex-start"><input type="checkbox" id="setClaude" style="width:auto;margin-top:5px"><span style="margin:0">「Claudeに相談」ボタンを表示する<br><span class="muted" style="font-weight:400;font-size:12px">押すと、あなた自身のClaudeで新しいチャットが開きます。送る内容は毎回、事前に確認・編集できます。</span></span></label>
         <button class="btn btn-sm btn-ghost" id="replayOb">はじめの説明をもう一度見る</button>
       </div>
       <div class="card sec">
@@ -564,8 +575,40 @@ table.viz-table thead th{color:var(--ink-muted); font-size:12px; font-weight:650
     <div class="modal-foot">
       <button class="btn btn-sm btn-ghost" id="edDelete" style="color:var(--bad)">削除</button>
       <span class="spacer"></span>
+      <button class="btn btn-sm cl-entry" id="edClaude">Claudeに相談</button>
       <button class="btn btn-sm" id="edRewiz">判定をやり直す</button>
       <button class="btn btn-primary btn-sm" id="edSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="clOverlay" hidden>
+  <div class="modal" style="max-width:660px">
+    <div class="modal-head"><h3 id="clTitle">Claudeに相談</h3><button class="iconbtn" id="clClose">✕</button></div>
+    <div class="modal-body">
+      <p class="muted" style="font-size:12.5px;margin-bottom:10px">下の内容で、あなたのClaudeに新しいチャットを開きます。<b style="color:var(--ink-2)">送る前に自由に書き換えられます。</b>顧客名など外に出したくない情報は、ここで消すか伏せ字にしてください。</p>
+      <textarea id="clText" style="min-height:280px;font-size:13px;line-height:1.7"></textarea>
+      <p class="muted" style="font-size:12px;margin-top:8px" id="clNote"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" id="clCopy">内容をコピー</button>
+      <span class="spacer"></span>
+      <a class="btn btn-primary btn-sm" id="clOpen" target="_blank" rel="noopener" href="https://claude.ai/new">Claudeで開く</a>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="imOverlay" hidden>
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head"><h3>タスクをまとめて下書きに取り込む</h3><button class="iconbtn" id="imClose">✕</button></div>
+    <div class="modal-body">
+      <p class="muted" style="font-size:12.5px;margin-bottom:10px">1行に1タスクで貼り付けてください。Claudeが出した一覧をそのまま貼れます（行頭の「-」や番号は自動で外します）。取り込んだものは下書きに入り、領域の判定はあなたが1件ずつ行います。</p>
+      <textarea id="imText" style="min-height:220px;font-size:13px;line-height:1.7" placeholder="- A社 情シス部長に来期の投資計画をヒアリング&#10;- B社 更新見積の前倒し提示&#10;- 先月の失注3件の理由を言語化"></textarea>
+      <p class="muted tnum" style="font-size:12px;margin-top:8px" id="imCount"></p>
+    </div>
+    <div class="modal-foot">
+      <span class="spacer"></span>
+      <button class="btn btn-primary btn-sm" id="imGo">下書きに取り込む</button>
     </div>
   </div>
 </div>
@@ -715,7 +758,7 @@ function reason(a, sc){
    ========================================================================= */
 const KEY = 'sales-time-matrix-v1';
 const DEF = {
-  settings:{ style:'shinki', weekly:40, targets:{q1:8,q2:20,q3:10,q4:2}, threshold:35, theme:'system', onboarded:false, showWeekend:false },
+  settings:{ style:'shinki', weekly:40, targets:{q1:8,q2:20,q3:10,q4:2}, threshold:35, theme:'system', onboarded:false, showWeekend:false, claude:true },
   tasks:[], blocks:[], vows:{}, gcal:{}, drafts:[]
 };
 let S = load();
@@ -1099,7 +1142,9 @@ function drawVerdict(body, back, next){
     + '<div class="verdict-do"><b>やること：</b>'+q.act+'</div>'
     + '</div>'
     + (r.notes.length ? '<div class="alerts">' + r.notes.map(n=>'<div class="alert sev-mid"><div class="ic">→</div><div class="tx">'+n+'</div></div>').join('') + '</div>' : '')
-    + '<p class="muted" style="font-size:12.5px">判定：「'+esc(a.title||'（無題）')+'」／ 見積 '+h1(est||0)+'h</p>';
+    + '<p class="muted" style="font-size:12.5px">判定：「'+esc(a.title||'（無題）')+'」／ 見積 '+h1(est||0)+'h</p>'
+    + '<div style="margin-top:12px"><button class="btn btn-sm cl-entry" id="wzClaude">この判定をClaudeに検証してもらう</button></div>';
+  document.getElementById('wzClaude').onclick = ()=> openClaude('この判定をClaudeに検証してもらう', verdictPrompt(wz.a, sc, r));
 }
 
 function nextStep(auto){
@@ -1261,8 +1306,8 @@ function renderGcal(){
       + '<span class="qi" style="background:var(' + Q[t.quadrant].v + ')"></span>'
       + '<span class="ti">' + esc(t.title) + '</span>'
       + '<span class="wh">' + when + '（' + m.len + 'h）</span>'
-      + '<button class="gbtn' + (added?' done':'') + '" data-gk="' + esc(gkey(m)) + '">'
-      + (added ? '✓ 追加ずみ・もう一度開く' : '📅 カレンダーに追加') + '</button>'
+      + '<a class="gbtn' + (added?' done':'') + '" target="_blank" rel="noopener" href="' + esc(gcalUrl(m)) + '" data-gk="' + esc(gkey(m)) + '">'
+      + (added ? '✓ 追加ずみ・もう一度開く' : '📅 カレンダーに追加') + '</a>'
       + '</div>';
   }).join('');
 
@@ -1476,9 +1521,144 @@ function renderSettings(){
   document.getElementById('setThreshold').value = st.threshold;
   document.getElementById('setTheme').value = st.theme;
   document.getElementById('setWeekly').value = st.weekly;
+  document.getElementById('setClaude').checked = st.claude !== false;
 }
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', S.settings.theme);
+  document.body.classList.toggle('no-claude', S.settings.claude === false);
+}
+
+/* =========================================================================
+   11.5 Claudeに相談 — 使う人自身のClaudeに、内容入りのチャットを開く
+   （APIキーも設定も使わない。送る内容は必ず本人が確認してから開く）
+   ========================================================================= */
+const CLAUDE_NEW = 'https://claude.ai/new';
+const CLAUDE_URL_MAX = 6000;        // これを超える長さはURLに載せず、コピーして貼り付けてもらう
+
+function clIntro(){
+  return 'あなたは営業パーソンの時間の使い方を一緒に考えるコーチです。\n'
+    + '私は「時間管理マトリックス」（緊急度×重要度の4象限）でタスクを管理しています。\n'
+    + '・第1領域＝緊急かつ重要（火消し）\n'
+    + '・第2領域＝緊急でないが重要（来期の数字をつくる投資。誰も催促しないので放置されやすい）\n'
+    + '・第3領域＝緊急だが重要でない（他人の急ぎ。仕事をした感だけが出る）\n'
+    + '・第4領域＝どちらでもない（ムダ）\n'
+    + '私の営業スタイル：' + STYLES[S.settings.style].label + '\n'
+    + '一般論や励ましは要りません。下の私のデータに即して、具体的に、遠慮なく指摘してください。\n\n';
+}
+function clTaskLine(t){
+  const days = Math.floor((Date.now() - t.created)/86400000);
+  const flags = [];
+  if(t.answers && t.answers.escape === 'yes') flags.push('逃避だと自認');
+  if(t.answers && (t.answers.owner === 'deleg' || t.answers.owner === 'no')) flags.push('任せられる／断れると自認');
+  if(days >= 7) flags.push(days + '日放置');
+  return '  - ' + t.title + '（見積' + h1(t.estimate||0) + 'h' + (flags.length ? '・' + flags.join('・') : '') + '）';
+}
+function taskPrompt(t){
+  const q = Q[t.quadrant];
+  const ask = {
+    q1: 'これは火消しです。\n1. 今日、最短で片づける段取り\n2. 同じ火事を二度と起こさないために、どんな第2領域の仕事を、いつ、どれくらいやっておくべきだったか\nを具体的に教えてください。',
+    q2: '誰も催促してこないので、私はこれを放置しがちです。\n1. 最初の30分でやる具体的な一歩\n2. 全体を1〜2時間のブロックに分けた進め方\n3. やらなかった場合に3ヶ月後に起きること\nを教えてください。足りない情報があれば先に質問してください。',
+    q3: 'これは他人の急ぎで、私の成果には効きません。\n1. 人に任せる場合の頼み方\n2. 断る場合の、角が立たない文面（そのまま送れる形で）\n3. どうしても自分でやる場合に、15分で切り上げるやり方\nを提案してください。',
+    q4: 'これはムダだと判定されました。それでも私がこれをやりたくなるのはなぜか、本当は何から逃げているのかを、質問しながら一緒に突き止めてください。'
+  }[t.quadrant];
+  return clIntro()
+    + '【相談したいタスク】' + t.title + '\n'
+    + (t.note ? '【背景】' + t.note + '\n' : '')
+    + '【判定】' + q.no + '・' + q.name + '（' + q.axis + '）\n'
+    + (t.reason ? '【判定の理由】\n  緊急度：' + t.reason.urgency + '\n  重要度：' + t.reason.importance + '\n' : '')
+    + '【見積もり】' + h1(t.estimate||0) + 'h\n\n' + ask;
+}
+function verdictPrompt(a, sc, r){
+  const q = Q[sc.quadrant];
+  return clIntro()
+    + '次のタスクを、設問に答える形で判定しました。この判定を検証してください。\n\n'
+    + '【タスク】' + (a.title||'（無題）') + '\n'
+    + (a.note ? '【背景】' + a.note + '\n' : '')
+    + '【私の回答から出た根拠】\n  緊急度：' + r.urgency + '\n  重要度：' + r.importance + '\n'
+    + '【判定結果】' + q.no + '・' + q.name + '（' + q.axis + '）\n\n'
+    + '1. 私の回答に、自分への甘さ・矛盾・思い込みがあれば指摘してください。特に「重要」の根拠が弱くないか、「自分にしかできない」が本当かを疑ってください。\n'
+    + '2. 判断に必要な情報が足りなければ、先に質問してください。\n'
+    + '3. 最後に、あなたならどの領域に置くかを理由つきで答えてください。';
+}
+function weekPrompt(){
+  const week = curWeek(), a = actualByQuad(week), t = S.settings.targets, pl = plannedByQuad(week);
+  const open = openTasks();
+  let body = '【今週（' + weekLabel() + '）の未完了タスク】\n';
+  QKEYS.forEach(k=>{
+    const ts = open.filter(x=>x.quadrant===k);
+    body += Q[k].no + '・' + Q[k].name + '（' + ts.length + '件）\n' + (ts.length ? ts.map(clTaskLine).join('\n') + '\n' : '  - なし\n');
+  });
+  if(S.drafts.length) body += 'まだ判定していない下書き（' + S.drafts.length + '件）\n' + S.drafts.map(d=>'  - ' + ((d.a && d.a.title) || '（無題）')).join('\n') + '\n';
+  body += '\n【週の目標時間】' + QKEYS.map(k=>Q[k].no + ' ' + h1(t[k]) + 'h').join(' ／ ') + '\n'
+        + '【今週ここまでの実績】' + QKEYS.map(k=>Q[k].no + ' ' + h1(a[k]) + 'h').join(' ／ ') + '\n'
+        + '【カレンダーに予約ずみの第2領域】' + h1(pl.q2) + 'h\n\n';
+  return clIntro() + body
+    + '1. 今週、最初にカレンダーへ置くべき第2領域を3つまで選び、それぞれ何時間確保すべきか\n'
+    + '2. やめる・任せる・断るべきタスク\n'
+    + '3. 第1領域のうち、同じ火事を繰り返さないために打つべき手\n'
+    + 'を、私のタスク名を使って具体的に答えてください。';
+}
+function reviewPrompt(){
+  const w = curWeek(), a = actualByQuad(w), pl = plannedByQuad(w);
+  const q2done = doneIn(w).filter(x=>x.quadrant==='q2').reduce((s,x)=>s+(+x.actual||0),0);
+  return clIntro()
+    + '今週のふりかえりです。\n\n' + buildSummary(w, a, S.settings.targets, pl, q2done) + '\n\n'
+    + '1. この数字から読み取れる、私の「逃げ方」のパターン\n'
+    + '2. 来週かならず確保する第2領域を3つ（私のタスクから選ぶか、足りなければ提案）\n'
+    + '3. それを守るために、カレンダー上で具体的にやるべきこと\n'
+    + 'を、数字を引用しながら厳しめに指摘してください。';
+}
+function dumpPrompt(){
+  return 'あなたは営業パーソンのタスク整理を手伝うアシスタントです。\n'
+    + '私の営業スタイル：' + STYLES[S.settings.style].label + '\n\n'
+    + '私の頭の中にあるタスクを、全部外に出したいです。1問ずつ質問して引き出してください。\n'
+    + '（進行中の案件／返していない連絡／気になっている顧客／後回しにしていること／上司や社内から頼まれていること／本当はやるべきだと思っているのに手をつけていないこと）\n\n'
+    + '5〜8問で切り上げ、最後に、出てきたタスクを次の形式だけで出力してください。\n'
+    + '- タスク名（誰に・何を が分かる粒度。1行1件、40字以内）\n\n'
+    + 'この一覧は、そのまま私のタスク管理ツールに貼り付けて取り込みます。重要かどうかの判定はツールの中で私が自分でやるので、分類や優先順位づけはしないでください。';
+}
+
+function clSync(){
+  const text = document.getElementById('clText').value;
+  const url = CLAUDE_NEW + '?q=' + encodeURIComponent(text);
+  const long = url.length > CLAUDE_URL_MAX;
+  const a = document.getElementById('clOpen');
+  a.href = long ? CLAUDE_NEW : url;
+  a.dataset.long = long ? '1' : '';
+  a.textContent = long ? 'コピーしてClaudeを開く' : 'Claudeで開く';
+  document.getElementById('clNote').textContent = long
+    ? '内容が長いため、ボタンを押すと自動でコピーしてからClaudeを開きます。開いた画面の入力欄に貼り付けて送信してください。'
+    : 'ボタンを押すと、この内容が入力された状態でClaudeが開きます。Claudeにログインしている必要があります。';
+}
+function openClaude(title, text){
+  document.getElementById('clTitle').textContent = title;
+  document.getElementById('clText').value = text;
+  document.getElementById('clCopy').textContent = '内容をコピー';
+  clSync();
+  document.getElementById('clOverlay').hidden = false;
+}
+async function copyText(text, fallbackEl){
+  try{ await navigator.clipboard.writeText(text); return true; }
+  catch(e){ try{ fallbackEl.select(); return document.execCommand('copy'); }catch(e2){ return false; } }
+}
+
+/* ---- 一覧の貼り付け取り込み ---- */
+function parseTaskLines(txt){
+  // 「-」「*」は後ろに空白があるときだけ箇条書きとみなす（**太字** を誤って拾わないため）
+  const BUL = /^\s*(?:[-*]\s+|[・•●◦▪■□☐✓✔]\s*|\d+[.)．）、]\s*|\[[ xX]?\]\s*)/;
+  const lines = String(txt||'').split(/\r?\n/).map(l=>l.replace(/\u3000/g,' '));
+  const useBulletsOnly = lines.some(l=>BUL.test(l));     // 箇条書きがあれば、前置きや結びの文は拾わない
+  const seen = new Set(S.drafts.map(d=>((d.a && d.a.title)||'').trim()).concat(S.tasks.filter(t=>!t.done && !t.dropped).map(t=>t.title)));
+  const out = [];
+  lines.forEach(l=>{
+    if(useBulletsOnly && !BUL.test(l)) return;
+    let v = l.replace(BUL,'').replace(BUL,'').replace(/\*\*/g,'').replace(/`/g,'').trim();
+    if(v.length < 2) return;
+    if(v.length > 120) v = v.slice(0,120);
+    if(seen.has(v)) return;
+    seen.add(v); out.push(v);
+  });
+  return out;
 }
 
 /* =========================================================================
@@ -1561,6 +1741,34 @@ $('memoSave').onclick = ()=>{
   S.drafts.unshift({id:uid(), created:Date.now(), updated:Date.now(), step:1, a:{title:v, note:'', contrib:[]}});
   save(); el.value = ''; toast('下書きに保存しました'); render();
 };
+$('clWeek').onclick = ()=> openClaude('今週の優先順位をClaudeに相談', weekPrompt());
+$('clDump').onclick = ()=> openClaude('Claudeとタスクを洗い出す', dumpPrompt());
+$('clReview').onclick = ()=> openClaude('Claudeとふりかえる', reviewPrompt());
+$('edClaude').onclick = ()=>{ const t = S.tasks.find(x=>x.id===edId); if(t) openClaude('このタスクをClaudeに相談', taskPrompt(t)); };
+$('clText').addEventListener('input', clSync);
+$('clClose').onclick = ()=>{ $('clOverlay').hidden = true; };
+$('clCopy').onclick = async ()=>{
+  const okc = await copyText($('clText').value, $('clText'));
+  $('clCopy').textContent = okc ? 'コピーしました' : 'コピーできませんでした';
+  setTimeout(()=>{ $('clCopy').textContent = '内容をコピー'; }, 1800);
+};
+$('clOpen').addEventListener('click', ()=>{
+  if($('clOpen').dataset.long) copyText($('clText').value, $('clText')).then(okc=>toast(okc ? 'コピーしました。Claudeの入力欄に貼り付けてください' : 'コピーできませんでした。「内容をコピー」を使ってください'));
+});
+$('imOpen').onclick = ()=>{ $('imText').value = ''; $('imCount').textContent = ''; $('imOverlay').hidden = false; $('imText').focus(); };
+$('imClose').onclick = ()=>{ $('imOverlay').hidden = true; };
+$('imText').addEventListener('input', ()=>{
+  const k = parseTaskLines($('imText').value).length;
+  $('imCount').textContent = k ? k + ' 件を下書きに取り込みます（すでにある同名のタスクは除外）' : '';
+});
+$('imGo').onclick = ()=>{
+  const items = parseTaskLines($('imText').value);
+  if(!items.length){ toast('取り込めるタスクがありません'); return; }
+  const now = Date.now();
+  items.slice().reverse().forEach((v,i)=> S.drafts.unshift({id:uid(), created:now, updated:now+i, step:1, a:{title:v, note:'', contrib:[]}}));
+  save(); $('imOverlay').hidden = true; toast(items.length + ' 件を下書きに取り込みました'); render();
+};
+$('setClaude').onchange = e=>{ S.settings.claude = e.target.checked; save(); render(); };
 $('memoInput').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); $('memoSave').click(); } });
 $('draftList').addEventListener('click', e=>{
   const act = e.target.dataset.dact; if(!act) return;
@@ -1634,9 +1842,8 @@ $('gcalPanel').addEventListener('click', e=>{
   const btn = e.target.closest('[data-gk]'); if(!btn) return;
   const key = btn.dataset.gk;
   const m = mergedBlocks(curWeek()).find(x=>gkey(x)===key); if(!m) return;
-  const url = gcalUrl(m); if(!url) return;
-  window.open(url, '_blank', 'noopener');
-  S.gcal[key] = Date.now(); save(); renderGcal();
+  // リンク自体がGoogleカレンダーを開く。ここでは追加ずみの記録だけ行う。
+  S.gcal[key] = Date.now(); save(); setTimeout(renderGcal, 0);
 });
 $('icsBtn').onclick = toICS;
 
@@ -1710,11 +1917,13 @@ $('clearBtn').onclick = ()=>{
 
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape'){
-    if(!$('dlOverlay').hidden) $('dlOverlay').hidden = true;
+    if(!$('clOverlay').hidden) $('clOverlay').hidden = true;
+    else if(!$('imOverlay').hidden) $('imOverlay').hidden = true;
+    else if(!$('dlOverlay').hidden) $('dlOverlay').hidden = true;
     else if(!$('wzOverlay').hidden) closeWizard();
     else if(!$('edOverlay').hidden) closeEdit();
   }
-  if(e.key === 'Enter' && !$('wzOverlay').hidden && !e.isComposing){
+  if(e.key === 'Enter' && !$('wzOverlay').hidden && $('clOverlay').hidden && !e.isComposing){
     const tag = (document.activeElement.tagName||'').toLowerCase();
     if(tag !== 'textarea'){ e.preventDefault(); nextStep(false); }
   }
@@ -1723,7 +1932,7 @@ document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('mousedown',
   if(e.target !== o) return;
   if(o.id === 'wzOverlay') closeWizard();
   if(o.id === 'edOverlay') closeEdit();
-  if(o.id === 'dlOverlay') o.hidden = true;
+  if(o.id === 'dlOverlay' || o.id === 'clOverlay' || o.id === 'imOverlay') o.hidden = true;
 }));
 
 /* ---- 起動 ---- */
